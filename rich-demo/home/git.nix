@@ -18,7 +18,7 @@
 
     # TODO replace with your own name & email
     userName = username;
-    userEmail = useremail;
+    # userEmail = useremail;
 
     includes = [
       {

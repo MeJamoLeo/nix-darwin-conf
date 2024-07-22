@@ -19,6 +19,7 @@
     aria2 # A lightweight multi-protocol & multi-source command-line download utility
     socat # replacement of openbsd-netcat
     nmap # A utility for network discovery and security auditing
+    lazygit
 
     # misc
     cowsay
@@ -44,20 +45,20 @@
       vimAlias = true;
     };
 
-    # A modern replacement for ‘ls’
-    # useful in bash/zsh prompt, not in nushell.
-    exa = {
-      enable = true;
-      enableAliases = true;
-      git = true;
-      icons = true;
-    };
+    # # A modern replacement for ‘ls’
+    # # useful in bash/zsh prompt, not in nushell.
+    # exa = {
+    #   enable = true;
+    #   enableAliases = true;
+    #   git = true;
+    #   icons = true;
+    # };
 
-    # skim provides a single executable: sk.
-    # Basically anywhere you would want to use grep, try sk instead.
-    skim = {
-      enable = true;
-      enableBashIntegration = true;
-    };
+    # # skim provides a single executable: sk.
+    # # Basically anywhere you would want to use grep, try sk instead.
+    # skim = {
+    #   enable = true;
+    #   enableBashIntegration = true;
+    # };
   };
 }

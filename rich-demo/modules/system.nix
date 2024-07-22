@@ -170,27 +170,27 @@
   ];
 
   # Set your time zone.
-  time.timeZone = "Asia/shanghai";
+  # time.timeZone = "Asia/shanghai";
 
   # Fonts
-  fonts = {
-    packages = with pkgs; [
-      # icon fonts
-      material-design-icons
-      font-awesome
+  # fonts = {
+  #   packages = with pkgs; [
+  #     # icon fonts
+  #     material-design-icons
+  #     font-awesome
 
-      # nerdfonts
-      # https://github.com/NixOS/nixpkgs/blob/nixos-24.05/pkgs/data/fonts/nerdfonts/shas.nix
-      (nerdfonts.override {
-        fonts = [
-          # symbols icon only
-          "NerdFontsSymbolsOnly"
-          # Characters
-          "FiraCode"
-          "JetBrainsMono"
-          "Iosevka"
-        ];
-      })
-    ];
-  };
+  #     # nerdfonts
+  #     # https://github.com/NixOS/nixpkgs/blob/nixos-24.05/pkgs/data/fonts/nerdfonts/shas.nix
+  #     (nerdfonts.override {
+  #       fonts = [
+  #         # symbols icon only
+  #         "NerdFontsSymbolsOnly"
+  #         # Characters
+  #         "FiraCode"
+  #         "JetBrainsMono"
+  #         "Iosevka"
+  #       ];
+  #     })
+  #   ];
+  # };
 }
