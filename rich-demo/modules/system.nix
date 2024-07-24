@@ -21,17 +21,17 @@
     '';
 
     defaults = {
-      # menuExtraClock.Show24Hour = true;  # show 24 hour clock
+      menuExtraClock.Show24Hour = true;  # show 24 hour clock
       
       # customize dock
       dock = {
         autohide = true;
         show-recents = false;  # disable recent apps
 
-        # customize Hot Corners(触发角, 鼠标移动到屏幕角落时触发的动作)
-        wvous-tl-corner = 2;  # top-left - Mission Control
-        wvous-tr-corner = 13;  # top-right - Lock Screen
-        wvous-bl-corner = 3;  # bottom-left - Application Windows
+        # customize Hot Corners
+        wvous-tl-corner = 1;  # top-left - Disabled
+        wvous-tr-corner = 2;  # top-right - Mission Control
+        wvous-bl-corner = 1;  # bottom-left - Disabled
         wvous-br-corner = 4;  # bottom-right - Desktop
       };
 
@@ -47,8 +47,7 @@
 
       # customize trackpad
       trackpad = {
-        # tap - 轻触触摸板, click - 点击触摸板
-        Clicking = true;  # enable tap to click(轻触触摸板相当于点击)
+        Clicking = true;  # enable tap to click
         TrackpadRightClick = true;  # enable two finger right click
         TrackpadThreeFingerDrag = true;  # enable three finger drag
       };
@@ -69,13 +68,13 @@
         # sets how long it takes before it starts repeating.
         InitialKeyRepeat = 15;  # normal minimum is 15 (225 ms), maximum is 120 (1800 ms)
         # sets how fast it repeats once it starts. 
-        KeyRepeat = 3;  # normal minimum is 2 (30 ms), maximum is 120 (1800 ms)
+        KeyRepeat = 2;  # normal minimum is 2 (30 ms), maximum is 120 (1800 ms)
 
         NSAutomaticCapitalizationEnabled = false;  # disable auto capitalization(自动大写)
-        NSAutomaticDashSubstitutionEnabled = false;  # disable auto dash substitution(智能破折号替换)
+        NSAutomaticDashSubstitutionEnabled = true;  # disable auto dash substitution(智能破折号替换)
         NSAutomaticPeriodSubstitutionEnabled = false;  # disable auto period substitution(智能句号替换)
         NSAutomaticQuoteSubstitutionEnabled = false;  # disable auto quote substitution(智能引号替换)
-        NSAutomaticSpellingCorrectionEnabled = false;  # disable auto spelling correction(自动拼写检查)
+        NSAutomaticSpellingCorrectionEnabled = true;  # disable auto spelling correction(自动拼写检查)
         NSNavPanelExpandedStateForSaveMode = true;  # expand save panel by default(保存文件时的路径选择/文件名输入页)
         NSNavPanelExpandedStateForSaveMode2 = true;
       };
@@ -148,8 +147,8 @@
       enableKeyMapping = true;  # enable key mapping so that we can use `option` as `control`
 
       # NOTE: do NOT support remap capslock to both control and escape at the same time
-      remapCapsLockToControl = false;  # remap caps lock to control, useful for emac users
-      remapCapsLockToEscape  = true;   # remap caps lock to escape, useful for vim users
+      remapCapsLockToControl = true;  # remap caps lock to control, useful for emac users
+      remapCapsLockToEscape  = false;   # remap caps lock to escape, useful for vim users
 
       # swap left command and left alt 
       # so it matches common keyboard layout: `ctrl | command | alt`
@@ -172,25 +171,4 @@
   # Set your time zone.
   # time.timeZone = "Asia/shanghai";
 
-  # Fonts
-  # fonts = {
-  #   packages = with pkgs; [
-  #     # icon fonts
-  #     material-design-icons
-  #     font-awesome
-
-  #     # nerdfonts
-  #     # https://github.com/NixOS/nixpkgs/blob/nixos-24.05/pkgs/data/fonts/nerdfonts/shas.nix
-  #     (nerdfonts.override {
-  #       fonts = [
-  #         # symbols icon only
-  #         "NerdFontsSymbolsOnly"
-  #         # Characters
-  #         "FiraCode"
-  #         "JetBrainsMono"
-  #         "Iosevka"
-  #       ];
-  #     })
-  #   ];
-  # };
 }
