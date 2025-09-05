@@ -15,9 +15,9 @@
   #
   # Related Discussion: https://discourse.nixos.org/t/darwin-again/29331
   environment.systemPackages = with pkgs; [
-    neovim
-    git
-    just # use Justfile to simplify nix-darwin's commands 
+    neovim     # Terminal-based text editor
+    git        # Version control system
+    just       # Command runner for project-specific commands (use Justfile to simplify nix-darwin's commands)
   ];
   environment.variables.EDITOR = "nvim";
 
@@ -42,62 +42,58 @@
     masApps = {
       # TODO Feel free to add your favorite apps here.
 
-      Xcode = 497799835;
-      DisplayMenu = 549083868;
+      Xcode = 497799835;       # Apple's IDE for macOS/iOS development
+      DisplayMenu = 549083868; # Menu bar tool for display management
     };
 
     taps = [
       "homebrew/services"
     ];
 
-    # `brew install`
-    # TODO Feel free to add your favorite apps here.
+    # `brew install` - Command line tools
     brews = [
-      "wget" # download tool
-      "curl" # no not install curl via nixpkgs, it's not working well on macOS!
-      # "aria2" # download tool
-      # "httpie" # http client
-      "neovim"
-      "ollama" # Run Llama 3.3, DeepSeek-R1, Phi-4, Mistral, Gemma 2, and other models, locally.
-      "direnv" # direnv is a tool that helps you manage your environment variables.
+      "wget"    # Download tool
+      "curl"    # HTTP client (don't install via nixpkgs, not working well on macOS!)
+      "neovim"  # Terminal-based text editor
+      "direnv"  # Tool for managing environment variables per directory
+      "texlive" # LaTeX distribution
     ];
 
-    # `brew install --cask`
-    # TODO Feel free to add your favorite apps here.
+    # `brew install --cask` - GUI applications
     casks = [
-      "firefox"
-      "google-chrome"
-      "visual-studio-code"
-      "lm-studio"
-      "brave-browser"
-      "firefox@developer-edition"
-      "vivaldi"
-      "zoom"
-      "obs"
-      "steam"
-
-
-      # IM & audio & remote desktop & meeting
-      # "telegram"
-      "discord"
-
-      "anki"
-      "iina" # video player
-      "raycast" # (HotKey: alt/option + space)search, caculate and run scripts(with many plugins)
-      "stats" # beautiful system monitor
-      "gyazo"
-      "cursor"
-      "amethyst"
+      # Browsers
+      "google-chrome"            # Web browser
+      "brave-browser"            # Privacy-focused web browser
 
       # Development
-      # "insomnia" # REST client
-      # "wireshark" # network analyzer
+      "visual-studio-code"       # Code editor
+      "cursor"                   # AI-powered code editor
+      
+      # Communication & Meetings
+      "discord"                  # Chat and voice communication platform
+      "zoom"                     # Video conferencing
 
-      "obsidian"
-      "dynalist"
-      "caffeine"
-      "utm"
-      "notion"
+      # Media
+      "obs"                      # Open Broadcaster Software for recording/streaming
+      "iina"                     # Modern video player
+      "steam"                    # Gaming platform
+
+      # Productivity & Organization
+      "obsidian"                 # Knowledge base that works on top of markdown files
+      "dynalist"                 # Outliner and list making app
+      "notion"                   # All-in-one workspace
+      "anki"                     # Spaced repetition flashcard program
+      
+      # Utilities
+      "raycast"                  # Productivity tool (HotKey: alt/option + space)
+      "stats"                    # System monitor for the menu bar
+      "gyazo"                    # Screenshot and sharing tool
+      "amethyst"                 # Tiling window manager
+      "whatsapp"                   # WhatsApp desktop client
+      "caffeine"                 # Prevent Mac from sleeping
+
+      # LaTeX
+      "mactex"  # MacTeXのGUIインストーラー
     ];
   };
 }
