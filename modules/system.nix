@@ -103,6 +103,11 @@
           # Add a context menu item for showing the Web Inspector in web views
           WebKitDeveloperExtras = true;
         };
+        # アクセシビリティ設定
+        "com.apple.universalaccess" = {
+          reduceMotion = true;  # 動きを減らす設定を有効化
+        };
+
         "com.apple.finder" = {
           ShowExternalHardDrivesOnDesktop = true;
           ShowHardDrivesOnDesktop = true;
@@ -179,7 +184,7 @@
   ];
 
   # Set your time zone.
-  time.timeZone = "Asia/Tokyo";
+  time.timeZone = "America/Chicago";
 
   # Fonts
   fonts = {
