@@ -103,49 +103,58 @@
           # Add a context menu item for showing the Web Inspector in web views
           WebKitDeveloperExtras = true;
         };
-        # アクセシビリティ設定
-        "com.apple.universalaccess" = {
-          reduceMotion = true;  # 動きを減らす設定を有効化
-        };
+        ".com.apple" = {
+          universalaccess = {
+            reduceMotion = true;  # 動きを減らす設定を有効化
+          };
 
-        "com.apple.finder" = {
-          ShowExternalHardDrivesOnDesktop = true;
-          ShowHardDrivesOnDesktop = true;
-          ShowMountedServersOnDesktop = true;
-          ShowRemovableMediaOnDesktop = true;
-          _FXSortFoldersFirst = true;
-          # When performing a search, search the current folder by default
-          FXDefaultSearchScope = "SCcf";
+          finder = {
+            ShowExternalHardDrivesOnDesktop = true;
+            ShowHardDrivesOnDesktop = true;
+            ShowMountedServersOnDesktop = true;
+            ShowRemovableMediaOnDesktop = true;
+            _FXSortFoldersFirst = true;
+            # When performing a search, search the current folder by default
+            FXDefaultSearchScope = "SCcf";
+          };
+
+          desktopservices = {
+            # Avoid creating .DS_Store files on network or USB volumes
+            DSDontWriteNetworkStores = true;
+            DSDontWriteUSBStores = true;
+          };
+
+          spaces = {
+            "spans-displays" = 0; # Display have seperate spaces
+          };
+
+          WindowManager = {
+            EnableStandardClickToShowDesktop = 0; # Click wallpaper to reveal desktop
+            StandardHideDesktopIcons = 0; # Show items on desktop
+            HideDesktop = 0; # Do not hide items on desktop & stage manager
+            StageManagerHideWidgets = 0;
+            StandardHideWidgets = 0;
+          };
+
+          screensaver = {
+            # Require password immediately after sleep or screen saver begins
+            askForPassword = 1;
+            askForPasswordDelay = 0;
+          };
+
+          screencapture = {
+            location = "~/Desktop";
+            type = "png";
+          };
+
+          AdLib = {
+            allowApplePersonalizedAdvertising = false;
+          };
+
+          ImageCapture = {
+            disableHotPlug = true; # Prevent Photos from opening automatically when devices are plugged in
+          };
         };
-        "com.apple.desktopservices" = {
-          # Avoid creating .DS_Store files on network or USB volumes
-          DSDontWriteNetworkStores = true;
-          DSDontWriteUSBStores = true;
-        };
-        "com.apple.spaces" = {
-          "spans-displays" = 0; # Display have seperate spaces
-        };
-        "com.apple.WindowManager" = {
-          EnableStandardClickToShowDesktop = 0; # Click wallpaper to reveal desktop
-          StandardHideDesktopIcons = 0; # Show items on desktop
-          HideDesktop = 0; # Do not hide items on desktop & stage manager
-          StageManagerHideWidgets = 0;
-          StandardHideWidgets = 0;
-        };
-        "com.apple.screensaver" = {
-          # Require password immediately after sleep or screen saver begins
-          askForPassword = 1;
-          askForPasswordDelay = 0;
-        };
-        "com.apple.screencapture" = {
-          location = "~/Desktop";
-          type = "png";
-        };
-        "com.apple.AdLib" = {
-          allowApplePersonalizedAdvertising = false;
-        };
-        # Prevent Photos from opening automatically when devices are plugged in
-        "com.apple.ImageCapture".disableHotPlug = true;
       };
 
       loginwindow = {
