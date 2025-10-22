@@ -52,11 +52,11 @@
 
     # `brew install` - Command line tools
     brews = [
-      "wget"    # Download tool
       "curl"    # HTTP client (don't install via nixpkgs, not working well on macOS!)
-      "neovim"  # Terminal-based text editor
       "direnv"  # Tool for managing environment variables per directory
+      "neovim"  # Terminal-based text editor
       "texlive" # LaTeX distribution
+      "wget"    # Download tool
     ];
 
     # `brew install --cask` - GUI applications
@@ -66,8 +66,9 @@
       "brave-browser"            # Privacy-focused web browser
 
       # Development
-      "visual-studio-code"       # Code editor
       "cursor"                   # AI-powered code editor
+      "cursor-cli"               # Cursor CLI wrapper
+      "visual-studio-code"       # Code editor
       
       # Communication & Meetings
       "discord"                  # Chat and voice communication platform
