@@ -32,6 +32,9 @@
 
     # productivity
     glow # markdown previewer in terminal
+
+    # compilers
+    gcc
   ];
 
   programs = {
