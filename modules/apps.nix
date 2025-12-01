@@ -40,9 +40,9 @@
     # For details, see https://github.com/mas-cli/mas
     masApps = {
       # TODO Feel free to add your favorite apps here.
-
-      Xcode = 497799835; # Apple's IDE for macOS/iOS development
       DisplayMenu = 549083868; # Menu bar tool for display management
+      Klack = 6446206067; # Mechanical keyboard sound effects
+      Xcode = 497799835; # Apple's IDE for macOS/iOS development
     };
 
     taps = [
