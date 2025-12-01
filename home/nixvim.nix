@@ -1,173 +1,197 @@
-{pkgs, ...}: {
+{pkgs, ...}: let
+  diagnosticFloatAutocmd = ''
+    vim.api.nvim_create_autocmd("CursorHold", {
+      callback = function()
+        vim.diagnostic.open_float(nil, { focusable = false, scope = "cursor" })
+      end,
+    })
+  '';
+
+  listchars = {
+    eol = "↲";
+    extends = "»";
+    nbsp = "%";
+    precedes = "«";
+    tab = "»-";
+    trail = "-";
+  };
+
+  cmpMappings = {
+    "<C-Space>" = "cmp.mapping.complete()";
+    "<C-d>" = "cmp.mapping.scroll_docs(-4)";
+    "<C-e>" = "cmp.mapping.close()";
+    "<C-f>" = "cmp.mapping.scroll_docs(4)";
+    "<C-j>" = "cmp.mapping.select_next_item()";
+    "<C-k>" = "cmp.mapping.select_prev_item()";
+    "<C-n>" = "cmp.mapping.select_next_item()";
+    "<C-p>" = "cmp.mapping.select_prev_item()";
+    "<CR>" = "cmp.mapping.confirm({ behavior = cmp.ConfirmBehavior.Insert, select = true })";
+    "<Down>" = "cmp.mapping.select_next_item()";
+    "<Up>" = "cmp.mapping.select_prev_item()";
+  };
+
+  cmpSources = [
+    {name = "buffer";}
+    {name = "nvim_lsp";}
+    {name = "path";}
+  ];
+
+  lspServers = {
+    bashls.enable = true;
+    clangd.enable = true;
+    dockerls.enable = true;
+    lua_ls = {
+      enable = true;
+      settings.telemetry.enable = false;
+    };
+    marksman.enable = true;
+    nixd.enable = true;
+    pyright.enable = true;
+  };
+
+  nixvimKeymaps = [
+    {
+      action = "<esc>";
+      key = "jj";
+      mode = "i";
+    }
+    {
+      action = ":set nohlsearch<CR>";
+      key = "<esc><esc>";
+      mode = "n";
+    }
+    {
+      action = "<CMD>LazyGit<CR>";
+      key = "<leader>lg";
+      mode = "n";
+      options.desc = "[L]azy[G]it";
+    }
+    {
+      action = "<CMD>SmartResizeMode<CR>";
+      key = "<C-e> ";
+      mode = "n";
+      options.desc = "Resize Mode";
+    }
+    {
+      action = "<CMD>SmartSwapLeft<CR>";
+      key = "<C-e>h";
+      mode = "n";
+      options.desc = "Swap Left";
+    }
+    {
+      action = "<CMD>SmartSwapDown<CR>";
+      key = "<C-e>j";
+      mode = "n";
+      options.desc = "Swap Down";
+    }
+    {
+      action = "<CMD>SmartSwapUp<CR>";
+      key = "<C-e>k";
+      mode = "n";
+      options.desc = "Swap Up";
+    }
+    {
+      action = "<CMD>SmartSwapRight<CR>";
+      key = "<C-e>l";
+      mode = "n";
+      options.desc = "Swap Right";
+    }
+    {
+      action = "<CMD>Telescope file_browser<CR>";
+      key = "<leader>e";
+      mode = "n";
+      options.desc = "File Browser";
+    }
+  ];
+
+  telescopeKeymaps = {
+    "<leader>fb" = {
+      action = "buffers";
+      mode = "n";
+      options.desc = "[F]ind [B]uffers";
+    };
+    "<leader>fc" = {
+      action = "colorscheme";
+      mode = "n";
+      options.desc = "[F]ind [C]olorscheme";
+    };
+    "<leader>ff" = {
+      action = "find_files";
+      mode = "n";
+      options.desc = "[F]ind [F]iles";
+    };
+    "<leader>fg" = {
+      action = "git_files";
+      mode = "n";
+      options.desc = "[F]ind [G]it files";
+    };
+    "<leader>fw" = {
+      action = "grep_string";
+      mode = "n";
+      options.desc = "[F]ind current [W]ord";
+    };
+  };
+
+  treesitterGrammars = with pkgs.vimPlugins.nvim-treesitter.builtGrammars; [
+    bash
+    commonlisp
+    cpp
+    json
+    lua
+    make
+    markdown
+    nix
+    regex
+    toml
+    vim
+    vimdoc
+    xml
+    yaml
+  ];
+in {
   programs.nixvim = {
+    clipboard.providers.pbcopy.enable = true;
+    colorschemes.gruvbox = {
+      autoLoad = true;
+      enable = true;
+    };
     defaultEditor = true;
     enable = true;
-    viAlias = true;
-    vimAlias = true;
-    vimdiffAlias = true;
+    extraConfigLua = diagnosticFloatAutocmd;
     globals = {
       mapleader = " ";
       # ターミナルのカラーを無視
       t_Co = "";
       t_ut = "";
     };
-    keymaps = [
-      {
-        mode = "i";
-        key = "jj";
-        action = "<esc>";
-      }
-      {
-        mode = "n";
-        key = "<esc><esc>";
-        action = ":set nohlsearch<CR>";
-      }
-      {
-        mode = "n";
-        key = "<leader>lg";
-        action = "<CMD>LazyGit<CR>";
-        options.desc = "[L]azy[G]it";
-      }
-      {
-        mode = "n";
-        key = "<C-e> ";
-        action = "<CMD>SmartResizeMode<CR>";
-        options.desc = "Resize Mode";
-      }
-      {
-        mode = "n";
-        key = "<C-e>h";
-        action = "<CMD>SmartSwapLeft<CR>";
-        options.desc = "Swap Left";
-      }
-      {
-        mode = "n";
-        key = "<C-e>j";
-        action = "<CMD>SmartSwapDown<CR>";
-        options.desc = "Swap Down";
-      }
-      {
-        mode = "n";
-        key = "<C-e>k";
-        action = "<CMD>SmartSwapUp<CR>";
-        options.desc = "Swap Up";
-      }
-      {
-        mode = "n";
-        key = "<C-e>l";
-        action = "<CMD>SmartSwapRight<CR>";
-        options.desc = "Swap Right";
-      }
-      {
-        mode = "n";
-        key = "<leader>e";
-        action = "<CMD>Telescope file_browser<CR>";
-        options.desc = "File Browser";
-      }
-    ];
+    keymaps = nixvimKeymaps;
     opts = {
-      number = true;
-      relativenumber = true;
+      autoindent = true;
+      background = "dark";
       clipboard = "unnamedplus";
       expandtab = false;
-      tabstop = 4;
-      shiftwidth = 4;
-      softtabstop = 0;
-      showtabline = 2;
-      autoindent = true;
-      termguicolors = true;
-      background = "dark";
       list = true;
-      listchars = {
-        tab = "»-";
-        trail = "-";
-        eol = "↲";
-        extends = "»";
-        precedes = "«";
-        nbsp = "%";
-      };
+      listchars = listchars;
+      number = true;
+      relativenumber = true;
+      shiftwidth = 4;
+      showtabline = 2;
       signcolumn = "yes";
+      softtabstop = 0;
+      tabstop = 4;
+      termguicolors = true;
     };
-    clipboard = {
-      providers = {
-        pbcopy.enable = true;
-      };
-    };
-    extraConfigLua = ''
-      vim.api.nvim_create_autocmd("CursorHold", {
-        callback = function()
-          vim.diagnostic.open_float(nil, { focusable = false, scope = "cursor" })
-        end,
-      })
-    '';
     plugins = {
-      treesitter = {
+      cmp = {
         enable = true;
-        grammarPackages = with pkgs.vimPlugins.nvim-treesitter.builtGrammars; [
-          bash
-          cpp
-          json
-          lua
-          make
-          markdown
-          nix
-          regex
-          toml
-          vim
-          vimdoc
-          xml
-          yaml
-          commonlisp
-        ];
-      };
-      lsp = {
-        enable = true;
-        servers = {
-          clangd = {
-            enable = true;
-          };
-          nixd.enable = true;
-          lua_ls = {
-            enable = true;
-            settings.telemetry.enable = false;
-          };
-          bashls.enable = true;
-          pyright.enable = true;
-          marksman.enable = true;
-          dockerls.enable = true;
+        settings = {
+          mapping = cmpMappings;
+          sources = cmpSources;
         };
       };
       cmp-buffer.enable = true;
       cmp-nvim-lsp.enable = true;
       cmp-path.enable = true;
-      cmp = {
-        enable = true;
-        settings = {
-          sources = [
-            {name = "buffer";}
-            {name = "nvim_lsp";}
-            {name = "path";}
-          ];
-          mapping = {
-            "<C-n>" = "cmp.mapping.select_next_item()";
-            "<C-p>" = "cmp.mapping.select_prev_item()";
-            "<Down>" = "cmp.mapping.select_next_item()";
-            "<Up>" = "cmp.mapping.select_prev_item()";
-            "<C-j>" = "cmp.mapping.select_next_item()";
-            "<C-k>" = "cmp.mapping.select_prev_item()";
-            "<C-d>" = "cmp.mapping.scroll_docs(-4)";
-            "<C-f>" = "cmp.mapping.scroll_docs(4)";
-            "<C-Space>" = "cmp.mapping.complete()";
-            "<C-e>" = "cmp.mapping.close()";
-            "<CR>" = "cmp.mapping.confirm({ behavior = cmp.ConfirmBehavior.Insert, select = true })";
-          };
-        };
-      };
-      nvim-autopairs.enable = true;
-      lazygit.enable = true;
-      rainbow-delimiters.enable = true;
-      which-key.enable = true;
-      smart-splits.enable = true;
       gitgutter = {
         enable = true;
         settings = {
@@ -175,58 +199,32 @@
           highlight_lines = true;
         };
       };
-      web-devicons = {
+      lazygit.enable = true;
+      lsp = {
         enable = true;
+        servers = lspServers;
       };
+      nvim-autopairs.enable = true;
+      rainbow-delimiters.enable = true;
+      smart-splits.enable = true;
       telescope = {
         enable = true;
         extensions = {
+          file-browser.enable = true;
           fzf-native.enable = true;
           ui-select.enable = true;
-          file-browser.enable = true;
         };
-        keymaps = {
-          "<leader>ff" = {
-            mode = "n";
-            action = "find_files";
-            options = {
-              desc = "[F]ind [F]iles";
-            };
-          };
-          "<leader>fg" = {
-            mode = "n";
-            action = "git_files";
-            options = {
-              desc = "[F]ind [G]it files";
-            };
-          };
-          "<leader>fw" = {
-            mode = "n";
-            action = "grep_string";
-            options = {
-              desc = "[F]ind current [W]ord";
-            };
-          };
-          "<leader>fb" = {
-            mode = "n";
-            action = "buffers";
-            options = {
-              desc = "[F]ind [B]uffers";
-            };
-          };
-          "<leader>fc" = {
-            mode = "n";
-            action = "colorscheme";
-            options = {
-              desc = "[F]ind [C]olorscheme";
-            };
-          };
-        };
+        keymaps = telescopeKeymaps;
       };
+      treesitter = {
+        enable = true;
+        grammarPackages = treesitterGrammars;
+      };
+      web-devicons.enable = true;
+      which-key.enable = true;
     };
-    colorschemes.gruvbox = {
-      enable = true;
-      autoLoad = true;
-    };
+    viAlias = true;
+    vimAlias = true;
+    vimdiffAlias = true;
   };
 }
