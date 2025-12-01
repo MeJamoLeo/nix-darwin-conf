@@ -1,12 +1,17 @@
-{ username, ... }:
-
 {
+  username,
+  nixvim,
+  ...
+}: {
   # import sub modules
   imports = [
     ./shell.nix
     ./core.nix
     ./git.nix
+    ./nixvim.nix
     ./starship.nix
+    ./wezterm.nix
+    ((nixvim.homeModules or nixvim.homeManagerModules).nixvim)
   ];
 
   # Home Manager needs a bit of information about you and the
