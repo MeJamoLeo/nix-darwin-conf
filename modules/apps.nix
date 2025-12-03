@@ -88,9 +88,9 @@
       "raycast" # Productivity tool (HotKey: alt/option + space)
       "stats" # System monitor for the menu bar
       "gyazo" # Screenshot and sharing tool
-      "amethyst" # Tiling window manager
       "whatsapp" # WhatsApp desktop client
       "caffeine" # Prevent Mac from sleeping
+      "karabiner-elements" # Keyboard remapping (Hyper key)
 
       # LaTeX
       "mactex" # MacTeXのGUIインストーラー

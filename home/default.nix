@@ -9,8 +9,10 @@
     ./core.nix
     ./git.nix
     ./nixvim.nix
+    ./karabiner.nix
     ./starship.nix
     ./wezterm.nix
+    ./yabai.nix
     ((nixvim.homeModules or nixvim.homeManagerModules).nixvim)
   ];
 
