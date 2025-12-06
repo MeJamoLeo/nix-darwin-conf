@@ -97,6 +97,74 @@
           AppleSpacesSwitchOnActivate = true;
           "com.apple.mouse.scaling" = 15.0; # マウススケーリング（速度）の設定
         };
+        "com.apple.symbolichotkeys" = {
+          AppleSymbolicHotKeys = {
+            # Mission Control: Switch to Desktop 1-9 (Ctrl+1..9)
+            "118" = {
+              enabled = 1;
+              value = {
+                parameters = [ 65535 18 262144 ];
+                type = "standard";
+              };
+            };
+            "119" = {
+              enabled = 1;
+              value = {
+                parameters = [ 65535 19 262144 ];
+                type = "standard";
+              };
+            };
+            "120" = {
+              enabled = 1;
+              value = {
+                parameters = [ 65535 20 262144 ];
+                type = "standard";
+              };
+            };
+            "121" = {
+              enabled = 1;
+              value = {
+                parameters = [ 65535 21 262144 ];
+                type = "standard";
+              };
+            };
+            "122" = {
+              enabled = 1;
+              value = {
+                parameters = [ 65535 23 262144 ];
+                type = "standard";
+              };
+            };
+            "123" = {
+              enabled = 1;
+              value = {
+                parameters = [ 65535 22 262144 ];
+                type = "standard";
+              };
+            };
+            "124" = {
+              enabled = 1;
+              value = {
+                parameters = [ 65535 26 262144 ];
+                type = "standard";
+              };
+            };
+            "125" = {
+              enabled = 1;
+              value = {
+                parameters = [ 65535 28 262144 ];
+                type = "standard";
+              };
+            };
+            "126" = {
+              enabled = 1;
+              value = {
+                parameters = [ 65535 25 262144 ];
+                type = "standard";
+              };
+            };
+          };
+        };
         NSGlobalDomain = {
           # Add a context menu item for showing the Web Inspector in web views
           WebKitDeveloperExtras = true;
