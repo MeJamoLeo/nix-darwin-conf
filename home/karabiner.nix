@@ -14,48 +14,48 @@
           name = "Default";
           selected = true;
           complex_modifications = {
-          rules = [
-            {
-              description = "Map left control to Hyper (cmd+ctrl+alt+shift)";
-              manipulators = [
-                {
-                  type = "basic";
-                  from = {
-                    key_code = "left_control";
-                    modifiers.optional = ["any"];
-                  };
-                  to = [
-                    {
-                      key_code = "left_shift";
-                      modifiers = [
-                        "left_command"
-                        "left_control"
-                        "left_option"
-                      ];
-                    }
-                  ];
-                }
-              ];
-            }
-            {
-              description = "Map left caps lock to left control";
-              manipulators = [
-                {
-                  type = "basic";
-                  from = {
-                    key_code = "caps_lock";
-                    modifiers.optional = ["any"];
-                  };
-                  to = [
-                    {
+            rules = [
+              {
+                description = "Map left control to Hyper (cmd+ctrl+alt+shift)";
+                manipulators = [
+                  {
+                    type = "basic";
+                    from = {
                       key_code = "left_control";
-                    }
-                  ];
-                }
-              ];
-            }
-          ];
-        };
+                      modifiers.optional = ["any"];
+                    };
+                    to = [
+                      {
+                        key_code = "left_shift";
+                        modifiers = [
+                          "left_command"
+                          "left_control"
+                          "left_option"
+                        ];
+                      }
+                    ];
+                  }
+                ];
+              }
+              {
+                description = "Map left caps lock to left control";
+                manipulators = [
+                  {
+                    type = "basic";
+                    from = {
+                      key_code = "caps_lock";
+                      modifiers.optional = ["any"];
+                    };
+                    to = [
+                      {
+                        key_code = "left_control";
+                      }
+                    ];
+                  }
+                ];
+              }
+            ];
+          };
           devices = [];
           parameters = {};
           simple_modifications = [];

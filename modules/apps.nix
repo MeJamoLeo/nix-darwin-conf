@@ -47,15 +47,12 @@
 
     taps = [
       "homebrew/services"
-      "koekeishiya/formulae"
     ];
 
     # `brew install` - Command line tools
     brews = [
       "curl" # HTTP client (don't install via nixpkgs, not working well on macOS!)
       "direnv" # Tool for managing environment variables per directory
-      "yabai" # Tiling window manager (managed via Homebrew services)
-      "skhd" # Hotkey daemon for yabai (managed via Homebrew services)
       # "neovim"  # Terminal-based text editor (nixvim manages nvim)
       "texlive" # LaTeX distribution
       "wget" # Download tool
