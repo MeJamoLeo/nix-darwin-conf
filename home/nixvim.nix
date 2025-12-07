@@ -220,6 +220,15 @@ in {
         enable = true;
         grammarPackages = treesitterGrammars;
       };
+      vim-matchup = {
+        enable = true;
+        settings = {
+          enabled = 1;
+          matchparen_deferred = 1;
+          matchparen_enabled = 1;
+        };
+        treesitter.enable = true;
+      };
       web-devicons.enable = true;
       which-key.enable = true;
     };
