@@ -151,7 +151,7 @@
 in {
   programs.nixvim = {
     clipboard.providers.pbcopy.enable = true;
-    colorschemes.gruvbox = {
+    colorschemes.kanagawa = {
       autoLoad = true;
       enable = true;
     };
