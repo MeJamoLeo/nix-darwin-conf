@@ -11,6 +11,7 @@
     ./nixvim.nix
     ./karabiner.nix
     ./starship.nix
+    ./macos/aerospace.nix
     ./wezterm.nix
     ((nixvim.homeModules or nixvim.homeManagerModules).nixvim)
   ];

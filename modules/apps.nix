@@ -47,12 +47,16 @@
 
     taps = [
       "homebrew/services"
+      "nikitabobko/tap"
+      "FelixKratz/formulae"
     ];
 
     # `brew install` - Command line tools
     brews = [
       "curl" # HTTP client (don't install via nixpkgs, not working well on macOS!)
       "direnv" # Tool for managing environment variables per directory
+      "FelixKratz/formulae/borders" # Window border helper (JankyBorders)
+      "FelixKratz/formulae/sketchybar" # Lightweight status bar
       # "neovim"  # Terminal-based text editor (nixvim manages nvim)
       "texlive" # LaTeX distribution
       "wget" # Download tool
@@ -85,6 +89,7 @@
       "anki" # Spaced repetition flashcard program
 
       # Utilities
+      "nikitabobko/tap/aerospace" # Tiling window manager for macOS
       "raycast" # Productivity tool (HotKey: alt/option + space)
       "stats" # System monitor for the menu bar
       "gyazo" # Screenshot and sharing tool
