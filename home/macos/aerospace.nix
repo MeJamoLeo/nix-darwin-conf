@@ -1,8 +1,7 @@
 {config, lib, ...}: let
   homeDir = config.home.homeDirectory;
   bordersBin = "/opt/homebrew/bin/borders";
-  aerospaceBin = "/opt/homebrew/bin/aerospace";
-  layoutScript = "${homeDir}/bin/layout-box-atcoder.sh";
+  layoutLib = "${homeDir}/bin/aerospace-layout-lib.sh";
 in {
   # AeroSpace main configuration
   home.file.".aerospace.toml" = {
@@ -22,20 +21,22 @@ in {
     enable-normalization-opposite-orientation-for-nested-containers = true
 
     on-window-detected = [
-      { if.app-id = "com.spotify.client", run = "move-node-to-workspace s" },
-      { if.app-id = "com.hnc.Discord", run = "move-node-to-workspace d" },
-      { if.app-id = "ai.perplexity.comet", run = "move-node-to-workspace b" },
-      { if.app-id = "md.obsidian", run = "move-node-to-workspace o" },
-      { if.app-id = "com.todesktop.230313mzl4w4u92", run = "move-node-to-workspace e" },
+      { if.app-id = "com.spotify.client", run = "move-node-to-workspace s" }, # Spotify
+      { if.app-id = "com.hnc.Discord", run = "move-node-to-workspace d" }, # Discord
+      { if.app-id = "md.obsidian", run = "move-node-to-workspace o" }, # Obsidian
+      { if.app-id = "com.todesktop.230313mzl4w4u92", run = "move-node-to-workspace e" }, # Cursor
+      { if.app-id = "com.macpomodoro", run = "move-node-to-workspace f" }, # Focus To-Do (WebPomodoro)
+      { if.app-id = "com.openai.chat", run = "move-node-to-workspace c" }, # ChatGPT
+      { if.app-id = "com.brave.Browser", run = "move-node-to-workspace b" }, # Brave
     ]
 
     [gaps]
-    inner.horizontal = 6
-    inner.vertical = 6
-    outer.left = 8
-    outer.bottom = 8
-    outer.top = 8
-    outer.right = 8
+    inner.horizontal = 10
+    inner.vertical = 10
+    outer.left = 12
+    outer.bottom = 12
+    outer.top = 12
+    outer.right = 12
 
     [mode.main.binding]
     alt-h = "focus left"
@@ -69,7 +70,8 @@ in {
     alt-x = "workspace x"
     alt-y = "workspace y"
     alt-z = "workspace z"
-    cmd-alt-ctrl-shift-p = "exec-and-forget ${layoutScript}"
+    cmd-alt-ctrl-shift-p = "exec-and-forget ${homeDir}/bin/layout-box-atcoder.sh"
+    cmd-alt-ctrl-shift-b = "exec-and-forget ${homeDir}/bin/layout-brave-sub.sh"
     alt-shift-h = "move left"
     alt-shift-j = "move down"
     alt-shift-k = "move up"
@@ -109,43 +111,115 @@ in {
       #!/usr/bin/env bash
       set -euo pipefail
 
-      LOG_FILE="$HOME/Library/Logs/layout-box-atcoder.log"
+      source "${layoutLib}"
+
+      workspace="p"
+      sheet_url="https://docs.google.com/spreadsheets/d/1p4rGvtYcqk9hfsl8PSeMlsNqFu34o8DOGM78MBn7dg4/edit"
+      gemini_url="https://gemini.google.com/app"
+      pause="0.5"
+
+      ensure_aerospace || exit 1
+
+      log_step "Switch to workspace $workspace and reset layout"
+      ensure_workspace "$workspace"
+      run_layout flatten-workspace-tree
+
+      log_step "Launch Comet (Sheets)"
+      open_app "Comet" --new-window "$sheet_url"
+      sleep "$pause"
+
+      log_step "Launch Comet (AtCoder)"
+      open_app "Comet" --new-window "$gemini_url"
+      sleep "$pause"
+
+      log_step "Arrange left stack (vertical)"
+      run_layout focus left
+      run_layout layout v_tiles
+      run_layout move up
+      run_layout move down
+      run_layout balance-sizes
+
+      log_step "Launch WezTerm (~/Box) and move to right"
+      open_wezterm "$HOME/Box"
+      sleep "$pause"
+      run_layout layout h_tiles
+      run_layout focus right
+      run_layout balance-sizes
+
+      log_step "--- hyper+P layout done ---"
+    '';
+  };
+
+  home.file."bin/layout-brave-sub.sh" = {
+    executable = true;
+    text = ''
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      source "${layoutLib}"
+
+      LOG_FILE="$HOME/Library/Logs/layout-brave-sub.log"
       mkdir -p "$(dirname "$LOG_FILE")"
       exec > >(tee -a "$LOG_FILE") 2>&1
-      echo "[$(date '+%Y-%m-%d %H:%M:%S')] --- hyper+P layout start ---"
+      log_step "--- hyper+B Brave sub profile start ---"
 
-      PATH="/opt/homebrew/bin:$PATH"
-      aerospace="${aerospaceBin}"
-      workspace="p"
-      sheet_url="https://docs.google.com/spreadsheets/"
-      atcoder_url="https://atcoder.jp/"
+      workspace="b"
+      url_reins="https://system.reins.jp/main/BK/GBK003100"
+      url_bk="https://bk-m01.bukken1.com/estates/"
+      profile="Profile 1" # Brave profile name for 'sub'
 
-      if ! command -v "$aerospace" >/dev/null 2>&1; then
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] aerospace CLI not found at $aerospace" >&2
-        exit 1
-      fi
+      ensure_aerospace || exit 1
 
-      # Move to workspace p and reset layout
-      "$aerospace" workspace "$workspace"
-      "$aerospace" flatten-workspace-tree
-      "$aerospace" layout h_tiles
+      ensure_workspace "$workspace"
+      open_app "Brave Browser" --profile-directory="$profile" --new-window "$url_reins"
+      open_app "Brave Browser" --profile-directory="$profile" --new-window "$url_bk"
 
-      # Left: Comet (Sheets)
-      open -na "Comet" --args "$sheet_url"
-      sleep 0.3
+      log_step "--- hyper+B Brave sub profile done ---"
+    '';
+  };
 
-      # Right: WezTerm in ~/Box
-      open -na "WezTerm" --args start --cwd "$HOME/Box"
-      sleep 0.3
+  home.file."bin/aerospace-layout-lib.sh" = {
+    executable = true;
+    text = ''
+      #!/usr/bin/env bash
+      set -euo pipefail
 
-      # Left container -> vertical split, then second Comet (AtCoder)
-      "$aerospace" focus left
-      "$aerospace" layout v_tiles
-      open -na "Comet" --args "$atcoder_url"
-      sleep 0.3
+      PATH="/opt/homebrew/bin:/usr/bin:/bin:$PATH"
+      aerospace_bin="/opt/homebrew/bin/aerospace"
 
-      "$aerospace" balance-sizes
-      echo "[$(date '+%Y-%m-%d %H:%M:%S')] --- hyper+P layout done ---"
+      log_step() {
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+      }
+
+      ensure_aerospace() {
+        if ! command -v "$aerospace_bin" >/dev/null 2>&1; then
+          log_step "aerospace CLI not found at $aerospace_bin"
+          return 1
+        fi
+        return 0
+      }
+
+      run_layout() {
+        "$aerospace_bin" "$@" 2>/dev/null || true
+      }
+
+      ensure_workspace() {
+        "$aerospace_bin" workspace "$1" 2>/dev/null || true
+      }
+
+      open_app() {
+        local app="$1"
+        shift
+        /usr/bin/open -n -a "$app" --args "$@"
+      }
+
+      open_wezterm() {
+        local cwd="$1"
+        if command -v wezterm >/dev/null 2>&1; then
+          wezterm cli spawn --cwd "$cwd" >/dev/null 2>&1 || true
+        fi
+        /usr/bin/open -n -a "WezTerm" --args start --cwd "$cwd"
+      }
     '';
   };
 
