@@ -7,6 +7,40 @@
     })
   '';
 
+  rainbowDelimitersConfig = ''
+    local rd = require("rainbow-delimiters")
+
+    vim.g.rainbow_delimiters = {
+      strategy = {
+        [""] = rd.strategy["global"],
+        commonlisp = rd.strategy["local"],
+      },
+      highlight = {
+        "RainbowDelimiterRed",
+        "RainbowDelimiterOrange",
+        "RainbowDelimiterYellow",
+        "RainbowDelimiterGreen",
+        "RainbowDelimiterCyan",
+        "RainbowDelimiterBlue",
+        "RainbowDelimiterViolet",
+      },
+    }
+
+    local palette = {
+      RainbowDelimiterRed = "#c34043",
+      RainbowDelimiterOrange = "#ffa066",
+      RainbowDelimiterYellow = "#c0a36e",
+      RainbowDelimiterGreen = "#76946a",
+      RainbowDelimiterCyan = "#6a9589",
+      RainbowDelimiterBlue = "#7e9cd8",
+      RainbowDelimiterViolet = "#957fb8",
+    }
+
+    for group, color in pairs(palette) do
+      vim.api.nvim_set_hl(0, group, { fg = color, bold = true })
+    end
+  '';
+
   listchars = {
     eol = "↲";
     extends = "»";
@@ -158,6 +192,7 @@ in {
     defaultEditor = true;
     enable = true;
     extraConfigLua = diagnosticFloatAutocmd;
+    extraConfigLuaPre = rainbowDelimitersConfig;
     globals = {
       mapleader = " ";
       # ターミナルのカラーを無視
