@@ -62,7 +62,7 @@ in {
       alt-f = "workspace f"
       alt-g = "workspace g"
       alt-i = "workspace i"
-      alt-m = "workspace m"
+      alt-m = "workspace 1"
       alt-n = "workspace n"
       alt-o = "workspace o"
       alt-p = "workspace p"
