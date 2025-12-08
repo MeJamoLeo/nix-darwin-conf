@@ -108,8 +108,8 @@ in {
       alt-shift-y = "move-node-to-workspace y"
       alt-shift-z = "move-node-to-workspace z"
 
-      cmd-alt-ctrl-shift-1 = "move-workspace-to-monitor main"
-      cmd-alt-ctrl-shift-2 = "move-workspace-to-monitor secondary"
+      cmd-alt-ctrl-shift-1 = "move-workspace-to-monitor 1"
+      cmd-alt-ctrl-shift-2 = "move-workspace-to-monitor 2"
       cmd-alt-ctrl-shift-3 = "move-workspace-to-monitor 3"
     '';
   };
