@@ -62,7 +62,7 @@ in {
       alt-f = "workspace f"
       alt-g = "workspace g"
       alt-i = "workspace i"
-      alt-m = "workspace 1"
+      alt-m = "workspace m"
       alt-n = "workspace n"
       alt-o = "workspace o"
       alt-p = "workspace p"
@@ -107,6 +107,10 @@ in {
       alt-shift-x = "move-node-to-workspace x"
       alt-shift-y = "move-node-to-workspace y"
       alt-shift-z = "move-node-to-workspace z"
+
+      cmd-alt-ctrl-shift-1 = "move-workspace-to-monitor main"
+      cmd-alt-ctrl-shift-2 = "move-workspace-to-monitor secondary"
+      cmd-alt-ctrl-shift-3 = "move-workspace-to-monitor 3"
     '';
   };
 
