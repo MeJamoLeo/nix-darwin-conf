@@ -23,6 +23,7 @@ in {
       default-root-container-orientation = "auto"
       enable-normalization-flatten-containers = true
       enable-normalization-opposite-orientation-for-nested-containers = true
+      workspace-to-monitor-force-assignment = { "1" = 1, "2" = 2 , "3" = 3}
 
       on-window-detected = [
         { if.app-id = "com.spotify.client", run = "move-node-to-workspace s" }, # Spotify
@@ -33,6 +34,7 @@ in {
         { if.app-id = "com.openai.chat", run = "move-node-to-workspace c" }, # ChatGPT
         { if.app-id = "com.brave.Browser", run = "move-node-to-workspace b" }, # Brave
         { if.app-id = "com.apple.Preview", run = "move-node-to-workspace i" }, # Preview
+        { if.app-id = "com.github.wez.wezterm", run = "move-node-to-workspace w" }, # WezTerm
       ]
 
       [gaps]
@@ -44,16 +46,24 @@ in {
       outer.right = 12
 
       [mode.main.binding]
-      alt-h = "focus left"
-      alt-j = "focus down"
-      alt-k = "focus up"
-      alt-l = "focus right"
+      alt-tab = "focus-monitor --wrap-around next"
+      alt-shift-tab = "move-node-to-monitor --wrap-around --focus-follows-window next"
+      alt-h = "focus --boundaries all-monitors left"
+      alt-j = "focus --boundaries all-monitors down"
+      alt-k = "focus --boundaries all-monitors up"
+      alt-l = "focus --boundaries all-monitors right"
       alt-q = "close"
+
+
       alt-1 = "workspace 1"
       alt-2 = "workspace 2"
       alt-3 = "workspace 3"
       alt-4 = "workspace 4"
       alt-5 = "workspace 5"
+      alt-6 = "workspace 6"
+      alt-7 = "workspace 7"
+      alt-8 = "workspace 8"
+      alt-9 = "workspace 9"
       alt-a = "workspace a"
       alt-b = "workspace b"
       alt-c = "workspace c"
@@ -75,17 +85,27 @@ in {
       alt-x = "workspace x"
       alt-y = "workspace y"
       alt-z = "workspace z"
+
+
       cmd-alt-ctrl-shift-p = "exec-and-forget ${homeDir}/bin/layout-box-atcoder.sh"
       cmd-alt-ctrl-shift-b = "exec-and-forget ${homeDir}/bin/layout-brave-sub.sh"
+
+
       alt-shift-h = "move left"
       alt-shift-j = "move down"
       alt-shift-k = "move up"
       alt-shift-l = "move right"
+
+
       alt-shift-1 = "move-node-to-workspace 1"
       alt-shift-2 = "move-node-to-workspace 2"
       alt-shift-3 = "move-node-to-workspace 3"
       alt-shift-4 = "move-node-to-workspace 4"
       alt-shift-5 = "move-node-to-workspace 5"
+      alt-shift-6 = "move-node-to-workspace 6"
+      alt-shift-7 = "move-node-to-workspace 7"
+      alt-shift-8 = "move-node-to-workspace 8"
+      alt-shift-9 = "move-node-to-workspace 9"
       alt-shift-a = "move-node-to-workspace a"
       alt-shift-b = "move-node-to-workspace b"
       alt-shift-c = "move-node-to-workspace c"
