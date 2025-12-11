@@ -199,7 +199,7 @@
             StandardHideDesktopIcons = 0; # Show items on desktop
             HideDesktop = 0; # Do not hide items on desktop & stage manager
             StageManagerHideWidgets = 0;
-            StandardHideWidgets = 0;
+            StandardHideWidgets = 1;
           };
 
           screensaver = {

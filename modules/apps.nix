@@ -43,7 +43,7 @@
       # TODO Feel free to add your favorite apps here.
       DisplayMenu = 549083868; # Menu bar tool for display management
       Klack = 6446206067; # Mechanical keyboard sound effects
-      Xcode = 497799835; # Apple's IDE for macOS/iOS development
+      # Xcode = 497799835; # Apple's IDE for macOS/iOS development
     };
 
     taps = [
@@ -97,9 +97,6 @@
       "whatsapp" # WhatsApp desktop client
       "caffeine" # Prevent Mac from sleeping
       "karabiner-elements" # Keyboard remapping (Hyper key)
-
-      # LaTeX
-      "mactex" # MacTeXのGUIインストーラー
     ];
   };
 }
