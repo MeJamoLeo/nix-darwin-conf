@@ -48,10 +48,10 @@ in {
       [mode.main.binding]
       alt-tab = "focus-monitor --wrap-around next"
       alt-shift-tab = "move-node-to-monitor --wrap-around --focus-follows-window next"
-      alt-h = "focus --boundaries all-monitors left"
-      alt-j = "focus --boundaries all-monitors down"
-      alt-k = "focus --boundaries all-monitors up"
-      alt-l = "focus --boundaries all-monitors right"
+      alt-h = "focus --boundaries left"
+      alt-j = "focus --boundaries down"
+      alt-k = "focus --boundaries up"
+      alt-l = "focus --boundaries right"
       alt-q = "close"
 
 
