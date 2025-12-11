@@ -128,9 +128,19 @@ in {
       alt-shift-y = "move-node-to-workspace y"
       alt-shift-z = "move-node-to-workspace z"
 
+      cmd-alt-ctrl-shift-h = "resize width -50"
+      cmd-alt-ctrl-shift-j = "resize height -50"
+      cmd-alt-ctrl-shift-k = "resize height +50"
+      cmd-alt-ctrl-shift-l = "resize width +50"
+
       cmd-alt-ctrl-shift-1 = "move-workspace-to-monitor 1"
       cmd-alt-ctrl-shift-2 = "move-workspace-to-monitor 2"
       cmd-alt-ctrl-shift-3 = "move-workspace-to-monitor 3"
+
+      [mode.resize.binding]
+      alt-r = "mode main"
+      alt-h = "resize smart -50"
+      alt-l = "resize smart +50"
     '';
   };
 
