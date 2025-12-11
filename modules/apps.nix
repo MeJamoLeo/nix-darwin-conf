@@ -61,6 +61,7 @@
       # "neovim"  # Terminal-based text editor (nixvim manages nvim)
       "texlive" # LaTeX distribution
       "wget" # Download tool
+      "gh" # github cli
     ];
 
     # `brew install --cask` - GUI applications
