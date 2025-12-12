@@ -62,6 +62,7 @@
       "texlive" # LaTeX distribution
       "wget" # Download tool
       "gh" # github cli
+      "lazygit" # Git terminal UI
     ];
 
     # `brew install --cask` - GUI applications
@@ -82,6 +83,7 @@
       # Media
       "obs" # Open Broadcaster Software for recording/streaming
       "iina" # Modern video player
+      "spotify" # Music streaming service
       "steam" # Gaming platform
 
       # Productivity & Organization
