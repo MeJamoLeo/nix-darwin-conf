@@ -7,6 +7,20 @@
     })
   '';
 
+  nvimAutopairsConfig = ''
+    local npairs = require("nvim-autopairs")
+    local Rule = require("nvim-autopairs.rule")
+
+    npairs.remove_rule("'")
+    npairs.add_rules({
+      Rule("'", "'")
+        :with_pair(function(opts)
+          local disabled = { "lisp", "commonlisp", "scheme", "clojure", "fennel" }
+          return not vim.tbl_contains(disabled, opts.filetype)
+        end),
+    })
+  '';
+
   rainbowDelimitersConfig = ''
     local rd = require("rainbow-delimiters")
 
@@ -191,7 +205,7 @@ in {
     };
     defaultEditor = true;
     enable = true;
-    extraConfigLua = diagnosticFloatAutocmd;
+    extraConfigLua = diagnosticFloatAutocmd + nvimAutopairsConfig;
     extraConfigLuaPre = rainbowDelimitersConfig;
     globals = {
       mapleader = " ";
