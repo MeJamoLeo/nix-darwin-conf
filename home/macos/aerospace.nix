@@ -16,7 +16,7 @@ in {
       # Start helpers with AeroSpace
       after-startup-command = [
         # JankyBorders (borders) for focused window highlight
-        "exec-and-forget ${bordersBin} active_color=0xff89b4fa inactive_color=0x00000000 width=6.0",
+        "exec-and-forget ${bordersBin} active_color=0xff89b4fa inactive_color=0x00000000 width=10.0",
       ]
 
       default-root-container-layout = "tiles"
@@ -48,10 +48,10 @@ in {
       [mode.main.binding]
       alt-tab = "focus-monitor --wrap-around next"
       alt-shift-tab = "move-node-to-monitor --wrap-around --focus-follows-window next"
-      alt-h = "focus --boundaries left"
-      alt-j = "focus --boundaries down"
-      alt-k = "focus --boundaries up"
-      alt-l = "focus --boundaries right"
+      alt-h = "focus left"
+      alt-j = "focus down"
+      alt-k = "focus up"
+      alt-l = "focus right"
       alt-q = "close"
 
 
