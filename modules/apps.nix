@@ -75,6 +75,7 @@
       "cursor" # AI-powered code editor
       "cursor-cli" # Cursor CLI wrapper
       "visual-studio-code" # Code editor
+      "claude-code"
 
       # Communication & Meetings
       "discord" # Chat and voice communication platform
