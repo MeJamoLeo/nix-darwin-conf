@@ -226,6 +226,7 @@ in {
     colorschemes.kanagawa = {
       autoLoad = true;
       enable = true;
+      settings.transparent = true; # 背景透過
     };
 
     defaultEditor = true;
