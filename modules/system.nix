@@ -99,8 +99,8 @@
         };
         "com.apple.symbolichotkeys" = {
           AppleSymbolicHotKeys = {
-            "64" = { enabled = false; }; # Disable 'Cmd + Space' for Spotlight Search
-            "65" = { enabled = false; }; # Disable 'Cmd + Option + Space' for Spotlight Window
+            "64" = {enabled = false;}; # Disable 'Cmd + Space' for Spotlight Search
+            "65" = {enabled = false;}; # Disable 'Cmd + Option + Space' for Spotlight Window
             # Mission Control: Switch to Desktop 1-9 (Ctrl+1..9)
             "118" = {
               enabled = 1;
