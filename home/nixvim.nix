@@ -313,6 +313,19 @@ in {
           ui-select.enable = true; # UI選択
         };
         keymaps = telescopeKeymaps;
+        settings = {
+          pickers = {
+            find_files = {
+              hidden = true; # 隠しファイルを含める
+            };
+            grep_string = {
+              additional_args = ["--hidden"]; # 隠しファイルを含める
+            };
+            live_grep = {
+              additional_args = ["--hidden"]; # 隠しファイルを含める
+            };
+          };
+        };
       };
 
       # シンタックスハイライト
