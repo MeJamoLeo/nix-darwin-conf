@@ -14,10 +14,7 @@
         hide_tab_bar_if_only_one_tab = true,
         window_frame = {
           inactive_titlebar_bg = "none",
-          active_titlebar_bg = "none",
-        },
-        window_background_gradient = {
-          colors = { "#000000" },
+          active_titlebar_bg = "none"
         }
       }
     '';
