@@ -203,14 +203,18 @@
   # Treesitter 対応言語
   treesitterGrammars = with pkgs.vimPlugins.nvim-treesitter.builtGrammars; [
     bash
+    c
     commonlisp
     cpp
+    go
     json
     lua
     make
     markdown
     nix
+    python
     regex
+    rust
     toml
     vim
     vimdoc
