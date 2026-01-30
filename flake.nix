@@ -75,6 +75,7 @@
         ./modules/system.nix
         ./modules/apps.nix
         ./modules/host-users.nix
+        ./modules/courses/cs3354.nix
 
         # home manager
         home-manager.darwinModules.home-manager
