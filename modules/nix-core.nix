@@ -14,6 +14,7 @@
   # do garbage collection weekly to keep disk usage low
   nix.gc = {
     automatic = lib.mkDefault true;
+    interval = { Weekday = 0; Hour = 5; Minute = 0; };  # Every Sunday at 5:00 AM
     options = lib.mkDefault "--delete-older-than 7d";
   };
 
