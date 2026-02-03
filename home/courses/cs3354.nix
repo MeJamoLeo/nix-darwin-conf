@@ -7,12 +7,12 @@
 }: {
   home.packages = with pkgs; [
     git
-    jdk21
     gradle
   ];
 
-  home.sessionVariables = {
-    JAVA_HOME = "${pkgs.jdk21}/lib/openjdk";
+  programs.java = {
+    enable = true;
+    package = pkgs.jdk21;
   };
 
   # TxState 用の git 設定ファイル
@@ -31,7 +31,7 @@
   ];
 
   home.activation.cs3354-setup = lib.hm.dag.entryAfter ["writeBoundary"] ''
-    mkdir -p "$HOME/txst"
+    mkdir -p "$HOME/txst/CS3354"
   '';
 
   home.activation.cs3354-reminder = lib.hm.dag.entryAfter ["cs3354-setup"] ''
