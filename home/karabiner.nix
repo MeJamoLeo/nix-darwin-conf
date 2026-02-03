@@ -1,7 +1,6 @@
 {...}: {
   # Karabiner-Elements configuration (requires app installed via Homebrew).
   home.file.".config/karabiner/karabiner.json" = {
-    force = true;
     text = builtins.toJSON {
       global = {
         ask_for_confirmation_before_quitting = true;
