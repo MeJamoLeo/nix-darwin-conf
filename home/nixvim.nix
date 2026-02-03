@@ -130,34 +130,52 @@
       mode = "n";
       options.desc = "[L]azy[G]it";
     }
-    # smart-splits: ウィンドウリサイズモード
+    # smart-splits: ウィンドウリサイズ (Ctrl+r)
     {
-      action = "<CMD>SmartResizeMode<CR>";
-      key = "<C-e> ";
+      action.__raw = "function() require('smart-splits').resize_left() end";
+      key = "<C-r>h";
       mode = "n";
-      options.desc = "Resize Mode";
+      options.desc = "Resize Left";
     }
-    # smart-splits: ウィンドウ入れ替え
     {
-      action = "<CMD>SmartSwapLeft<CR>";
+      action.__raw = "function() require('smart-splits').resize_down() end";
+      key = "<C-r>j";
+      mode = "n";
+      options.desc = "Resize Down";
+    }
+    {
+      action.__raw = "function() require('smart-splits').resize_up() end";
+      key = "<C-r>k";
+      mode = "n";
+      options.desc = "Resize Up";
+    }
+    {
+      action.__raw = "function() require('smart-splits').resize_right() end";
+      key = "<C-r>l";
+      mode = "n";
+      options.desc = "Resize Right";
+    }
+    # smart-splits: ウィンドウ入れ替え (Ctrl+e)
+    {
+      action.__raw = "function() require('smart-splits').swap_buf_left() end";
       key = "<C-e>h";
       mode = "n";
       options.desc = "Swap Left";
     }
     {
-      action = "<CMD>SmartSwapDown<CR>";
+      action.__raw = "function() require('smart-splits').swap_buf_down() end";
       key = "<C-e>j";
       mode = "n";
       options.desc = "Swap Down";
     }
     {
-      action = "<CMD>SmartSwapUp<CR>";
+      action.__raw = "function() require('smart-splits').swap_buf_up() end";
       key = "<C-e>k";
       mode = "n";
       options.desc = "Swap Up";
     }
     {
-      action = "<CMD>SmartSwapRight<CR>";
+      action.__raw = "function() require('smart-splits').swap_buf_right() end";
       key = "<C-e>l";
       mode = "n";
       options.desc = "Swap Right";
