@@ -54,6 +54,9 @@ in {
       alt-l = "focus right"
       alt-q = "close"
 
+      # Layout switching
+      alt-slash = "layout h_tiles v_tiles"
+      alt-backslash = "layout h_accordion v_accordion"
 
       alt-1 = "workspace 1"
       alt-2 = "workspace 2"
