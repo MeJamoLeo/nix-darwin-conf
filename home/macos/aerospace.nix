@@ -92,6 +92,7 @@ in {
 
       cmd-alt-ctrl-shift-p = "exec-and-forget ${homeDir}/bin/layout-box-atcoder.sh"
       cmd-alt-ctrl-shift-b = "exec-and-forget ${homeDir}/bin/layout-brave-sub.sh"
+      cmd-alt-ctrl-shift-g = "exec-and-forget ${homeDir}/bin/layout-grok-grid.sh"
 
 
       alt-shift-h = "move left"
@@ -217,6 +218,99 @@ in {
       open_app "Brave Browser" --profile-directory="$profile" --new-window "$url_bk"
 
       log_step "--- hyper+B Brave sub profile done ---"
+    '';
+  };
+
+  home.file."bin/layout-grok-grid.sh" = {
+    executable = true;
+    text = ''
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      source "${layoutLib}"
+
+      LOG_FILE="$HOME/Library/Logs/layout-grok-grid.log"
+      mkdir -p "$(dirname "$LOG_FILE")"
+      exec > >(tee -a "$LOG_FILE") 2>&1
+      log_step "--- hyper+G Grok 5x2 grid start ---"
+
+      workspace="g"
+      url="https://grok.com/imagine/favorites"
+      pause="0.8"
+      config_file="$HOME/.aerospace.toml"
+
+      ensure_aerospace || exit 1
+
+      # Disable normalization (required for nested containers)
+      # Config is a symlink from nix store, so we need to replace it with a real file
+      log_step "Disabling normalization"
+      if [ -L "$config_file" ]; then
+        cp "$(readlink "$config_file")" "$config_file.tmp"
+        rm "$config_file"
+        mv "$config_file.tmp" "$config_file"
+      fi
+      sed -i "" 's/enable-normalization-flatten-containers = true/enable-normalization-flatten-containers = false/' "$config_file"
+      sed -i "" 's/enable-normalization-opposite-orientation-for-nested-containers = true/enable-normalization-opposite-orientation-for-nested-containers = false/' "$config_file"
+      run_layout reload-config
+
+      log_step "Switch to workspace $workspace and reset layout"
+      ensure_workspace "$workspace"
+      run_layout flatten-workspace-tree
+
+      # Get default browser
+      default_browser=$(defaults read ~/Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure LSHandlers 2>/dev/null | grep -B1 'https' | grep 'LSHandlerRoleAll' | head -1 | sed 's/.*= "\(.*\)";/\1/' || echo "com.apple.Safari")
+      browser_name=$(osascript -e "id of app id \"$default_browser\"" 2>/dev/null || echo "$default_browser")
+      log_step "Default browser: $default_browser"
+
+      # Goal: 5x2 grid
+      # [1] [2] [3] [4] [5]
+      # [6] [7] [8] [9] [10]
+
+      # Open 10 windows
+      log_step "Opening 10 windows"
+      for i in {1..10}; do
+        log_step "Opening window $i"
+        open -n -b "$default_browser" --args --new-window "$url"
+        sleep "$pause"
+        run_layout move-node-to-workspace "$workspace"
+      done
+
+      # Get window IDs
+      window_ids=($("$aerospace_bin" list-windows --workspace "$workspace" --format '%{window-id}'))
+      log_step "Windows: ''${window_ids[*]}"
+
+      # Move window 6 down
+      log_step "Moving window 6 down"
+      run_layout focus --window-id "''${window_ids[5]}"
+      run_layout move down
+
+      # Join windows 7,8,9,10 with bottom row
+      for i in {6..9}; do
+        log_step "Joining window $((i+1)) with bottom row"
+        run_layout focus --window-id "''${window_ids[$i]}"
+        run_layout join-with down
+      done
+
+      run_layout balance-sizes
+
+      # Resize bottom row to equalize
+      log_step "Resizing bottom row"
+
+      # Window index 9: -1150 (23 * 50)
+      run_layout focus --window-id "''${window_ids[9]}"
+      run_layout resize width -1150
+
+      # Window index 8: -750 (15 * 50)
+      run_layout focus --window-id "''${window_ids[8]}"
+      run_layout resize width -750
+
+      # Window index 7: -400 (8 * 50)
+      run_layout focus --window-id "''${window_ids[7]}"
+      run_layout resize width -400
+
+      # Windows index 5, 6 (1st, 2nd bottom): no resize needed
+
+      log_step "--- hyper+G Grok 5x2 grid done ---"
     '';
   };
 
