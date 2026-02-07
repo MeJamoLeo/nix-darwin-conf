@@ -1,6 +1,7 @@
 {...}: {
   # Karabiner-Elements configuration (requires app installed via Homebrew).
   home.file.".config/karabiner/karabiner.json" = {
+    force = true;
     text = builtins.toJSON {
       global = {
         ask_for_confirmation_before_quitting = true;
@@ -56,18 +57,54 @@
             ];
           };
           fn_function_keys = [
-            {from.key_code = "f1"; to = [{key_code = "f1";}];}
-            {from.key_code = "f2"; to = [{key_code = "f2";}];}
-            {from.key_code = "f3"; to = [{key_code = "f3";}];}
-            {from.key_code = "f4"; to = [{key_code = "f4";}];}
-            {from.key_code = "f5"; to = [{key_code = "f5";}];}
-            {from.key_code = "f6"; to = [{key_code = "f6";}];}
-            {from.key_code = "f7"; to = [{key_code = "f7";}];}
-            {from.key_code = "f8"; to = [{key_code = "f8";}];}
-            {from.key_code = "f9"; to = [{key_code = "f9";}];}
-            {from.key_code = "f10"; to = [{key_code = "f10";}];}
-            {from.key_code = "f11"; to = [{key_code = "f11";}];}
-            {from.key_code = "f12"; to = [{key_code = "f12";}];}
+            {
+              from.key_code = "f1";
+              to = [{key_code = "f1";}];
+            }
+            {
+              from.key_code = "f2";
+              to = [{key_code = "f2";}];
+            }
+            {
+              from.key_code = "f3";
+              to = [{key_code = "f3";}];
+            }
+            {
+              from.key_code = "f4";
+              to = [{key_code = "f4";}];
+            }
+            {
+              from.key_code = "f5";
+              to = [{key_code = "f5";}];
+            }
+            {
+              from.key_code = "f6";
+              to = [{key_code = "f6";}];
+            }
+            {
+              from.key_code = "f7";
+              to = [{key_code = "f7";}];
+            }
+            {
+              from.key_code = "f8";
+              to = [{key_code = "f8";}];
+            }
+            {
+              from.key_code = "f9";
+              to = [{key_code = "f9";}];
+            }
+            {
+              from.key_code = "f10";
+              to = [{key_code = "f10";}];
+            }
+            {
+              from.key_code = "f11";
+              to = [{key_code = "f11";}];
+            }
+            {
+              from.key_code = "f12";
+              to = [{key_code = "f12";}];
+            }
           ];
           devices = [];
           parameters = {};
