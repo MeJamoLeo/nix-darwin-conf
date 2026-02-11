@@ -92,6 +92,7 @@ in {
 
       cmd-alt-ctrl-shift-p = "exec-and-forget ${homeDir}/bin/layout-box-atcoder.sh"
       cmd-alt-ctrl-shift-b = "exec-and-forget ${homeDir}/bin/layout-brave-sub.sh"
+      cmd-alt-ctrl-shift-g = "exec-and-forget ${homeDir}/bin/aerospace-grid-toggle.sh"
 
 
       alt-shift-h = "move left"
@@ -262,6 +263,73 @@ in {
         fi
         /usr/bin/open -n -a "WezTerm" --args start --cwd "$cwd"
       }
+    '';
+  };
+
+  home.file."bin/aerospace-grid-toggle.sh" = {
+    executable = true;
+    text = ''
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      source "${layoutLib}"
+
+      LOG_FILE="$HOME/Library/Logs/aerospace-grid.log"
+      mkdir -p "$(dirname "$LOG_FILE")"
+      exec > >(tee -a "$LOG_FILE") 2>&1
+
+      workspace=$("$aerospace_bin" list-workspaces --focused --format '%{workspace}')
+      state_file="/tmp/aerospace-grid-''${workspace}"
+
+      # Toggle OFF: flatten and exit
+      if [[ -f "$state_file" ]]; then
+        rm -f "$state_file"
+        "$aerospace_bin" flatten-workspace-tree
+        "$aerospace_bin" balance-sizes
+        log_step "Grid mode OFF for workspace $workspace"
+        exit 0
+      fi
+
+      # Get window IDs
+      mapfile -t window_ids < <("$aerospace_bin" list-windows --workspace focused --format '%{window-id}')
+      count=''${#window_ids[@]}
+
+      if [[ $count -lt 2 ]]; then
+        log_step "Need at least 2 windows for grid layout (got $count)"
+        exit 0
+      fi
+
+      # Calculate columns based on window count
+      if   [[ $count -le 2 ]]; then cols=2
+      elif [[ $count -le 4 ]]; then cols=2
+      elif [[ $count -le 6 ]]; then cols=3
+      elif [[ $count -le 9 ]]; then cols=3
+      else cols=4
+      fi
+
+      rows=$(( (count + cols - 1) / cols ))
+      log_step "Creating ''${cols}x''${rows} grid for $count windows"
+
+      # Flatten first, then set horizontal layout
+      "$aerospace_bin" flatten-workspace-tree || true
+      "$aerospace_bin" layout h_tiles || true
+
+      # Group windows vertically by column
+      # Windows at row > 0 join with the window above them
+      for ((row=1; row<rows; row++)); do
+        for ((col=0; col<cols; col++)); do
+          idx=$((row * cols + col))
+          if [[ $idx -lt $count ]]; then
+            wid="''${window_ids[$idx]}"
+            "$aerospace_bin" focus --window-id "$wid" || true
+            "$aerospace_bin" join-with up || true
+          fi
+        done
+      done
+
+      "$aerospace_bin" balance-sizes
+      touch "$state_file"
+      log_step "Grid mode ON: ''${cols}x''${rows} for workspace $workspace"
     '';
   };
 
