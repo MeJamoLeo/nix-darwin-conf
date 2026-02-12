@@ -100,7 +100,6 @@
       "gyazo" # Screenshot and sharing tool
       "whatsapp" # WhatsApp desktop client
       "caffeine" # Prevent Mac from sleeping
-      "karabiner-elements" # Keyboard remapping (Hyper key)
     ];
   };
 }
