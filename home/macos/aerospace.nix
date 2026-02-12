@@ -56,8 +56,8 @@ in {
       alt-enter = "fullscreen"
 
       # Layout switching
-      alt-minus = "layout h_tiles"
-      alt-shift-equal = "layout v_tiles"
+      alt-minus = "layout v_tiles"
+      alt-equal = "layout h_tiles"
 
       alt-1 = "move-workspace-to-monitor 1"
       alt-2 = "move-workspace-to-monitor 2"
