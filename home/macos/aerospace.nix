@@ -23,7 +23,7 @@ in {
       default-root-container-orientation = "auto"
       enable-normalization-flatten-containers = false
       enable-normalization-opposite-orientation-for-nested-containers = false
-      workspace-to-monitor-force-assignment = { "1" = 1, "2" = 2 , "3" = 3}
+      workspace-to-monitor-force-assignment = { a = 1, s = 2, d = 3 }
 
       on-window-detected = [
         { if.app-id = "com.spotify.client", run = "move-node-to-workspace s" }, # Spotify
@@ -53,20 +53,15 @@ in {
       alt-k = "focus up"
       alt-l = "focus right"
       alt-q = "close"
+      alt-enter = "fullscreen"
 
       # Layout switching
-      alt-slash = "layout h_tiles v_tiles"
-      alt-backslash = "layout h_accordion v_accordion"
+      alt-minus = "layout h_tiles"
+      alt-shift-equal = "layout v_tiles"
 
-      alt-1 = "workspace 1"
-      alt-2 = "workspace 2"
-      alt-3 = "workspace 3"
-      alt-4 = "workspace 4"
-      alt-5 = "workspace 5"
-      alt-6 = "workspace 6"
-      alt-7 = "workspace 7"
-      alt-8 = "workspace 8"
-      alt-9 = "workspace 9"
+      alt-1 = "move-workspace-to-monitor 1"
+      alt-2 = "move-workspace-to-monitor 2"
+      alt-3 = "move-workspace-to-monitor 3"
       alt-a = "workspace a"
       alt-b = "workspace b"
       alt-c = "workspace c"
@@ -76,10 +71,10 @@ in {
       alt-g = "workspace g"
       alt-i = "workspace i"
       alt-m = "workspace m"
-      alt-n = "workspace n"
+      alt-n = "resize smart -50"
       alt-o = "workspace o"
-      alt-p = "workspace p"
-      alt-r = "workspace r"
+      alt-p = "resize smart +50"
+      alt-r = "mode resize"
       alt-s = "workspace s"
       alt-t = "workspace t"
       alt-u = "workspace u"
@@ -90,26 +85,17 @@ in {
       alt-z = "workspace z"
 
 
-      cmd-alt-ctrl-shift-p = "exec-and-forget ${homeDir}/bin/layout-box-atcoder.sh"
-      cmd-alt-ctrl-shift-b = "exec-and-forget ${homeDir}/bin/layout-brave-sub.sh"
-      cmd-alt-ctrl-shift-g = "exec-and-forget ${homeDir}/bin/layout-grok-grid.sh"
 
+
+      alt-6 = "flatten-workspace-tree"
+      alt-9 = "layout floating tiling"
+      alt-0 = "mode join"
 
       alt-shift-h = "move left"
       alt-shift-j = "move down"
       alt-shift-k = "move up"
       alt-shift-l = "move right"
 
-
-      alt-shift-1 = "move-node-to-workspace 1"
-      alt-shift-2 = "move-node-to-workspace 2"
-      alt-shift-3 = "move-node-to-workspace 3"
-      alt-shift-4 = "move-node-to-workspace 4"
-      alt-shift-5 = "move-node-to-workspace 5"
-      alt-shift-6 = "move-node-to-workspace 6"
-      alt-shift-7 = "move-node-to-workspace 7"
-      alt-shift-8 = "move-node-to-workspace 8"
-      alt-shift-9 = "move-node-to-workspace 9"
       alt-shift-a = "move-node-to-workspace a"
       alt-shift-b = "move-node-to-workspace b"
       alt-shift-c = "move-node-to-workspace c"
@@ -119,10 +105,7 @@ in {
       alt-shift-g = "move-node-to-workspace g"
       alt-shift-i = "move-node-to-workspace i"
       alt-shift-m = "move-node-to-workspace m"
-      alt-shift-n = "move-node-to-workspace n"
       alt-shift-o = "move-node-to-workspace o"
-      alt-shift-p = "move-node-to-workspace p"
-      alt-shift-r = "move-node-to-workspace r"
       alt-shift-s = "move-node-to-workspace s"
       alt-shift-t = "move-node-to-workspace t"
       alt-shift-u = "move-node-to-workspace u"
@@ -132,14 +115,15 @@ in {
       alt-shift-y = "move-node-to-workspace y"
       alt-shift-z = "move-node-to-workspace z"
 
-      cmd-alt-ctrl-shift-h = "resize width -50"
-      cmd-alt-ctrl-shift-j = "resize height -50"
-      cmd-alt-ctrl-shift-k = "resize height +50"
-      cmd-alt-ctrl-shift-l = "resize width +50"
 
-      cmd-alt-ctrl-shift-1 = "move-workspace-to-monitor 1"
-      cmd-alt-ctrl-shift-2 = "move-workspace-to-monitor 2"
-      cmd-alt-ctrl-shift-3 = "move-workspace-to-monitor 3"
+
+
+      [mode.join.binding]
+      h = ["join-with left", "mode main"]
+      j = ["join-with down", "mode main"]
+      k = ["join-with up", "mode main"]
+      l = ["join-with right", "mode main"]
+      esc = "mode main"
 
       [mode.resize.binding]
       alt-r = "mode main"
@@ -347,10 +331,4 @@ in {
     '';
   };
 
-  # Restart AeroSpace on activation so hotkeys pick up new config
-  home.activation.aerospaceAutoStart = lib.hm.dag.entryAfter ["writeBoundary"] ''
-    /usr/bin/pkill -x "AeroSpace" 2>/dev/null || true
-    sleep 0.5
-    /usr/bin/open -n -a "AeroSpace"
-  '';
 }

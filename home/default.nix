@@ -9,7 +9,6 @@
     ./core.nix
     ./git.nix
     ./nixvim.nix
-    ./karabiner.nix
     ./starship.nix
     ./macos/aerospace.nix
     ./wezterm.nix
