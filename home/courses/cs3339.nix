@@ -28,7 +28,8 @@
       echo "  ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519_txstate"
       echo ""
       echo "Then copy the public key to the server:"
-      echo "  ssh-copy-id -i ~/.ssh/id_ed25519_txstate kif33@eros.cs.txstate.edu"
+      echo "  ssh-copy-id -i ~/.ssh/id_ed25519_txstate -o IdentitiesOnly=no -o PreferredAuthentications=keyboard-interactive,password kif33@eros.cs.txstate.edu"
+      echo "  ssh-copy-id -i ~/.ssh/id_ed25519_txstate -o IdentitiesOnly=no -o PreferredAuthentications=keyboard-interactive,password kif33@zeus.cs.txstate.edu"
       echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
       echo ""
     fi
