@@ -35,14 +35,22 @@
   '';
 
   home.activation.cs3354-reminder = lib.hm.dag.entryAfter ["cs3354-setup"] ''
-    echo ""
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "CS 3354: VSCode extensions must be installed manually:"
-    echo "  - Extension Pack for Java"
-    echo "  - VisualVM for VS Code"
-    echo ""
-    echo "Git: Repositories in ~/txst/ will use TxState credentials"
-    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo ""
+    missing=""
+    if ! /opt/homebrew/bin/code --list-extensions 2>/dev/null | grep -qi "vscjava.vscode-java-pack"; then
+      missing="$missing\n  - Extension Pack for Java"
+    fi
+    if ! /opt/homebrew/bin/code --list-extensions 2>/dev/null | grep -qi "oracle-labs-graalvm.visualvm-vscode"; then
+      missing="$missing\n  - VisualVM for VS Code"
+    fi
+    if [ -n "$missing" ]; then
+      echo ""
+      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      echo "CS 3354: Missing VSCode extensions:"
+      printf "$missing\n"
+      echo ""
+      echo "Git: Repositories in ~/txst/ will use TxState credentials"
+      echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+      echo ""
+    fi
   '';
 }
