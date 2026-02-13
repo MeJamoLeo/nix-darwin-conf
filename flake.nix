@@ -56,36 +56,40 @@
     home-manager,
     ...
   }: let
-    # TODO replace with your own username, email, system, and hostname
     username = "treo";
     useremail = "sample@sample.com";
-    system = "aarch64-darwin"; # aarch64-darwin or x86_64-darwin
-    hostname = "treos-MacBook-Air";
+    system = "aarch64-darwin";
 
-    specialArgs =
-      inputs
-      // {
-        inherit username useremail hostname;
+    mkDarwinConfig = hostname: let
+      specialArgs =
+        inputs
+        // {
+          inherit username useremail hostname;
+        };
+    in
+      darwin.lib.darwinSystem {
+        inherit system specialArgs;
+        modules = [
+          ./modules/nix-core.nix
+          ./modules/system.nix
+          ./modules/apps.nix
+          ./modules/host-users.nix
+          ./modules/courses/cs3354.nix
+
+          # home manager
+          home-manager.darwinModules.home-manager
+          {
+            home-manager.useGlobalPkgs = true;
+            home-manager.useUserPackages = true;
+            home-manager.extraSpecialArgs = specialArgs;
+            home-manager.users.${username} = import ./home;
+          }
+        ];
       };
   in {
-    darwinConfigurations."${hostname}" = darwin.lib.darwinSystem {
-      inherit system specialArgs;
-      modules = [
-        ./modules/nix-core.nix
-        ./modules/system.nix
-        ./modules/apps.nix
-        ./modules/host-users.nix
-        ./modules/courses/cs3354.nix
-
-        # home manager
-        home-manager.darwinModules.home-manager
-        {
-          home-manager.useGlobalPkgs = true;
-          home-manager.useUserPackages = true;
-          home-manager.extraSpecialArgs = specialArgs;
-          home-manager.users.${username} = import ./home;
-        }
-      ];
+    darwinConfigurations = {
+      ogasawara = mkDarwinConfig "ogasawara"; # Mac mini M4
+      tanegashima = mkDarwinConfig "tanegashima"; # MacBook Air M1
     };
 
     # nix code formatter

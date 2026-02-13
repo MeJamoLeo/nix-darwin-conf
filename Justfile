@@ -1,7 +1,7 @@
 # just is a command runner, Justfile is very similar to Makefile, but simpler.
 
-# TODO update hostname here!
-hostname := "treos-MacBook-Air"
+# Auto-detect hostname from macOS (override with: just hostname=ogasawara darwin)
+hostname := `scutil --get LocalHostName`
 
 # List all the just commands
 default:
