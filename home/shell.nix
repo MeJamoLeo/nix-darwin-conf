@@ -2,7 +2,7 @@
   programs.zsh = {
     enable = true;
     enableCompletion = true;
-    initExtra = ''
+    initContent = ''
       export PATH="$PATH:$HOME/bin:$HOME/.local/bin:$HOME/go/bin"
       bindkey -e  # emacsモードを有効化（Ctrl+N, Ctrl+Pが使えるようになる）
       eval "$(direnv hook zsh)" # direnvを有効化, direnvは環境変数を管理するツール
