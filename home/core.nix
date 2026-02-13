@@ -32,6 +32,7 @@
 
     # productivity
     glow # markdown previewer in terminal
+    fastfetch # system information tool
 
     # compilers
     gcc
