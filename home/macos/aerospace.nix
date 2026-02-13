@@ -23,8 +23,6 @@ in {
       default-root-container-orientation = "auto"
       enable-normalization-flatten-containers = false
       enable-normalization-opposite-orientation-for-nested-containers = false
-      workspace-to-monitor-force-assignment = { a = 1, s = 2, d = 3 }
-
       on-window-detected = [
         { if.app-id = "com.spotify.client", run = "move-node-to-workspace s" }, # Spotify
         { if.app-id = "com.hnc.Discord", run = "move-node-to-workspace d" }, # Discord
@@ -60,9 +58,9 @@ in {
       alt-equal = "layout h_tiles"
       alt-8 = "layout h_accordion h_tiles"
 
-      alt-1 = "move-workspace-to-monitor 1"
-      alt-2 = "move-workspace-to-monitor 2"
-      alt-3 = "move-workspace-to-monitor 3"
+      alt-1 = "workspace 1"
+      alt-2 = "workspace 2"
+      alt-3 = "workspace 3"
       alt-a = "workspace a"
       alt-b = "workspace b"
       alt-c = "workspace c"
@@ -97,6 +95,9 @@ in {
       alt-shift-k = "move up"
       alt-shift-l = "move right"
 
+      alt-shift-1 = "move-workspace-to-monitor 1"
+      alt-shift-2 = "move-workspace-to-monitor 2"
+      alt-shift-3 = "move-workspace-to-monitor 3"
       alt-shift-a = "move-node-to-workspace a"
       alt-shift-b = "move-node-to-workspace b"
       alt-shift-c = "move-node-to-workspace c"
