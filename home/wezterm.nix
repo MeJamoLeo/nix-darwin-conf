@@ -21,7 +21,7 @@
           { key = 'd', mods = 'CMD', action = wezterm.action.SplitHorizontal { domain = 'CurrentPaneDomain' } },
           { key = 'd', mods = 'CMD|SHIFT', action = wezterm.action.SplitVertical { domain = 'CurrentPaneDomain' } },
           { key = 'w', mods = 'CMD', action = wezterm.action.CloseCurrentPane { confirm = true } },
-          { key = '\\', mods = 'CMD', action = wezterm.action.PaneSelect },
+          { key = 'j', mods = 'CMD', action = wezterm.action.PaneSelect { alphabet = 'hjkl' } },
           { key = 'h', mods = 'CMD|CTRL', action = wezterm.action.AdjustPaneSize { 'Left', 5 } },
           { key = 'l', mods = 'CMD|CTRL', action = wezterm.action.AdjustPaneSize { 'Right', 5 } },
           { key = 'k', mods = 'CMD|CTRL', action = wezterm.action.AdjustPaneSize { 'Up', 5 } },
