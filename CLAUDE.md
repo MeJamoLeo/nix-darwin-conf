@@ -20,14 +20,15 @@ just repl          # Open Nix REPL
 
 **Testing**: No automated tests. Validation is `just darwin` completing without errors. For risky changes, dry-run with:
 ```bash
-nix build .#darwinConfigurations.treos-MacBook-Air.system --show-trace
+nix build .#darwinConfigurations.ogasawara.system --show-trace   # Mac mini M4
+nix build .#darwinConfigurations.tanegashima.system --show-trace  # MacBook Air M1
 ```
 
 ## Architecture
 
 This is a nix-darwin configuration for macOS (aarch64-darwin) using flakes, home-manager, and nixvim.
 
-**Entry point**: `flake.nix` defines inputs (nixpkgs-unstable, home-manager, nix-darwin, nixvim) and outputs the darwin configuration.
+**Entry point**: `flake.nix` defines inputs (nixpkgs-unstable, home-manager, nix-darwin, nixvim) and uses `mkDarwinConfig` helper to generate configurations for each host (ogasawara: Mac mini M4, tanegashima: MacBook Air M1). Both share the same module set.
 
 **Module structure**:
 - `modules/` - System-level configuration
@@ -53,4 +54,5 @@ This is a nix-darwin configuration for macOS (aarch64-darwin) using flakes, home
 - Options ordered alphabetically where possible
 - Run `nix fmt` (alejandra) before committing
 - Conventional Commits: `feat:`, `fix:`, `refactor:`, etc.
-- Keep `Justfile` hostname and `flake.nix` variables in sync when changing hosts
+- New hosts: add entry to `darwinConfigurations` in `flake.nix`; Justfile auto-detects hostname
+- Host-specific config: use `lib.mkIf (hostname == "ogasawara") { ... }` in modules

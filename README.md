@@ -6,12 +6,18 @@ macOS (aarch64-darwin) configuration using nix-darwin, home-manager, and nixvim.
 
 ```mermaid
 graph TD
-    flake["flake.nix"] --> nix-core["nix-core.nix"]
-    flake --> system["system.nix"]
-    flake --> apps["apps.nix"]
-    flake --> host-users["host-users.nix"]
-    flake --> mod-cs3354["courses/cs3354.nix"]
-    flake --> hm["home-manager"]
+    flake["flake.nix<br/>mkDarwinConfig"] --> ogasawara["ogasawara<br/>Mac mini M4"]
+    flake --> tanegashima["tanegashima<br/>MacBook Air M1"]
+
+    ogasawara --> modules["Shared Modules"]
+    tanegashima --> modules
+
+    modules --> nix-core["nix-core.nix"]
+    modules --> system["system.nix"]
+    modules --> apps["apps.nix"]
+    modules --> host-users["host-users.nix"]
+    modules --> mod-cs3354["courses/cs3354.nix"]
+    modules --> hm["home-manager"]
 
     hm --> home-default["home/default.nix"]
     home-default --> shell["shell.nix"]
