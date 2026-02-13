@@ -58,6 +58,7 @@ in {
       # Layout switching
       alt-minus = "layout v_tiles"
       alt-equal = "layout h_tiles"
+      alt-8 = "layout h_accordion h_tiles"
 
       alt-1 = "move-workspace-to-monitor 1"
       alt-2 = "move-workspace-to-monitor 2"
@@ -330,5 +331,4 @@ in {
       }
     '';
   };
-
 }
