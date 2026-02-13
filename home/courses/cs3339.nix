@@ -2,6 +2,7 @@
 {lib, ...}: {
   programs.ssh = {
     enable = true;
+    enableDefaultConfig = false;
     matchBlocks = {
       eros = {
         hostname = "eros.cs.txstate.edu";
