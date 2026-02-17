@@ -1,7 +1,6 @@
 {
   lib,
   username,
-  useremail,
   ...
 }: {
   # `programs.git` will generate the config file: ~/.config/git/config

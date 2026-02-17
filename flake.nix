@@ -57,14 +57,13 @@
     ...
   }: let
     username = "treo";
-    useremail = "sample@sample.com";
     system = "aarch64-darwin";
 
     mkDarwinConfig = hostname: let
       specialArgs =
         inputs
         // {
-          inherit username useremail hostname;
+          inherit username hostname;
         };
     in
       darwin.lib.darwinSystem {
