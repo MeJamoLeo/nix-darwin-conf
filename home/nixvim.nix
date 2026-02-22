@@ -254,6 +254,11 @@ in {
     defaultEditor = true;
     enable = true;
 
+    # 追加プラグイン（nixvim に専用オプションがないもの）
+    extraPlugins = with pkgs.vimPlugins; [
+      vim-table-mode # Markdown テーブル自動整形
+    ];
+
     # Lua 設定の挿入
     extraConfigLua = diagnosticFloatAutocmd + nvimAutopairsConfig;
     extraConfigLuaPre = rainbowDelimitersConfig;
@@ -277,7 +282,7 @@ in {
       list = true; # 不可視文字表示
       listchars = listchars;
       number = true; # 行番号表示
-      relativenumber = true; # 相対行番号
+      relativenumber = false; # 絶対行番号
       shiftwidth = 4;
       showtabline = 2; # 常にタブライン表示
       signcolumn = "yes"; # サイン列を常に表示
