@@ -18,6 +18,26 @@
         identitiesOnly = true;
         extraOptions.AddKeysToAgent = "yes";
       };
+      brooks = {
+        hostname = "eros.cs.txstate.edu";
+        user = "kif33";
+        identityFile = "~/.ssh/id_ed25519_txstate";
+        identitiesOnly = true;
+        extraOptions = {
+          RequestTTY = "yes";
+          RemoteCommand = "ssh brooks";
+        };
+      };
+      capi = {
+        hostname = "eros.cs.txstate.edu";
+        user = "kif33";
+        identityFile = "~/.ssh/id_ed25519_txstate";
+        identitiesOnly = true;
+        extraOptions = {
+          RequestTTY = "yes";
+          RemoteCommand = "ssh capi";
+        };
+      };
     };
   };
 
