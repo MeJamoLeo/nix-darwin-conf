@@ -12,6 +12,7 @@
     ./starship.nix
     ./macos/aerospace.nix
     ./wezterm.nix
+    ./ghostty.nix
     ./courses/cs3339.nix
     ./courses/cs3354.nix
     ((nixvim.homeModules or nixvim.homeManagerModules).nixvim)

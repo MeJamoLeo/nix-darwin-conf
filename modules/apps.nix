@@ -94,6 +94,7 @@
       "anki" # Spaced repetition flashcard program
 
       # Utilities
+      "ghostty" # GPU-accelerated terminal emulator
       "nikitabobko/tap/aerospace" # Tiling window manager for macOS
       "raycast" # Productivity tool (HotKey: alt/option + space)
       "stats" # System monitor for the menu bar
