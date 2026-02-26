@@ -43,6 +43,7 @@
       # TODO Feel free to add your favorite apps here.
       DisplayMenu = 549083868; # Menu bar tool for display management
       Klack = 6446206067; # Mechanical keyboard sound effects
+      LINE = 539883307; # Messaging app
       # Xcode = 497799835; # Apple's IDE for macOS/iOS development
     };
 
@@ -101,6 +102,7 @@
       "gyazo" # Screenshot and sharing tool
       "whatsapp" # WhatsApp desktop client
       "caffeine" # Prevent Mac from sleeping
+      "typeless" # AI voice dictation
     ];
   };
 }
