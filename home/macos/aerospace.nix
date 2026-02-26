@@ -35,6 +35,12 @@ in {
         { if.app-id = "com.github.wez.wezterm", run = "move-node-to-workspace w" }, # WezTerm
       ]
 
+      [workspace-to-monitor-force-assignment]
+      i = "secondary"
+      o = "secondary"
+      p = "secondary"
+      u = "secondary"
+
       [gaps]
       inner.horizontal = 10
       inner.vertical = 10
@@ -70,9 +76,11 @@ in {
       alt-g = "workspace g"
       alt-i = "workspace i"
       alt-m = "workspace m"
-      alt-n = "resize smart -50"
+      alt-n = "workspace n"
       alt-o = "workspace o"
-      alt-p = "resize smart +50"
+      alt-p = "workspace p"
+      alt-comma = "resize smart -50"
+      alt-period = "resize smart +50"
       alt-r = "mode resize"
       alt-s = "workspace s"
       alt-t = "workspace t"
