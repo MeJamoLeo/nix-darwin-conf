@@ -49,6 +49,7 @@
 
     taps = [
       "homebrew/services"
+      "manaflow-ai/cmux"
       "nikitabobko/tap"
       "FelixKratz/formulae"
     ];
@@ -103,6 +104,7 @@
       "whatsapp" # WhatsApp desktop client
       "caffeine" # Prevent Mac from sleeping
       "typeless" # AI voice dictation
+      { name = "manaflow-ai/cmux/cmux"; greedy = true; } # Claude Code multiplexer
     ];
   };
 }
