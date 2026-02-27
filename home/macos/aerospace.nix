@@ -25,7 +25,7 @@ in {
       enable-normalization-opposite-orientation-for-nested-containers = false
       on-window-detected = [
         { if.app-id = "com.spotify.client", run = "move-node-to-workspace s" }, # Spotify
-        { if.app-id = "com.hnc.Discord", run = "move-node-to-workspace d" }, # Discord
+        { if.app-id = "com.hnc.Discord", run = "move-node-to-workspace p" }, # Discord
         { if.app-id = "md.obsidian", run = "move-node-to-workspace o" }, # Obsidian
         { if.app-id = "com.todesktop.230313mzl4w4u92", run = "move-node-to-workspace e" }, # Cursor
         { if.app-id = "com.macpomodoro", run = "move-node-to-workspace f" }, # Focus To-Do (WebPomodoro)
@@ -33,6 +33,9 @@ in {
         { if.app-id = "com.brave.Browser", run = "move-node-to-workspace b" }, # Brave
         { if.app-id = "com.apple.Preview", run = "move-node-to-workspace i" }, # Preview
         { if.app-id = "com.github.wez.wezterm", run = "move-node-to-workspace w" }, # WezTerm
+        { if.app-id = "jp.naver.line.mac", run = "move-node-to-workspace p" }, # LINE
+        { if.app-id = "net.whatsapp.WhatsApp", run = "move-node-to-workspace p" }, # WhatsApp
+        { if.app-id = "com.tinyspeck.slackmacgap", run = "move-node-to-workspace p" }, # Slack
       ]
 
       [workspace-to-monitor-force-assignment]
@@ -116,6 +119,7 @@ in {
       alt-shift-i = "move-node-to-workspace i"
       alt-shift-m = "move-node-to-workspace m"
       alt-shift-o = "move-node-to-workspace o"
+      alt-shift-p = "move-node-to-workspace p"
       alt-shift-s = "move-node-to-workspace s"
       alt-shift-t = "move-node-to-workspace t"
       alt-shift-u = "move-node-to-workspace u"
