@@ -32,6 +32,7 @@ in {
         { if.app-id = "com.openai.chat", run = "move-node-to-workspace c" }, # ChatGPT
         { if.app-id = "com.brave.Browser", run = "move-node-to-workspace b" }, # Brave
         { if.app-id = "com.apple.Preview", run = "move-node-to-workspace i" }, # Preview
+        { if.app-id = "com.cmuxterm.app", run = "move-node-to-workspace i" }, # cmux
         { if.app-id = "com.github.wez.wezterm", run = "move-node-to-workspace w" }, # WezTerm
         { if.app-id = "jp.naver.line.mac", run = "move-node-to-workspace p" }, # LINE
         { if.app-id = "net.whatsapp.WhatsApp", run = "move-node-to-workspace p" }, # WhatsApp
