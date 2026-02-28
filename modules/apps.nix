@@ -61,7 +61,6 @@
       "FelixKratz/formulae/borders" # Window border helper (JankyBorders)
       "FelixKratz/formulae/sketchybar" # Lightweight status bar
       # "neovim"  # Terminal-based text editor (nixvim manages nvim)
-      "texlive" # LaTeX distribution
       "wget" # Download tool
       "gh" # github cli
       "lazygit" # Git terminal UI
