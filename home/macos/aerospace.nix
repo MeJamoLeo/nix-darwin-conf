@@ -24,7 +24,7 @@ in {
       enable-normalization-flatten-containers = false
       enable-normalization-opposite-orientation-for-nested-containers = false
       on-window-detected = [
-        { if.app-id = "com.spotify.client", run = "move-node-to-workspace s" }, # Spotify
+        { if.app-id = "com.spotify.client", run = "move-node-to-workspace p" }, # Spotify
         { if.app-id = "com.hnc.Discord", run = "move-node-to-workspace p" }, # Discord
         { if.app-id = "md.obsidian", run = "move-node-to-workspace o" }, # Obsidian
         { if.app-id = "com.todesktop.230313mzl4w4u92", run = "move-node-to-workspace e" }, # Cursor
