@@ -59,6 +59,13 @@
           mode = "n";
           options.desc = "[L]a[T]eX [V]iew";
         }
+        # LaTeX: プレビュー（コンパイル＋Skim表示）
+        {
+          action = "<CMD>VimtexView<CR>";
+          key = "<leader>p";
+          mode = "n";
+          options.desc = "[P]review LaTeX";
+        }
         # LaTeX: エラー一覧
         {
           action = "<CMD>VimtexErrors<CR>";
