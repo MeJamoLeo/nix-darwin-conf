@@ -103,6 +103,7 @@
       "gyazo" # Screenshot and sharing tool
       "whatsapp" # WhatsApp desktop client
       "caffeine" # Prevent Mac from sleeping
+      "surfshark" # VPN service
       "typeless" # AI voice dictation
       { name = "manaflow-ai/cmux/cmux"; greedy = true; } # Claude Code multiplexer
     ];

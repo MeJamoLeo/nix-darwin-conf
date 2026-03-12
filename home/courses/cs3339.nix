@@ -1,12 +1,28 @@
-# CS 3339 - SSH configuration for TxState CS servers
+# CS 3339 - Common Lisp dev environment & SSH configuration for TxState CS servers
 {
-  lib,
   pkgs,
+  lib,
   ...
 }: {
   home.packages = with pkgs; [
     poppler-utils # PDF tools (pdftotext, pdfinfo, etc.)
+    sbcl # Steel Bank Common Lisp
   ];
+
+  programs.nixvim = {
+    extraPlugins = [
+      (pkgs.vimUtils.buildVimPlugin {
+        name = "vlime";
+        src = pkgs.fetchFromGitHub {
+          owner = "vlime";
+          repo = "vlime";
+          rev = "e276e9a6f37d2699a3caa63be19314f5a19a1481";
+          hash = "sha256-tCqN80lgj11ggzGmuGF077oqL5ByjUp6jVmRUTrIWJA=";
+        };
+      })
+    ];
+    globals.vlime_cl_impl = "sbcl";
+  };
   programs.ssh = {
     enable = true;
     enableDefaultConfig = false;

@@ -90,7 +90,7 @@ in {
       alt-u = "workspace u"
       alt-v = "workspace v"
       alt-w = "workspace w"
-      alt-x = "workspace x"
+
       alt-y = "workspace y"
       alt-z = "workspace z"
 
@@ -125,7 +125,7 @@ in {
       alt-shift-u = "move-node-to-workspace u"
       alt-shift-v = "move-node-to-workspace v"
       alt-shift-w = "move-node-to-workspace w"
-      alt-shift-x = "move-node-to-workspace x"
+
       alt-shift-y = "move-node-to-workspace y"
       alt-shift-z = "move-node-to-workspace z"
 
