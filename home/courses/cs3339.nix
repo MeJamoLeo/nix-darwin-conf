@@ -1,5 +1,12 @@
 # CS 3339 - SSH configuration for TxState CS servers
-{lib, ...}: {
+{
+  lib,
+  pkgs,
+  ...
+}: {
+  home.packages = with pkgs; [
+    poppler-utils # PDF tools (pdftotext, pdfinfo, etc.)
+  ];
   programs.ssh = {
     enable = true;
     enableDefaultConfig = false;

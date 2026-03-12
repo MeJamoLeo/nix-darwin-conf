@@ -130,28 +130,28 @@
       mode = "n";
       options.desc = "[L]azy[G]it";
     }
-    # smart-splits: ウィンドウリサイズ (Ctrl+r)
+    # smart-splits: ウィンドウリサイズ (Ctrl+q)
     {
       action.__raw = "function() require('smart-splits').resize_left() end";
-      key = "<C-r>h";
+      key = "<C-q>h";
       mode = "n";
       options.desc = "Resize Left";
     }
     {
       action.__raw = "function() require('smart-splits').resize_down() end";
-      key = "<C-r>j";
+      key = "<C-q>j";
       mode = "n";
       options.desc = "Resize Down";
     }
     {
       action.__raw = "function() require('smart-splits').resize_up() end";
-      key = "<C-r>k";
+      key = "<C-q>k";
       mode = "n";
       options.desc = "Resize Up";
     }
     {
       action.__raw = "function() require('smart-splits').resize_right() end";
-      key = "<C-r>l";
+      key = "<C-q>l";
       mode = "n";
       options.desc = "Resize Right";
     }

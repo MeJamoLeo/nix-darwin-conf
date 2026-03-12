@@ -89,6 +89,7 @@
       "steam" # Gaming platform
 
       # Productivity & Organization
+      "libreoffice" # Free office suite
       "obsidian" # Knowledge base that works on top of markdown files
       "dynalist" # Outliner and list making app
       "notion" # All-in-one workspace
