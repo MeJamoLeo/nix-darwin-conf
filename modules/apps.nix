@@ -18,6 +18,7 @@
     git # Version control system
     just # Command runner for project-specific commands (use Justfile to simplify nix-darwin's commands)
     online-judge-tools # CLI helper for competitive programming (oj)
+    tmux # Terminal multiplexer
   ];
   environment.variables.EDITOR = "nvim";
 

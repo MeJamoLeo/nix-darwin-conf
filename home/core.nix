@@ -36,6 +36,7 @@
 
     # compilers
     gcc
+    go
     tree-sitter
   ];
 
