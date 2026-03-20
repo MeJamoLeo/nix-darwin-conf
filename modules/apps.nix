@@ -77,6 +77,7 @@
       "cursor" # AI-powered code editor
       "cursor-cli" # Cursor CLI wrapper
       "visual-studio-code" # Code editor
+      "claude" # Anthropic's AI assistant
       { name = "claude-code"; greedy = true; }
 
       # Communication & Meetings
