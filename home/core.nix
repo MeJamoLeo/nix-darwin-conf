@@ -37,6 +37,7 @@
     # compilers
     gcc
     go
+    nodejs
     tree-sitter
   ];
 
