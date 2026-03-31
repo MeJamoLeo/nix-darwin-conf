@@ -52,6 +52,7 @@
       "homebrew/services"
       "manaflow-ai/cmux"
       "nikitabobko/tap"
+      "y3owk1n/tap"
       "FelixKratz/formulae"
     ];
 
@@ -78,7 +79,10 @@
       "cursor-cli" # Cursor CLI wrapper
       "visual-studio-code" # Code editor
       "claude" # Anthropic's AI assistant
-      { name = "claude-code"; greedy = true; }
+      {
+        name = "claude-code";
+        greedy = true;
+      }
 
       # Communication & Meetings
       "discord" # Chat and voice communication platform
@@ -107,7 +111,11 @@
       "caffeine" # Prevent Mac from sleeping
       "surfshark" # VPN service
       "typeless" # AI voice dictation
-      { name = "manaflow-ai/cmux/cmux"; greedy = true; } # Claude Code multiplexer
+      "y3owk1n/tap/neru" # Keyboard-driven cursor navigation
+      {
+        name = "manaflow-ai/cmux/cmux";
+        greedy = true;
+      } # Claude Code multiplexer
     ];
   };
 }
