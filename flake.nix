@@ -42,6 +42,11 @@
       url = "github:nix-community/nixvim";
       inputs.nixpkgs.follows = "nixpkgs-darwin";
     };
+
+    neru = {
+      url = "github:y3owk1n/neru";
+      inputs.nixpkgs.follows = "nixpkgs-darwin";
+    };
   };
 
   # The `outputs` function will return all the build results of the flake.
@@ -69,6 +74,8 @@
       darwin.lib.darwinSystem {
         inherit system specialArgs;
         modules = [
+          {nixpkgs.overlays = [inputs.neru.overlays.default];}
+
           ./modules/nix-core.nix
           ./modules/system.nix
           ./modules/apps.nix

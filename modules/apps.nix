@@ -52,7 +52,6 @@
       "homebrew/services"
       "manaflow-ai/cmux"
       "nikitabobko/tap"
-      "y3owk1n/tap"
       "FelixKratz/formulae"
     ];
 
@@ -111,7 +110,6 @@
       "caffeine" # Prevent Mac from sleeping
       "surfshark" # VPN service
       "typeless" # AI voice dictation
-      "y3owk1n/tap/neru" # Keyboard-driven cursor navigation
       {
         name = "manaflow-ai/cmux/cmux";
         greedy = true;

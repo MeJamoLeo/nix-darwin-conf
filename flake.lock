@@ -107,6 +107,26 @@
         "type": "github"
       }
     },
+    "neru": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs-darwin"
+        ]
+      },
+      "locked": {
+        "lastModified": 1775144053,
+        "narHash": "sha256-ugeAKpDvBkUg04jTHEiEACoqJXbfQf7W0ibaO3vvpxQ=",
+        "owner": "y3owk1n",
+        "repo": "neru",
+        "rev": "d562d67ff030db1268c0aae682b813f9409df999",
+        "type": "github"
+      },
+      "original": {
+        "owner": "y3owk1n",
+        "repo": "neru",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 0,
@@ -185,6 +205,7 @@
       "inputs": {
         "darwin": "darwin",
         "home-manager": "home-manager",
+        "neru": "neru",
         "nixpkgs": "nixpkgs",
         "nixpkgs-darwin": "nixpkgs-darwin",
         "nixvim": "nixvim"

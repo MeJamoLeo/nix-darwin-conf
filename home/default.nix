@@ -1,6 +1,7 @@
 {
   username,
   nixvim,
+  neru,
   ...
 }: {
   # import sub modules
@@ -13,9 +14,11 @@
     ./macos/aerospace.nix
     ./wezterm.nix
     ./ghostty.nix
+    ./neru.nix
     ./courses/cs3339.nix
     ./courses/cs3354.nix
     ((nixvim.homeModules or nixvim.homeManagerModules).nixvim)
+    neru.homeManagerModules.default
   ];
 
   # Home Manager needs a bit of information about you and the
