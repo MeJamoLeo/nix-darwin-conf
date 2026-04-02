@@ -19,6 +19,8 @@ in {
         "exec-and-forget ${bordersBin} active_color=0xff89b4fa inactive_color=0x00000000 width=10.0",
       ]
 
+      on-focus-changed = ["move-mouse window-lazy-center"]
+
       default-root-container-layout = "tiles"
       default-root-container-orientation = "auto"
       enable-normalization-flatten-containers = false
