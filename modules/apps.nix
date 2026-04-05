@@ -44,7 +44,7 @@
       # TODO Feel free to add your favorite apps here.
       DisplayMenu = 549083868; # Menu bar tool for display management
       Klack = 6446206067; # Mechanical keyboard sound effects
-      LINE = 539883307; # Messaging app
+      # LINE = 539883307; # Messaging app
       # Xcode = 497799835; # Apple's IDE for macOS/iOS development
     };
 
@@ -102,6 +102,7 @@
 
       # Utilities
       "ghostty" # GPU-accelerated terminal emulator
+      "handy" # Quick access hand reference tool
       "nikitabobko/tap/aerospace" # Tiling window manager for macOS
       "raycast" # Productivity tool (HotKey: alt/option + space)
       "stats" # System monitor for the menu bar
