@@ -102,7 +102,6 @@
 
       # Utilities
       "ghostty" # GPU-accelerated terminal emulator
-      "handy" # Quick access hand reference tool
       "nikitabobko/tap/aerospace" # Tiling window manager for macOS
       "raycast" # Productivity tool (HotKey: alt/option + space)
       "stats" # System monitor for the menu bar
