@@ -110,7 +110,7 @@
       "whatsapp" # WhatsApp desktop client
       "caffeine" # Prevent Mac from sleeping
       "surfshark" # VPN service
-      "typeless" # AI voice dictation
+      "handy" # Speech to text application
       {
         name = "manaflow-ai/cmux/cmux";
         greedy = true;
