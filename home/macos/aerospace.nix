@@ -16,7 +16,7 @@ in {
       # Start helpers with AeroSpace
       after-startup-command = [
         # JankyBorders (borders) for focused window highlight
-        "exec-and-forget ${bordersBin} active_color=0xff89b4fa inactive_color=0x00000000 width=10.0",
+        "exec-and-forget ${bordersBin} active_color=0xff6d28d9 inactive_color=0x00000000 width=20.0",
       ]
 
       on-focus-changed = ["move-mouse window-lazy-center"]
