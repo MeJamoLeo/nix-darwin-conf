@@ -92,6 +92,7 @@
   cmpSources = [
     {name = "buffer";} # バッファ内の単語
     {name = "nvim_lsp";} # LSP
+    {name = "omni";} # オムニ補完（Vlime等）
     {name = "path";} # ファイルパス
   ];
 
@@ -303,6 +304,7 @@ in {
       };
       cmp-buffer.enable = true; # バッファ補完
       cmp-nvim-lsp.enable = true; # LSP 補完
+      cmp-omni.enable = true; # オムニ補完（Vlime等）
       cmp-path.enable = true; # パス補完
 
       # Git 差分表示
