@@ -16,12 +16,24 @@
     local npairs = require("nvim-autopairs")
     local Rule = require("nvim-autopairs.rule")
 
-    npairs.remove_rule("'")
+    local lisp_filetypes = { "lisp", "commonlisp", "scheme", "clojure", "fennel" }
+
+    local sq = string.char(39) -- single quote
+    npairs.remove_rule(sq)
+    npairs.remove_rule("`")
+    npairs.remove_rule('"')
     npairs.add_rules({
-      Rule("'", "'")
-        :with_pair(function(opts)
-          local disabled = { "lisp", "commonlisp", "scheme", "clojure", "fennel" }
-          return not vim.tbl_contains(disabled, opts.filetype)
+      Rule(sq, sq)
+        :with_pair(function()
+          return not vim.tbl_contains(lisp_filetypes, vim.bo.filetype)
+        end),
+      Rule("`", "`")
+        :with_pair(function()
+          return not vim.tbl_contains(lisp_filetypes, vim.bo.filetype)
+        end),
+      Rule('"', '"')
+        :with_pair(function()
+          return not vim.tbl_contains(lisp_filetypes, vim.bo.filetype)
         end),
     })
   '';
