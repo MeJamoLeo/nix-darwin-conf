@@ -47,7 +47,7 @@
     vim.g.rainbow_delimiters = {
       strategy = {
         [""] = rd.strategy["global"],
-        commonlisp = rd.strategy["local"],
+        commonlisp = rd.strategy["global"],
       },
       highlight = {
         "RainbowDelimiterRed",
@@ -374,6 +374,7 @@ in {
       treesitter = {
         enable = true;
         grammarPackages = treesitterGrammars;
+        settings.highlight.additional_vim_regex_highlighting = true;
       };
 
       # 対応括弧ジャンプ強化
