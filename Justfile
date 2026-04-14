@@ -20,13 +20,13 @@ darwin: darwin-set-proxy # I don't need it so comment out
   nix build .#darwinConfigurations.{{hostname}}.system \
     --extra-experimental-features 'nix-command flakes' --show-trace
 
-  ./result/sw/bin/darwin-rebuild switch --flake .#{{hostname}}
+  sudo ./result/sw/bin/darwin-rebuild switch --flake .#{{hostname}}
 
 darwin-debug: darwin-set-proxy
   nix build .#darwinConfigurations.{{hostname}}.system --show-trace --verbose \
     --extra-experimental-features 'nix-command flakes'
 
-  ./result/sw/bin/darwin-rebuild switch --flake .#{{hostname}} --show-trace --verbose
+  sudo ./result/sw/bin/darwin-rebuild switch --flake .#{{hostname}} --show-trace --verbose
 
 ############################################################################
 #
