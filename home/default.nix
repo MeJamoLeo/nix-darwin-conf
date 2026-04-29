@@ -14,6 +14,7 @@
     ./macos/aerospace.nix
     ./wezterm.nix
     ./ghostty.nix
+    ./handy.nix
     ./neru.nix
     ./courses/cs3339.nix
     ./courses/cs3354.nix
