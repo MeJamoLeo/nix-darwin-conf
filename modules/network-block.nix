@@ -33,7 +33,12 @@ let
 in {
   # Resolver-level filter for non-VPN traffic.
   # Limited to Wi-Fi so the VPN interface keeps using its own resolver.
-  networking.knownNetworkServices = ["Wi-Fi"];
+  networking.knownNetworkServices = [
+    "Wi-Fi"
+    "Ethernet"
+    "AX88179A"
+    "Thunderbolt Bridge"
+  ];
   networking.dns = [
     "1.1.1.3"
     "1.0.0.3"
