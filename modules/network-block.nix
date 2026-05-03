@@ -18,6 +18,12 @@ let
     "youtu.be"
     "music.youtube.com"
     "luna.amazon.com"
+    "x.com"
+    "www.x.com"
+    "mobile.x.com"
+    "twitter.com"
+    "www.twitter.com"
+    "mobile.twitter.com"
   ];
 
   beginMark = "# >>> nix-darwin: network-block (managed) >>>";
@@ -32,7 +38,7 @@ let
     + "\n${endMark}\n";
 in {
   # Resolver-level filter for non-VPN traffic.
-  # Limited to Wi-Fi so the VPN interface keeps using its own resolver.
+  # VPN (Surfshark WireGuard) is excluded so it keeps its own resolver.
   networking.knownNetworkServices = [
     "Wi-Fi"
     "Ethernet"
