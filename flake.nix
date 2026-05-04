@@ -81,6 +81,7 @@
           ./modules/apps.nix
           ./modules/host-users.nix
           ./modules/latex.nix
+          ./modules/network-block.nix
           ./modules/courses/cs3354.nix
 
           # home manager
