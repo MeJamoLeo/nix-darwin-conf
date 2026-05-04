@@ -30,8 +30,8 @@
     enable = true;
 
     onActivation = {
-      autoUpdate = true; # Fetch the newest stable branch of Homebrew's git repo
-      upgrade = true; # Upgrade outdated casks, formulae, and App Store apps
+      autoUpdate = false; # Don't auto-fetch Homebrew updates on rebuild (run `brew update` manually)
+      upgrade = false; # Don't auto-upgrade casks/formulae/mas apps on rebuild (run `brew upgrade` / `mas upgrade` manually)
       # 'zap': uninstalls all formulae(and related files) not listed in the generated Brewfile
       cleanup = "uninstall";
     };
