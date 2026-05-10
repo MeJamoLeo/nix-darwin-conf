@@ -17,9 +17,14 @@
     "OneDrive" = 823766827;
     # Add when needed:
     # "Microsoft OneNote" = 784801555;
-
-    # iOS/iPad apps available on Apple Silicon Macs.
-    # Canvas LMS — used by Texas State for course materials & submissions.
-    "Canvas" = 480883488;
   };
+
+  # iOS/iPad apps that run on Apple Silicon Macs cannot be installed via mas.
+  # The mas CLI is bound to the macOS-only StoreFoundation framework and
+  # cannot acquire iOS-bundle apps even when they appear in the Mac App Store's
+  # "iPhone & iPad Apps" tab. See: https://github.com/mas-cli/mas/issues/659
+  #
+  # Install these manually from App Store.app -> "iPhone & iPad Apps" tab:
+  #   - Canvas by Instructure (id 480883488) — Texas State courses
+}
 }
