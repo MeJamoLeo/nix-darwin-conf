@@ -27,4 +27,3 @@
   # Install these manually from App Store.app -> "iPhone & iPad Apps" tab:
   #   - Canvas by Instructure (id 480883488) — Texas State courses
 }
-}
