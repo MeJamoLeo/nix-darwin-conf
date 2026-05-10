@@ -14,8 +14,8 @@
     "Microsoft Outlook" = 985367838;
     "Microsoft PowerPoint" = 462062816;
     # Add when needed:
-    # "Microsoft Word" = 462054704;
+    "Microsoft Word" = 462054704;
     # "Microsoft OneNote" = 784801555;
-    # "OneDrive" = 823766827;
+    "OneDrive" = 823766827;
   };
 }

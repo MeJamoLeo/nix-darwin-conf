@@ -30,10 +30,8 @@ in {
         { if.app-id = "com.hnc.Discord", run = "move-node-to-workspace p" }, # Discord
         { if.app-id = "md.obsidian", run = "move-node-to-workspace o" }, # Obsidian
         { if.app-id = "com.todesktop.230313mzl4w4u92", run = "move-node-to-workspace e" }, # Cursor
-        { if.app-id = "com.macpomodoro", run = "move-node-to-workspace f" }, # Focus To-Do (WebPomodoro)
         { if.app-id = "com.openai.chat", run = "move-node-to-workspace c" }, # ChatGPT
         { if.app-id = "com.brave.Browser", run = "move-node-to-workspace b" }, # Brave
-        { if.app-id = "com.cmuxterm.app", run = "move-node-to-workspace i" }, # cmux
         { if.app-id = "jp.naver.line.mac", run = "move-node-to-workspace p" }, # LINE
         { if.app-id = "net.whatsapp.WhatsApp", run = "move-node-to-workspace p" }, # WhatsApp
         { if.app-id = "com.tinyspeck.slackmacgap", run = "move-node-to-workspace p" }, # Slack

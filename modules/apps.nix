@@ -50,7 +50,6 @@
 
     taps = [
       "homebrew/services"
-      "manaflow-ai/cmux"
       "nikitabobko/tap"
       "FelixKratz/formulae"
     ];
@@ -104,10 +103,6 @@
       "caffeine" # Prevent Mac from sleeping
       "surfshark" # VPN service
       "handy" # Speech to text application
-      {
-        name = "manaflow-ai/cmux/cmux";
-        greedy = true;
-      } # Claude Code multiplexer
     ];
   };
 }
