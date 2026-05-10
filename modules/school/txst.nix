@@ -13,9 +13,13 @@
     "Microsoft Excel" = 462058435;
     "Microsoft Outlook" = 985367838;
     "Microsoft PowerPoint" = 462062816;
-    # Add when needed:
     "Microsoft Word" = 462054704;
-    # "Microsoft OneNote" = 784801555;
     "OneDrive" = 823766827;
+    # Add when needed:
+    # "Microsoft OneNote" = 784801555;
+
+    # iOS/iPad apps available on Apple Silicon Macs.
+    # Canvas LMS — used by Texas State for course materials & submissions.
+    "Canvas" = 480883488;
   };
 }
