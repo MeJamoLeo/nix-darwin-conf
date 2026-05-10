@@ -4,7 +4,6 @@
     zip
     xz
     unzip
-    p7zip
 
     # utils
     ripgrep # recursively searches directories for a regex pattern
@@ -12,14 +11,11 @@
     yq-go # yaml processer https://github.com/mikefarah/yq
     fzf # A command-line fuzzy finder
 
-    aria2 # A lightweight multi-protocol & multi-source command-line download utility
-    socat # replacement of openbsd-netcat
     nmap # A utility for network discovery and security auditing
 
     google-clasp
 
     # misc
-    cowsay
     file
     which
     tree

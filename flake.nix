@@ -82,6 +82,7 @@
           ./modules/host-users.nix
           ./modules/latex.nix
           ./modules/network-block.nix
+          ./modules/school/txst.nix
           ./modules/courses/cs3354.nix
 
           # home manager
