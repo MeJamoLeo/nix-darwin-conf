@@ -44,13 +44,12 @@
       # TODO Feel free to add your favorite apps here.
       DisplayMenu = 549083868; # Menu bar tool for display management
       Klack = 6446206067; # Mechanical keyboard sound effects
-      # LINE = 539883307; # Messaging app
+      LINE = 539883307; # Messaging app
       # Xcode = 497799835; # Apple's IDE for macOS/iOS development
     };
 
     taps = [
       "homebrew/services"
-      "manaflow-ai/cmux"
       "nikitabobko/tap"
       "FelixKratz/formulae"
     ];
@@ -60,7 +59,6 @@
       "curl" # HTTP client (don't install via nixpkgs, not working well on macOS!)
       "direnv" # Tool for managing environment variables per directory
       "FelixKratz/formulae/borders" # Window border helper (JankyBorders)
-      "FelixKratz/formulae/sketchybar" # Lightweight status bar
       # "neovim"  # Terminal-based text editor (nixvim manages nvim)
       "wget" # Download tool
       "gh" # github cli
@@ -74,8 +72,6 @@
       "brave-browser" # Privacy-focused web browser
 
       # Development
-      "cursor" # AI-powered code editor
-      "cursor-cli" # Cursor CLI wrapper
       "visual-studio-code" # Code editor
       "claude" # Anthropic's AI assistant
       {
@@ -89,15 +85,12 @@
 
       # Media
       "obs" # Open Broadcaster Software for recording/streaming
-      "iina" # Modern video player
       "spotify" # Music streaming service
-      "steam" # Gaming platform
 
       # Productivity & Organization
       "libreoffice" # Free office suite
       "obsidian" # Knowledge base that works on top of markdown files
       "dynalist" # Outliner and list making app
-      "notion" # All-in-one workspace
       "anki" # Spaced repetition flashcard program
 
       # Utilities
@@ -110,10 +103,6 @@
       "caffeine" # Prevent Mac from sleeping
       "surfshark" # VPN service
       "handy" # Speech to text application
-      {
-        name = "manaflow-ai/cmux/cmux";
-        greedy = true;
-      } # Claude Code multiplexer
     ];
   };
 }
