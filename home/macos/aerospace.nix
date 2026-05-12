@@ -34,6 +34,10 @@ in {
       w = "secondary"
       e = "secondary"
       r = "secondary"
+      v = [3, "main"]
+      c = [3, "main"]
+      x = [3, "main"]
+      z = [3, "main"]
 
       [gaps]
       inner.horizontal = 10
