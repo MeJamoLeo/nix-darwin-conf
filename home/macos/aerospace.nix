@@ -25,6 +25,8 @@ in {
         { if.app-id = "jp.naver.line.mac", run = "move-node-to-workspace q" }, # LINE
         { if.app-id = "net.whatsapp.WhatsApp", run = "move-node-to-workspace q" }, # WhatsApp
         { if.app-id = "com.tinyspeck.slackmacgap", run = "move-node-to-workspace q" }, # Slack
+        # Catch-all: routing 未設定アプリは起動時だけ f に集約
+        { if.during-aerospace-startup = true, run = "move-node-to-workspace f" },
       ]
 
       [workspace-to-monitor-force-assignment]
@@ -50,11 +52,6 @@ in {
       alt-l = "focus right"
       alt-enter = "fullscreen"
 
-      # Layout switching
-      alt-minus = "layout v_tiles"
-      alt-equal = "layout h_tiles"
-      alt-8 = "layout h_accordion h_tiles"
-
       # Workspaces (column-grouped: main / secondary / tertiary per finger)
       # Index finger (most frequent)
       alt-f = "workspace f"
@@ -73,33 +70,24 @@ in {
       alt-q = "workspace q"
       alt-z = "workspace z"
 
-      # Legacy / pending reorganization
-      alt-b = "workspace b"
-      alt-g = "workspace g"
-      alt-i = "workspace i"
-      alt-o = "workspace o"
-      alt-p = "workspace p"
-      alt-t = "workspace t"
-      alt-u = "workspace u"
-      alt-y = "workspace y"
-
       alt-comma = "resize smart -50"
       alt-period = "resize smart +50"
 
-      alt-m = "focus-monitor main"
+      # Right Top Row, Layout switching
+      alt-y = "flatten-workspace-tree"
+      alt-u = "layout h_accordion h_tiles"
+      alt-i = "layout h_tiles"
+      alt-o = "layout v_tiles"
+      alt-p = "layout floating tiling"
+      alt-semicolon = "reload-config"
+      alt-m = "mode join"
 
-      alt-6 = "flatten-workspace-tree"
-      alt-9 = "layout floating tiling"
-      alt-0 = "mode join"
-
+      # Right Home Position Row, jkl;
       alt-shift-h = "move left"
       alt-shift-j = "move down"
       alt-shift-k = "move up"
       alt-shift-l = "move right"
 
-      alt-shift-1 = "move-workspace-to-monitor 1"
-      alt-shift-2 = "move-workspace-to-monitor 2"
-      alt-shift-3 = "move-workspace-to-monitor 3"
       # Move node to workspace (same column-grouped order)
       # Index finger
       alt-shift-f = "move-node-to-workspace f"
@@ -117,16 +105,6 @@ in {
       alt-shift-a = "move-node-to-workspace a"
       alt-shift-q = "move-node-to-workspace q"
       alt-shift-z = "move-node-to-workspace z"
-
-      # Legacy / pending reorganization
-      alt-shift-b = "move-node-to-workspace b"
-      alt-shift-g = "move-node-to-workspace g"
-      alt-shift-i = "move-node-to-workspace i"
-      alt-shift-o = "move-node-to-workspace o"
-      alt-shift-p = "move-node-to-workspace p"
-      alt-shift-t = "move-node-to-workspace t"
-      alt-shift-u = "move-node-to-workspace u"
-      alt-shift-y = "move-node-to-workspace y"
 
       [mode.join.binding]
       h = ["join-with left", "mode main"]
