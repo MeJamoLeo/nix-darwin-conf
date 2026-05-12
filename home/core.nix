@@ -1,5 +1,10 @@
 {pkgs, ...}: {
   home.packages = with pkgs; [
+    # build / task runners
+    just # Command runner (Justfile)
+    tmux # Terminal multiplexer
+    online-judge-tools # Competitive programming CLI (oj)
+
     # archives
     zip
     xz

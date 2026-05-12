@@ -13,14 +13,9 @@
   # But on macOS, it's less stable than homebrew.
   #
   # Related Discussion: https://discourse.nixos.org/t/darwin-again/29331
-  environment.systemPackages = with pkgs; [
-    # neovim     # Terminal-based text editor (nixvim manages nvim)
-    git # Version control system
-    just # Command runner for project-specific commands (use Justfile to simplify nix-darwin's commands)
-    online-judge-tools # CLI helper for competitive programming (oj)
-    tmux # Terminal multiplexer
-  ];
-  environment.variables.EDITOR = "nvim";
+  # CLI ツールは home/core.nix で home.packages 管理。
+  # EDITOR は home/shell.nix で home.sessionVariables 管理。
+  # システム全体に必要なものだけ environment.systemPackages に置く。
 
   # TODO To make this work, homebrew need to be installed manually, see https://brew.sh
   #

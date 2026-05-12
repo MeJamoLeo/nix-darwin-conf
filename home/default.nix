@@ -16,6 +16,7 @@
     ./ghostty.nix
     ./handy.nix
     ./neru.nix
+    ./latex.nix
     ./school/txst.nix
     ./courses/cs3339.nix
     ./courses/cs3354.nix
