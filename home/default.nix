@@ -14,6 +14,7 @@
     ./macos/aerospace.nix
     ./wezterm.nix
     ./ghostty.nix
+    ./cmux.nix
     ./handy.nix
     ./neru.nix
     ./latex.nix
