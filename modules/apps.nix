@@ -40,7 +40,7 @@
       DisplayMenu = 549083868; # Menu bar tool for display management
       Klack = 6446206067; # Mechanical keyboard sound effects
       LINE = 539883307; # Messaging app
-      # Xcode = 497799835; # Apple's IDE for macOS/iOS development
+      Xcode = 497799835; # Apple's IDE for macOS/iOS development
     };
 
     taps = [
@@ -54,6 +54,7 @@
       "curl" # HTTP client (don't install via nixpkgs, not working well on macOS!)
       "direnv" # Tool for managing environment variables per directory
       "FelixKratz/formulae/borders" # Window border helper (JankyBorders)
+      "mas" # Mac App Store CLI (required for `masApps` to work)
       # "neovim"  # Terminal-based text editor (nixvim manages nvim)
       "wget" # Download tool
       "gh" # github cli
@@ -65,6 +66,7 @@
       # Browsers
       "google-chrome" # Web browser
       "brave-browser" # Privacy-focused web browser
+      "zen" # Firefox-based privacy browser (install Vimium-FF manually from addons.mozilla.org)
 
       # Development
       "visual-studio-code" # Code editor
