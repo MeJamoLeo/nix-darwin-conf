@@ -20,6 +20,7 @@ in {
       enable-normalization-flatten-containers = false
       enable-normalization-opposite-orientation-for-nested-containers = false
       on-window-detected = [
+        { if.app-id = "com.apple.Terminal", run = "layout floating" }, # macOS Terminal
         { if.app-id = "com.spotify.client", run = "move-node-to-workspace w" }, # Spotify
         { if.app-id = "com.hnc.Discord", run = "move-node-to-workspace q" }, # Discord
         { if.app-id = "jp.naver.line.mac", run = "move-node-to-workspace q" }, # LINE
@@ -55,6 +56,10 @@ in {
       alt-k = "focus up"
       alt-l = "focus right"
       alt-enter = "fullscreen"
+
+      # cp-go: clipboard AtCoder URL -> tmux `cp` window + nvim
+      # (port of x1nano Sway mod+g; launcher at ~/bin/cp-go-launch)
+      alt-g = "exec-and-forget /Users/treo/bin/cp-go-launch"
 
       # Workspaces (column-grouped: main / secondary / tertiary per finger)
       # Index finger (most frequent)

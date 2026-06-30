@@ -15,6 +15,7 @@
     ./wezterm.nix
     ./ghostty.nix
     ./cmux.nix
+    ./claude.nix
     ./handy.nix
     ./neru.nix
     ./latex.nix
