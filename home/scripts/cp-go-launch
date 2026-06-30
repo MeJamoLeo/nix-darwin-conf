@@ -1,0 +1,39 @@
+# cp-go-launch (macOS / cmux) — alt-g entrypoint (AeroSpace exec-and-forget).
+#
+# cmux (the daily terminal) attaches to the STANDARD tmux server, so plain
+# `tmux` controls what cmux shows. Drop a cp-go window into the session cmux is
+# attached to (or focus it if already open), then bring cmux to the front.
+# No separate terminal is spawned.
+#
+# Packaged declaratively via home/cp-tools.nix (writeShellScriptBin); `cp-go`
+# resolves on PATH (same profile bin).
+set -euo pipefail
+
+# AeroSpace exec runs with a minimal env — make tools findable.
+export PATH="/etc/profiles/per-user/$USER/bin:/run/current-system/sw/bin:/opt/homebrew/bin:/usr/bin:/bin:$PATH"
+
+URL="$(pbpaste 2>/dev/null | tr -d '[:space:]' || true)"
+
+# The tmux session cmux is currently attached to (fallback: first session).
+SESS="$(tmux list-clients -F '#{session_name}' 2>/dev/null | head -1)"
+[ -z "$SESS" ] && SESS="$(tmux list-sessions -F '#{session_name}' 2>/dev/null | head -1)"
+[ -z "$SESS" ] && { tmux new-session -d -s cp; SESS="cp"; }
+
+if [[ "$URL" =~ ^https://atcoder\.jp/contests/[^/]+/tasks/[^/]+$ ]]; then
+    PID="${URL##*/tasks/}"
+    if tmux list-windows -t "$SESS" -F '#W' 2>/dev/null | grep -qx "$PID"; then
+        # already open — just focus it (no duplicate, nvim state preserved)
+        tmux select-window -t "$SESS:$PID"
+    else
+        # cp-go reads the clipboard itself, sets up the dir, and execs nvim.
+        # Trailing ":" forces session targeting (numeric session names like "1"
+        # would otherwise be mis-read by `-t` as a window index).
+        tmux new-window -t "$SESS:" -n "$PID" cp-go
+    fi
+else
+    # no usable URL: let cp-go do its NoviSteps fallback
+    tmux new-window -t "$SESS:" "cp-go; exec ${SHELL:-/bin/zsh}"
+fi
+
+# Bring cmux to the front so the (new/focused) window is visible.
+open -a cmux >/dev/null 2>&1 || true

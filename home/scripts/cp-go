@@ -1,0 +1,62 @@
+# cp-go (macOS port) — clipboard-aware AtCoder practice launcher.
+#
+# With an AtCoder problem URL on the clipboard (or as $1):
+#   create ~/cp/contests/<contest>/<problem>, run `oj download`, open nvim.
+# Without a usable URL: open NoviSteps in the browser.
+#
+# macOS adaptation of x1nano:~/nixos-cp/tools/cp-go
+#   wl-paste/xclip -> pbpaste ; firefox -> open ; systemctl/dashboard fetch -> dropped.
+# Packaged declaratively via home/cp-tools.nix (writeShellScriptBin).
+set -euo pipefail
+
+# Make tools findable regardless of how we are invoked.
+export PATH="/etc/profiles/per-user/$USER/bin:/run/current-system/sw/bin:/opt/homebrew/bin:/usr/bin:/bin:$PATH"
+
+CP_DIR="$HOME/cp"
+URL_RE='^https://atcoder\.jp/contests/[^/]+/tasks/[^/]+$'
+
+read_clipboard() {
+    pbpaste 2>/dev/null | tr -d '[:space:]' || true
+}
+
+URL="${1:-$(read_clipboard)}"
+
+if [[ ! "$URL" =~ $URL_RE ]]; then
+    open "https://novisteps.app/" >/dev/null 2>&1 || true
+    exit 0
+fi
+
+URL_CONTEST="${URL#https://atcoder.jp/contests/}"
+URL_CONTEST="${URL_CONTEST%%/*}"
+PID="${URL##*/tasks/}"
+PROBLEM="${PID##*_}"
+
+# ABC/ARC 同時開催回補正（task_id の prefix を canonical contest とみなす）
+PID_CONTEST="${PID%_*}"
+if [[ "$URL_CONTEST" =~ ^(abc|arc|agc)[0-9]+$ ]] \
+    && [[ "$PID_CONTEST" =~ ^(abc|arc|agc)[0-9]+$ ]] \
+    && [[ "$PID_CONTEST" != "$URL_CONTEST" ]]; then
+    CONTEST="$PID_CONTEST"
+    URL="https://atcoder.jp/contests/$CONTEST/tasks/$PID"
+else
+    CONTEST="$URL_CONTEST"
+fi
+
+DIR="$CP_DIR/contests/$CONTEST/$PROBLEM"
+mkdir -p "$DIR"
+echo "$URL" > "$DIR/.problem_url"
+
+if [[ ! -d "$DIR/test" ]]; then
+    (cd "$DIR" && oj download "$URL")
+fi
+
+[[ ! -f "$DIR/main.py" ]] && touch "$DIR/main.py"
+
+cd "$DIR"
+
+# Inside tmux: name the window after the task ID (e.g. abc263_c).
+if [[ -n "${TMUX:-}" ]]; then
+    tmux rename-window "$PID" 2>/dev/null || true
+fi
+
+exec nvim main.py

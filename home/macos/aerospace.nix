@@ -1,4 +1,4 @@
-{...}: let
+{ config, ... }: let
   bordersBin = "/opt/homebrew/bin/borders";
 in {
   # AeroSpace main configuration
@@ -57,9 +57,9 @@ in {
       alt-l = "focus right"
       alt-enter = "fullscreen"
 
-      # cp-go: clipboard AtCoder URL -> tmux `cp` window + nvim
-      # (port of x1nano Sway mod+g; launcher at ~/bin/cp-go-launch)
-      alt-g = "exec-and-forget /Users/treo/bin/cp-go-launch"
+      # cp-go: clipboard AtCoder URL -> tmux window + nvim (port of x1nano Sway mod+g).
+      # Launcher is packaged in home/cp-tools.nix; resolve it via the user profile bin.
+      alt-g = "exec-and-forget ${config.home.profileDirectory}/bin/cp-go-launch"
 
       # Workspaces (column-grouped: main / secondary / tertiary per finger)
       # Index finger (most frequent)

@@ -9,12 +9,14 @@
     ./shell.nix
     ./core.nix
     ./git.nix
+    ./tmux.nix
     ./nixvim.nix
     ./starship.nix
     ./macos/aerospace.nix
     ./wezterm.nix
     ./ghostty.nix
     ./cmux.nix
+    ./cp-tools.nix
     ./claude.nix
     ./handy.nix
     ./neru.nix
