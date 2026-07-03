@@ -1,4 +1,8 @@
-{pkgs, ...}: {
+{
+  pkgs,
+  username,
+  ...
+}: {
   ##########################################################################
   #
   #  Install all apps and packages here.
@@ -27,8 +31,10 @@
     onActivation = {
       autoUpdate = false; # Don't auto-fetch Homebrew updates on rebuild (run `brew update` manually)
       upgrade = false; # Don't auto-upgrade casks/formulae/mas apps on rebuild (run `brew upgrade` / `mas upgrade` manually)
-      # 'zap': uninstalls all formulae(and related files) not listed in the generated Brewfile
-      cleanup = "uninstall";
+      # Don't auto-uninstall on rebuild — the interactive [y/n] prompt blocks non-interactive runs,
+      # and it would also try to remove pre-existing App Store apps (GarageBand, Keynote, etc.).
+      # Run `brew bundle cleanup --force` manually when desired.
+      cleanup = "none";
     };
 
     # Applications to install from Mac App Store using mas.
@@ -70,11 +76,13 @@
 
       # Development
       "visual-studio-code" # Code editor
+      "cursor" # AI-first code editor
       "claude" # Anthropic's AI assistant
       {
         name = "claude-code";
         greedy = true;
       }
+      "grok-build" # xAI Grok CLI (https://x.ai/cli) — installs `grok` and `agent`
 
       # Communication & Meetings
       "discord" # Chat and voice communication platform
@@ -91,6 +99,7 @@
       "anki" # Spaced repetition flashcard program
 
       # Utilities
+      "ghostty" # GUI terminal (nixpkgs は darwin 非対応→cask。設定は home/ghostty.nix)
       "cmux" # Ghostty-based terminal with vertical tabs for AI coding agents
       "nikitabobko/tap/aerospace" # Tiling window manager for macOS
       "raycast" # Productivity tool (HotKey: alt/option + space)

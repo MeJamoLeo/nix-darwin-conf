@@ -32,8 +32,28 @@
 
       # customize dock
       dock = {
-        autohide = true;
+        autohide = false; # always keep the dock visible
         show-recents = false; # disable recent apps
+        orientation = "right"; # pin the dock to the right edge of the screen
+
+        # Pin a fixed, reproducible set of apps (left section).
+        # NOTE: setting this fully replaces the dock contents on rebuild.
+        persistent-apps = [
+          "/Applications/Zen.app"
+          "/Applications/cmux.app"
+          "/Applications/Cursor.app"
+          "/Applications/Zed.app"
+          "/Applications/Discord.app"
+          "/Applications/Obsidian.app"
+          "/Applications/Dynalist.app"
+          "/Applications/Spotify.app"
+          "/System/Applications/System Settings.app"
+        ];
+
+        # Folders/files shown to the right of the divider.
+        persistent-others = [
+          "/Users/${username}/Downloads"
+        ];
 
         # customize Hot Corners(触发角, 鼠标移动到屏幕角落时触发的动作)
         # wvous-tl-corner = 2;  # top-left - Mission Control

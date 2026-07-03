@@ -1,6 +1,8 @@
 {pkgs, ...}: {
   programs.ghostty = {
     enable = true;
+    # nixpkgs の ghostty は meta.platforms が Linux 限定（darwin 非対応・ビルド不可、
+    # dejima で確認済み）。本体は Homebrew cask "ghostty" で入れ、ここは設定のみ管理。
     package = null;
     settings = {
       font-size = 13;
