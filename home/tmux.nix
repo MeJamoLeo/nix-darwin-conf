@@ -32,9 +32,9 @@
     sensibleOnTop = true;
 
     plugins = with pkgs.tmuxPlugins; [
-      # vim-tmux-navigator: C-h/j/k/l で vim の分割と tmux のペインを“境目なく”移動。
-      #   nvim 側にも同名プラグインを入れると、vim split と tmux pane を同じキーで往来できる。
-      vim-tmux-navigator
+      # ※ seamless ナビ系（vim-tmux-navigator / smart-splits）は意図的に入れない。
+      #   まず素の tmux に慣れる方針（root テーブルの C-hjkl を持たない＝修飾キー衝突ゼロ）。
+      #   pane 移動は下の extraConfig の prefix 裏 hjkl で行う。決定: [[tmux-in-nix]] 参照。
 
       # yank: copy-mode で選択したテキストをシステムクリップボードへ送る。
       #   実際のコピー先コマンドは下の extraConfig で OS 別に指定（pbcopy / wl-copy）。
@@ -76,6 +76,26 @@
 
       # window を閉じたら番号を詰め直す（1,2,4 → 1,2,3）。baseIndex=1 と相性が良い。
       set -g renumber-windows on
+
+      # ── vim 風の pane / window 操作（すべて prefix=C-t 裏。root バインドは持たない）──
+      #   seamless ナビ plugin は入れない方針なので、移動は prefix 経由で明示的に行う。
+      # split: | で左右割り / - で上下割り（新 pane は現在の作業ディレクトリを継承）
+      bind | split-window -h -c "#{pane_current_path}"
+      bind - split-window -v -c "#{pane_current_path}"
+      # pane 選択: prefix → h/j/k/l
+      bind h select-pane -L
+      bind j select-pane -D
+      bind k select-pane -U
+      bind l select-pane -R
+      # pane スワップ: prefix → H/J/K/L（vim の C-w HJKL と同型。方向トークンで“矢印的”に）
+      #   リサイズは入れない。バランス取りは prefix + Space（next-layout）で行う。
+      bind -r H swap-pane -t '{left-of}'
+      bind -r J swap-pane -t '{down-of}'
+      bind -r K swap-pane -t '{up-of}'
+      bind -r L swap-pane -t '{right-of}'
+      # window 移動も vim 風（-r で連打）
+      bind -r p previous-window
+      bind -r n next-window
 
       # 端末ネイティブのクリップボード連携（OSC52）。対応端末ならこれだけで効く。
       set -g set-clipboard on
