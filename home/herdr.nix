@@ -43,4 +43,15 @@ in {
     # 新 pane/tab は現在の作業ディレクトリを継承（tmux: split-window -c "#{pane_current_path}"）
     terminal.new_cwd = "follow";
   };
+
+  # Claude Code SessionStart hook: herdr pane 内で起動した Claude に
+  # workspace/tab の日本語 rename を促す（詳細はスクリプト冒頭コメント）。
+  # herdr 外では HERDR_ENV 不在で無音 no-op なので、この herdr.nix を外せば
+  # 挙動ごと消える。~/.claude/settings.json 側の登録は存在ガード付きの1行
+  # （hook ファイルが消えても無害に空振りする）で、settings.json は Claude Code /
+  # herdr integration も書き込む可変ファイルのため home-manager では所有しない。
+  home.file.".claude/hooks/herdr-auto-name.sh" = {
+    source = ./herdr-auto-name.sh;
+    executable = true;
+  };
 }

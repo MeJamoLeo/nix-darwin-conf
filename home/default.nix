@@ -16,6 +16,7 @@
     ./wezterm.nix
     ./ghostty.nix
     ./cmux.nix
+    ./herdr.nix
     ./cp-tools.nix
     ./claude.nix
     ./handy.nix

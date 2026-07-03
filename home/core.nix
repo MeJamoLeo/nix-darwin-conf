@@ -3,6 +3,7 @@
     # build / task runners
     just # Command runner (Justfile)
     tmux # Terminal multiplexer
+    herdr # tmux ライクなエージェント対応マルチプレクサ（flake overlay 由来: flake.nix 参照）
     online-judge-tools # Competitive programming CLI (oj)
 
     # archives
