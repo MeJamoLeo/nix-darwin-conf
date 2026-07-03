@@ -59,6 +59,26 @@
         "type": "github"
       }
     },
+    "herdr": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs-darwin"
+        ]
+      },
+      "locked": {
+        "lastModified": 1782940690,
+        "narHash": "sha256-1VKPP8m6eKX+B60HbSizkvPblxqXPhwyR/tkKmNz7LY=",
+        "owner": "ogulcancelik",
+        "repo": "herdr",
+        "rev": "6a5b431e39c3a77652dc22e692925027cb69b965",
+        "type": "github"
+      },
+      "original": {
+        "owner": "ogulcancelik",
+        "repo": "herdr",
+        "type": "github"
+      }
+    },
     "home-manager": {
       "inputs": {
         "nixpkgs": [
@@ -204,6 +224,7 @@
     "root": {
       "inputs": {
         "darwin": "darwin",
+        "herdr": "herdr",
         "home-manager": "home-manager",
         "neru": "neru",
         "nixpkgs": "nixpkgs",
