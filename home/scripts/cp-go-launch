@@ -1,12 +1,11 @@
-# cp-go-launch (macOS / cmux) — alt-g entrypoint (AeroSpace exec-and-forget).
+# cp-go-launch (macOS / herdr) — alt-g entrypoint (AeroSpace exec-and-forget).
 #
-# cmux (the daily terminal) attaches to the STANDARD tmux server, so plain
-# `tmux` controls what cmux shows. Drop a cp-go window into the session cmux is
-# attached to (or focus it if already open), then bring cmux to the front.
-# No separate terminal is spawned.
+# The daily setup is Ghostty + herdr (workspace-per-project). Drop a cp-go tab
+# into a dedicated "cp" workspace (create it if missing), or focus the existing
+# tab if this problem is already open. No tmux involved (retired 2026-07).
 #
 # Packaged declaratively via home/cp-tools.nix (writeShellScriptBin); `cp-go`
-# resolves on PATH (same profile bin).
+# and `herdr`/`jq` resolve on PATH (same profile bin).
 set -euo pipefail
 
 # AeroSpace exec runs with a minimal env — make tools findable.
@@ -14,26 +13,38 @@ export PATH="/etc/profiles/per-user/$USER/bin:/run/current-system/sw/bin:/opt/ho
 
 URL="$(pbpaste 2>/dev/null | tr -d '[:space:]' || true)"
 
-# The tmux session cmux is currently attached to (fallback: first session).
-SESS="$(tmux list-clients -F '#{session_name}' 2>/dev/null | head -1)"
-[ -z "$SESS" ] && SESS="$(tmux list-sessions -F '#{session_name}' 2>/dev/null | head -1)"
-[ -z "$SESS" ] && { tmux new-session -d -s cp; SESS="cp"; }
+if [[ ! "$URL" =~ ^https://atcoder\.jp/contests/[^/]+/tasks/[^/]+$ ]]; then
+    # no usable URL: cp-go's NoviSteps fallback opens the browser; no pane needed
+    exec cp-go
+fi
+PID="${URL##*/tasks/}"
 
-if [[ "$URL" =~ ^https://atcoder\.jp/contests/[^/]+/tasks/[^/]+$ ]]; then
-    PID="${URL##*/tasks/}"
-    if tmux list-windows -t "$SESS" -F '#W' 2>/dev/null | grep -qx "$PID"; then
-        # already open — just focus it (no duplicate, nvim state preserved)
-        tmux select-window -t "$SESS:$PID"
-    else
-        # cp-go reads the clipboard itself, sets up the dir, and execs nvim.
-        # Trailing ":" forces session targeting (numeric session names like "1"
-        # would otherwise be mis-read by `-t` as a window index).
-        tmux new-window -t "$SESS:" -n "$PID" cp-go
-    fi
+# Find-or-create the dedicated "cp" workspace.
+WS="$(herdr workspace list | jq -r '.result.workspaces[] | select(.label=="cp") | .workspace_id' | head -1)"
+if [[ -z "$WS" ]]; then
+    CREATED="$(herdr workspace create --label cp --cwd "$HOME/cp" --no-focus)"
+    WS="$(echo "$CREATED" | jq -r '.result.workspace.workspace_id')"
+    # Reuse the workspace's initial tab/pane instead of leaving an orphan shell.
+    TAB="$(echo "$CREATED" | jq -r '.result.tab.tab_id')"
+    PANE="$(echo "$CREATED" | jq -r '.result.root_pane.pane_id')"
+    herdr tab rename "$TAB" "$PID" >/dev/null
+    herdr pane run "$PANE" cp-go >/dev/null
+    herdr tab focus "$TAB" >/dev/null
 else
-    # no usable URL: let cp-go do its NoviSteps fallback
-    tmux new-window -t "$SESS:" "cp-go; exec ${SHELL:-/bin/zsh}"
+    # Dedup: same problem already open -> just focus it (nvim state preserved).
+    EXISTING="$(herdr tab list --workspace "$WS" | jq -r --arg pid "$PID" \
+        '.result.tabs[] | select(.label==$pid) | .tab_id' | head -1)"
+    if [[ -n "$EXISTING" ]]; then
+        herdr tab focus "$EXISTING" >/dev/null
+    else
+        CREATED="$(herdr tab create --workspace "$WS" --label "$PID" --focus)"
+        PANE="$(echo "$CREATED" | jq -r '.result.root_pane.pane_id')"
+        # cp-go reads the clipboard itself, sets up the dir, and execs nvim.
+        herdr pane run "$PANE" cp-go >/dev/null
+    fi
 fi
 
-# Bring cmux to the front so the (new/focused) window is visible.
-open -a cmux >/dev/null 2>&1 || true
+herdr workspace focus "$WS" >/dev/null
+
+# Bring the terminal to the front so the (new/focused) tab is visible.
+open -a Ghostty >/dev/null 2>&1 || true
