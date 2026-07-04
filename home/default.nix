@@ -12,6 +12,7 @@
     ./nixvim.nix
     ./starship.nix
     ./macos/aerospace.nix
+    ./macos/chrome-anjin.nix
     ./wezterm.nix
     ./ghostty.nix
     ./cmux.nix
