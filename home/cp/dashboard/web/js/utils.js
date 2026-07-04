@@ -1,0 +1,1 @@
+function ratingColor(r){if(r>=2800)return'#ff0000';if(r>=2400)return'#ff8000';if(r>=2000)return'#c0c000';if(r>=1600)return'#0000ff';if(r>=1200)return'#00c0c0';if(r>=800)return'#008000';if(r>=400)return'#804000';return'#808080';}

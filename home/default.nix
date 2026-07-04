@@ -18,7 +18,7 @@
     ./ghostty.nix
     ./cmux.nix
     ./herdr.nix
-    ./cp-tools.nix
+    ./cp
     ./claude.nix
     ./handy.nix
     ./neru.nix
