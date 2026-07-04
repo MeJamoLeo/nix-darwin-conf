@@ -1,4 +1,4 @@
-{pkgs, ...}: let
+{pkgs, lib, ...}: let
   chromeApp = "/Applications/Google Chrome.app";
 
   chrome-anjin = pkgs.writeShellScriptBin "chrome-anjin" ''
@@ -19,13 +19,19 @@
 in {
   home.packages = [chrome-anjin];
 
+  # Claude in Chrome 拡張の宣言的インストール — External Extensions 方式 (実機検証済み 2026-07-04)。
+  # 経緯: ExtensionInstallForcelist はユーザー defaults 経由だと "recommended" レベル扱いで
+  # 無視される (mandatory 必須 = /Library/Managed Preferences か MDM が要る)。External Extensions は
+  # ユーザー空間で機能する公式経路。制約: プロファイル毎に初回1回だけ有効化の確認バブルが出る。
+  home.activation.chromeExternalExtensions =
+    lib.hm.dag.entryAfter ["writeBoundary"] ''
+      extdir="$HOME/Library/Application Support/Google/Chrome/External Extensions"
+      mkdir -p "$extdir"
+      printf '{ "external_update_url": "https://clients2.google.com/service/update2/crx" }\n' \
+        > "$extdir/fcoeoabgfenejglbffodgkkbkcdhcgfn.json"
+    '';
+
   targets.darwin.defaults."com.google.Chrome" = {
-    # Claude in Chrome を全プロファイル (anjin 含む) に強制インストール。
-    # 注: この domain の書き込みは home-manager (targets.darwin.defaults) に一本化する。
-    # nix-darwin 側 CustomUserPreferences と併用すると後勝ちで消し合う。
-    ExtensionInstallForcelist = [
-      "fcoeoabgfenejglbffodgkkbkcdhcgfn;https://clients2.google.com/service/update2/crx"
-    ];
     ExtensionSettings = {
       "fcoeoabgfenejglbffodgkkbkcdhcgfn" = {
         runtime_blocked_hosts = [
