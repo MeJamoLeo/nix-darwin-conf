@@ -42,14 +42,20 @@ in
       cp -f "$src/watchlist.json" "$dst/watchlist.json"
       chmod u+w "$dst/watchlist.json"
 
-      # Swift 3本を機体の swiftc(CLT) でビルド。CLT 不在なら switch 全体は殺さず警告のみ。
+      # Swift 3本を機体の swiftc(CLT/Xcode) でビルド。CLT 不在なら switch 全体は殺さず警告のみ。
+      # 注: nix activation の環境変数 (SDKROOT 等が nix 側を向く) をそのまま渡すと
+      # swiftc が stdlib を見失う (unable to load standard library) ため、env -i で隔離する。
       if /usr/bin/xcrun -f swiftc >/dev/null 2>&1; then
-        SWIFTC="$(/usr/bin/xcrun -f swiftc)"
-        "$SWIFTC" -O -o "$dst/bin/set-wallpaper" "$dst/swift/set-wallpaper.swift"
-        "$SWIFTC" -O -o "$dst/bin/cp-dash-live"  "$dst/swift/cp-dash-live.swift"
+        swift_build() {
+          /usr/bin/env -i HOME="$HOME" PATH="/usr/bin:/bin" \
+            SDKROOT="$(/usr/bin/xcrun --sdk macosx --show-sdk-path)" \
+            /usr/bin/xcrun swiftc "$@"
+        }
+        swift_build -O -o "$dst/bin/set-wallpaper" "$dst/swift/set-wallpaper.swift"
+        swift_build -O -o "$dst/bin/cp-dash-live"  "$dst/swift/cp-dash-live.swift"
 
         # スクリーンセーバー .saver バンドル
-        "$SWIFTC" -parse-as-library -emit-library -module-name CPDashSaver \
+        swift_build -parse-as-library -emit-library -module-name CPDashSaver \
           -framework ScreenSaver -framework AppKit \
           -o "$dst/out/CPDashSaver.dylib" "$dst/swift/CPDashSaverView.swift"
         mkdir -p "${saver}/Contents/MacOS"
