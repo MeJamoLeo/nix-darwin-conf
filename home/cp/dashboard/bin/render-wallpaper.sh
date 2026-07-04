@@ -31,7 +31,6 @@ CANON="$OUT/wall-$next.png"
 # 16:9 基準を一度だけ描く
 python3 "$ROOT/bin/gen-inject.py" --width "$REF_W" --height "$REF_H" >/dev/null
 "$CHROME" --headless --disable-gpu --hide-scrollbars \
-  --user-data-dir="$OUT/chrome-profile" \
   --window-size="${REF_W},${REF_H}" --screenshot="$CANON" \
   "file://$ROOT/web/draft-v1.html" 2>/dev/null
 [ -s "$CANON" ] || { echo "error: screenshot failed" >&2; exit 1; }
