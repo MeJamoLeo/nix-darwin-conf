@@ -232,8 +232,22 @@
           };
 
           screencapture = {
-            location = "~/Downloads"; # スクショも Downloads に集約（デスクトップ=盤面を汚さない）
+            location = "~/Downloads/screenshots"; # スクショは Downloads/screenshots へ集約
             type = "png";
+          };
+
+          # ブラウザ毎にダウンロード先を Downloads 配下で仕分ける（macOS ポリシー経由）
+          "com.google.Chrome" = {
+            DownloadDirectory = "/Users/treo/Downloads/chrome"; # anjin プロファイル含む全 Chrome
+            PromptForDownloadLocation = false;
+          };
+          "org.mozilla.firefoxdeveloperedition" = {
+            EnterprisePoliciesEnabled = true;
+            DefaultDownloadDirectory = "/Users/treo/Downloads/firefox";
+          };
+          "app.zen-browser.zen" = {
+            EnterprisePoliciesEnabled = true;
+            DefaultDownloadDirectory = "/Users/treo/Downloads/zen";
           };
 
           AdLib = {

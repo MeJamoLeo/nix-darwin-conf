@@ -14,6 +14,7 @@
     ./starship.nix
     ./macos/aerospace.nix
     ./macos/chrome-anjin.nix
+    ./macos/download-dirs.nix
     ./wezterm.nix
     ./ghostty.nix
     ./cmux.nix
