@@ -32,7 +32,7 @@
 
       # customize dock
       dock = {
-        autohide = false; # always keep the dock visible
+        autohide = true; # hide the dock — the desktop is the CP dashboard now
         show-recents = false; # disable recent apps
         orientation = "right"; # pin the dock to the right edge of the screen
 
@@ -232,7 +232,7 @@
           };
 
           screencapture = {
-            location = "~/Desktop";
+            location = "~/Downloads"; # スクショも Downloads に集約（デスクトップ=盤面を汚さない）
             type = "png";
           };
 
