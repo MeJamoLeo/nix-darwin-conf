@@ -14,7 +14,6 @@
     ./starship.nix
     ./macos/aerospace.nix
     ./macos/chrome-anjin.nix
-    ./macos/download-dirs.nix
     ./wezterm.nix
     ./ghostty.nix
     ./cmux.nix
@@ -50,4 +49,8 @@
 
   # Let Home Manager install and manage itself.
   programs.home-manager.enable = true;
+
+  # スクショ保存先 (system.nix screencapture.location) の存在保証。
+  # ディレクトリが無いと macOS はスクリーンショットを黙って失敗させる。
+  home.file."Downloads/screenshots/.keep".text = "";
 }

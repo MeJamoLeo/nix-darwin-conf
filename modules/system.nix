@@ -236,19 +236,9 @@
             type = "png";
           };
 
-          # ブラウザ毎にダウンロード先を Downloads 配下で仕分ける（macOS ポリシー経由）
-          "com.google.Chrome" = {
-            DownloadDirectory = "/Users/treo/Downloads/chrome"; # anjin プロファイル含む全 Chrome
-            PromptForDownloadLocation = false;
-          };
-          "org.mozilla.firefoxdeveloperedition" = {
-            EnterprisePoliciesEnabled = true;
-            DefaultDownloadDirectory = "/Users/treo/Downloads/firefox";
-          };
-          "app.zen-browser.zen" = {
-            EnterprisePoliciesEnabled = true;
-            DefaultDownloadDirectory = "/Users/treo/Downloads/zen";
-          };
+          # メモ: ブラウザ別のダウンロード先仕分けは一度宣言して撤回した (2026-07-04)。
+          # 「どのブラウザで落としたか」は検索時に思い出さない軸で、整理は
+          # 検索・新着順・再取得で代替する方針。仕分けは screenshots のみ。
 
           AdLib = {
             allowApplePersonalizedAdvertising = false;
