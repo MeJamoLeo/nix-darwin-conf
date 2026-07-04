@@ -240,14 +240,8 @@
           # 「どのブラウザで落としたか」は検索時に思い出さない軸で、整理は
           # 検索・新着順・再取得で代替する方針。仕分けは screenshots のみ。
 
-          # Chrome 拡張の宣言的インストール (macOS でもポリシーは defaults 経由で効く)。
-          # 注: ポリシーはプロファイル単位でなくブラウザ単位 = anjin にもメインにも効く。
-          "com.google.Chrome" = {
-            ExtensionInstallForcelist = [
-              # Claude in Chrome (browser automation)
-              "fcoeoabgfenejglbffodgkkbkcdhcgfn;https://clients2.google.com/service/update2/crx"
-            ];
-          };
+          # Chrome のポリシー (拡張 ForceList 等) は home/macos/chrome-anjin.nix の
+          # targets.darwin.defaults."com.google.Chrome" に一本化 (二重書きは後勝ちで消し合う)。
 
           AdLib = {
             allowApplePersonalizedAdvertising = false;
