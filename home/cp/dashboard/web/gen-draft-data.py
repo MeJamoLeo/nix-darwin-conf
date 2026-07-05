@@ -294,6 +294,10 @@ def main():
             "grade": sw.get("grade"),
             "start": sw["start"],
             "elapsed": sw.get("elapsed"),
+            "judging": bool(sw.get("judging")),
+            "submitted_at": sw.get("submitted_at"),
+            "wa_at": sw.get("wa_at"),
+            "tested_at": sw.get("tested_at"),
         }
 
     draft = {
