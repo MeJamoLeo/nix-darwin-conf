@@ -57,9 +57,14 @@ final class LiveLayer: NSObject, NSApplicationDelegate {
         print("[cp-dash-live] up: \(windows.count) screen(s), watching \(injectURL.path)")
     }
 
+    private var draftDataURL: URL { root.appendingPathComponent("web/draft-data.js") }
+
     private func injectMTime() -> Date {
-        let attrs = try? FileManager.default.attributesOfItem(atPath: injectURL.path)
-        return attrs?[.modificationDate] as? Date ?? .distantPast
+        // draft-v1 が実際に読むのは draft-data.js。inject.js は 30分サイクルの
+        // 互換シグナルとして残す（どちらか新しい方で reload）。
+        return [injectURL, draftDataURL].compactMap {
+            (try? FileManager.default.attributesOfItem(atPath: $0.path))?[.modificationDate] as? Date
+        }.max() ?? .distantPast
     }
 
     private func pollInject() {

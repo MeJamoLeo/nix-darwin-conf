@@ -50,6 +50,12 @@ if [[ ! -d "$DIR/test" ]]; then
     (cd "$DIR" && oj download "$URL")
 fi
 
+# SOLVE STOPWATCH (#36): kick one poller pass so the board reacts in seconds
+# (the launchd 60s timer would catch it anyway).
+if [[ -f "$HOME/cp-dashboard/upstream/stopwatch_poll.py" ]]; then
+    (python3 "$HOME/cp-dashboard/upstream/stopwatch_poll.py" >/dev/null 2>&1 &)
+fi
+
 [[ ! -f "$DIR/main.py" ]] && touch "$DIR/main.py"
 
 cd "$DIR"

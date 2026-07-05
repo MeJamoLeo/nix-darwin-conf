@@ -17,7 +17,7 @@ in
   # 実ファイル plist を bootout+削除しておく（無いと "would be clobbered" で失敗）。
   home.activation.cpDashboardTakeover =
     lib.hm.dag.entryBefore [ "checkLinkTargets" ] ''
-      for label in com.treo.cp-dashboard com.treo.cp-dashboard-live; do
+      for label in com.treo.cp-dashboard com.treo.cp-dashboard-live com.treo.cp-dashboard-stopwatch; do
         f="${home}/Library/LaunchAgents/$label.plist"
         if [ -f "$f" ] && [ ! -L "$f" ]; then
           /bin/launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
@@ -101,6 +101,20 @@ PLIST
       RunAtLoad = true;
       StandardOutPath = "${root}/out/live.log";
       StandardErrorPath = "${root}/out/live.log";
+    };
+  };
+
+  # SOLVE STOPWATCH (#36): アイドル時は即終了の軽量パス。走行中のみ kenkoooo を
+  # 差分ポーリングして初 AC で凍結する（cp-go からも1回キックされる＝秒速反応）。
+  launchd.agents."com.treo.cp-dashboard-stopwatch" = {
+    enable = true;
+    config = {
+      ProgramArguments = [ "${pkgs.python3}/bin/python3" "${root}/upstream/stopwatch_poll.py" ];
+      StartInterval = 60;
+      RunAtLoad = true;
+      EnvironmentVariables.PATH = runtimePath;
+      StandardOutPath = "${root}/out/stopwatch.log";
+      StandardErrorPath = "${root}/out/stopwatch.log";
     };
   };
 }
