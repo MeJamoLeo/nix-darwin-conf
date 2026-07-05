@@ -5,11 +5,12 @@ Reads ~/.cache/cp-dashboard/*.json and writes draft-data.js (window.DRAFT = {...
 next to this script. Called from bin/update.sh each cycle; safe to re-run manually.
 """
 import json
+import os
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
-CACHE = Path.home() / ".cache" / "cp-dashboard"
+CACHE = Path(os.environ.get("CP_DASH_CACHE", Path.home() / ".cache" / "cp-dashboard"))
 OUT = Path(__file__).parent / "draft-data.js"
 try:
     _wl = json.loads((Path(__file__).parent.parent / "watchlist.json").read_text())
@@ -283,6 +284,18 @@ def main():
         if d and d > best["diff"]:
             best = {"diff": d, "pid": s["problem_id"]}
 
+    # ---- solve stopwatch (#36) — state maintained by upstream/stopwatch_poll.py ----
+    sw = load("stopwatch.json") or {}
+    stopwatch = None
+    if sw.get("status") in ("running", "frozen") and sw.get("start"):
+        stopwatch = {
+            "status": sw["status"],
+            "task_id": sw.get("task_id"),
+            "grade": sw.get("grade"),
+            "start": sw["start"],
+            "elapsed": sw.get("elapsed"),
+        }
+
     draft = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "now": int(now),
@@ -311,6 +324,7 @@ def main():
         "scatter": scatter,
         "novi": {"totals": tot, "topics": topics, "user": novi.get("user")},
         "records": {"max_diff": best["diff"], "max_diff_pid": best["pid"], "max_streak": max_streak},
+        "stopwatch": stopwatch,
     }
     OUT.write_text("window.DRAFT = " + json.dumps(draft, ensure_ascii=False) + ";\n")
     print(f"wrote {OUT} ({OUT.stat().st_size} bytes)  streak={streak} rating={rating} "

@@ -343,29 +343,63 @@ const SOLVE_REF = [
   {g:'Q4', med:28, mean:52,  max:233},
   {g:'Q5', med:8,  mean:26,  max:137},
 ];
+const SW_CAP = 240;                                        // 4h（分）
+const swPx = m => Math.sqrt(Math.min(m, SW_CAP)/SW_CAP)*100;    // sqrt スケール（短時間側を広く）
+const fmtHMS = s => {
+  s = Math.max(0, Math.floor(s));
+  return `${String(Math.floor(s/3600)).padStart(2,'0')}:${String(Math.floor(s/60)%60).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+};
 R.stopwatch = () => {
-  const CAP = 240;                                  // 4h
-  const px = m => Math.sqrt(Math.min(m, CAP)/CAP)*100;   // sqrt スケール（短時間側を広く）
-  const fm = m => m < 60 ? m+'m' : Math.floor(m/60)+'h'+(m%60 ? String(m%60).padStart(2,'0') : '');
-  const rows = SOLVE_REF.map(r => `
+  const px = swPx;
+  const fm = m => m < 60 ? Math.round(m)+'m' : Math.floor(m/60)+'h'+(m%60 ? String(Math.round(m%60)).padStart(2,'0') : '');
+  const sw = D.stopwatch;                                  // null | {status,task_id,grade,start,elapsed}
+  const running = sw && sw.status === 'running';
+  const frozen  = sw && sw.status === 'frozen';
+  const elapS   = frozen ? sw.elapsed : running ? Math.floor(Date.now()/1000) - sw.start : 0;
+  const elapM   = elapS / 60;
+  const rows = SOLVE_REF.map(r => {
+    const hot = sw && sw.grade === r.g;
+    const gauge = hot && running
+      ? `<div id="sw-gauge" style="position:absolute;left:0;top:0;height:100%;width:${px(elapM)}%;border-radius:.75vh;
+           background:linear-gradient(90deg,rgba(57,208,216,.25),rgba(57,208,216,.55))"></div>
+         <div id="sw-head" style="position:absolute;left:${px(elapM)}%;top:-30%;width:2px;height:160%;background:var(--cyan)"></div>`
+      : hot && frozen
+      ? `<div style="position:absolute;left:0;top:0;height:100%;width:${px(elapM)}%;border-radius:.75vh;
+           background:linear-gradient(90deg,rgba(57,208,216,.2),rgba(57,208,216,.4))"></div>
+         <div style="position:absolute;left:${px(elapM)}%;top:-30%;width:2px;height:160%;background:var(--cyan)"></div>`
+      : '';
+    return `
     <div class="row" style="gap:.7vw">
-      <span class="sml gy" style="width:2.2vw">${r.g}</span>
+      <span class="sml ${hot ? 'c' : 'gy'}" style="width:2.2vw">${r.g}${hot ? ' ◀' : ''}</span>
       <div style="flex:1;position:relative;height:1.5vh;background:#0e1420;border-radius:.75vh">
         <div style="position:absolute;left:0;top:0;height:100%;width:${px(r.med)}%;border-radius:.75vh;
           background:linear-gradient(90deg,rgba(126,231,135,.16),rgba(126,231,135,.34))"></div>
+        ${gauge}
         <div style="position:absolute;left:${px(r.med)}%;top:-22%;width:2px;height:144%;background:var(--green)"></div>
         <div style="position:absolute;left:${px(r.mean)}%;top:-10%;width:2px;height:120%;background:var(--amber);opacity:.85"></div>
         <div style="position:absolute;left:${px(r.max)}%;top:22%;width:1.5px;height:56%;background:var(--red);opacity:.6"></div>
       </div>
       <span class="xs" style="width:7.5vw;white-space:nowrap"><span class="g">${fm(r.med)}</span><span class="d">·</span><span class="a">${fm(r.mean)}</span><span class="d">·</span><span class="r" style="opacity:.75">${fm(r.max)}</span></span>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+  const ref = sw && SOLVE_REF.find(r => r.g === sw.grade);
+  const vs = frozen && ref
+    ? `<span class="xs ${elapM <= ref.med ? 'g' : elapM <= ref.mean ? 'a' : 'r'}" style="margin-left:auto">vs ${esc(sw.grade)} med ${fm(ref.med)} ${elapM <= ref.med ? '▼' : '▲'}${fm(Math.abs(elapM - ref.med))}</span>`
+    : '';
+  const head = running
+    ? `<span class="c pulse" style="font-size:1.2vh">▶</span><span class="xs" style="letter-spacing:.2vw;color:var(--cyan)">${esc(sw.task_id)}${sw.grade ? ' · '+esc(sw.grade) : ''}</span>
+       <div class="big c" id="sw-clock" style="font-size:2.8vh">${fmtHMS(elapS)}</div>
+       <span class="xs" style="margin-left:auto;color:var(--faint)">AC→■</span>`
+    : frozen
+    ? `<span class="g" style="font-size:1.2vh">■</span><span class="xs" style="letter-spacing:.2vw;color:var(--green)">AC · ${esc(sw.task_id)}</span>
+       <div class="big g" style="font-size:2.8vh">${fmtHMS(elapS)}</div>
+       ${vs}`
+    : `<span class="g pulse" style="font-size:1.2vh">●</span><span class="xs" style="letter-spacing:.2vw;color:var(--green)">READY</span>
+       <div class="big" style="color:#26314a;font-size:2.8vh">00:00:00</div>
+       <span class="xs" style="margin-left:auto;color:var(--faint)">oj→▶ AC→■</span>`;
   return `
   <span class="tag">SOLVE STOPWATCH</span>
-  <div class="row" style="gap:.8vw">
-    <span class="g pulse" style="font-size:1.2vh">●</span><span class="xs" style="letter-spacing:.2vw;color:var(--green)">READY</span>
-    <div class="big" style="color:#26314a;font-size:2.8vh">00:00:00</div>
-    <span class="xs" style="margin-left:auto;color:var(--faint)">oj→▶ AC→■</span>
-  </div>
+  <div class="row" style="gap:.8vw">${head}</div>
   <div class="fill" style="display:flex;flex-direction:column;justify-content:center;gap:1vh">
     <span class="lbl">SELF BASELINE · n=288　<span class="g">▎med</span> <span class="a">▎mean</span> <span class="r" style="opacity:.75">▎max</span></span>
     ${rows}
@@ -632,6 +666,18 @@ if(D.next_abc){
   setInterval(() => {
     const cd = document.getElementById('cd');
     if(cd) cd.textContent = countdown(D.next_abc.e);
+  }, 1000);
+}
+if(D.stopwatch && D.stopwatch.status === 'running'){
+  setInterval(() => {
+    const s = Math.floor(Date.now()/1000) - D.stopwatch.start;
+    const clock = document.getElementById('sw-clock');
+    if(clock) clock.textContent = fmtHMS(s);
+    const w = swPx(s/60) + '%';
+    const gauge = document.getElementById('sw-gauge');
+    const head = document.getElementById('sw-head');
+    if(gauge) gauge.style.width = w;
+    if(head) head.style.left = w;
   }, 1000);
 }
 </script>
