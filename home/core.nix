@@ -4,7 +4,8 @@
     just # Command runner (Justfile)
     tmux # Terminal multiplexer
     herdr # tmux ライクなエージェント対応マルチプレクサ（flake overlay 由来: flake.nix 参照）
-    online-judge-tools # Competitive programming CLI (oj)
+    # online-judge-tools は home/cp/tools.nix がラッパー付きで提供する
+    # （`oj test` 成功でダッシュボード STOPWATCH を臨戦態勢にするマーカーを書く）
 
     # archives
     zip

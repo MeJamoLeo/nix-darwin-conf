@@ -24,17 +24,19 @@ def row(task, user, status, ts, contest=CONTEST):
     return (f'<tr><td><time class="fixtime fixtime-second">{ts}</time></td>'
             f'<td><a href="/contests/{contest}/tasks/{task}">T</a></td>'
             f'<td><a href="/users/{user}">{user}</a></td>'
-            f'<td><span class="label">{status}</span></td></tr>')
+            f'<td><span class="label label-success">{status}</span></td></tr>')
 
 
-class AtcoderParserTest(unittest.TestCase):
+class ScanAtcoderRowsTest(unittest.TestCase):
     START = datetime(2026, 7, 5, 11, 0, 0, tzinfo=JST).timestamp()
+
+    def epoch(self, h, m, s):
+        return int(datetime(2026, 7, 5, h, m, s, tzinfo=JST).timestamp())
 
     def probe(self, html):
         fetched = html.encode() if html is not None else None
         with mock.patch.object(sp, "_fetch", return_value=fetched):
-            return sp.first_ac_epoch_atcoder(USER, CONTEST, TASK,
-                                             self.START, "dummy")
+            return sp.scan_atcoder_rows(USER, CONTEST, TASK, self.START, "dummy")
 
     def test_first_ac_after_start(self):
         html = ("<html><table>"
@@ -45,41 +47,79 @@ class AtcoderParserTest(unittest.TestCase):
                 + row("abc086_b", USER, "AC", "2026-07-05 12:10:00+0900")
                 + row(TASK, "someoneelse", "AC", "2026-07-05 12:05:00+0900")
                 + "</table></html>")
-        ac, ok = self.probe(html)
-        self.assertTrue(ok)
-        expect = int(datetime(2026, 7, 5, 12, 34, 56, tzinfo=JST).timestamp())
-        self.assertEqual(ac, expect)
+        p = self.probe(html)
+        self.assertIsNotNone(p)
+        self.assertEqual(p["first_ac"], self.epoch(12, 34, 56))
+        self.assertEqual(p["last_wa"], self.epoch(12, 0, 0))
+        self.assertIsNone(p["judging_at"])
 
-    def test_wa_only_is_authoritative_none(self):
-        ac, ok = self.probe(
+    def test_wa_only_keeps_running(self):
+        p = self.probe(
             "<table>" + row(TASK, USER, "WA", "2026-07-05 12:00:00+0900") + "</table>")
-        self.assertEqual((ac, ok), (None, True))
+        self.assertIsNone(p["first_ac"])
+        self.assertEqual(p["last_wa"], self.epoch(12, 0, 0))
 
-    def test_sign_in_redirect_is_not_authoritative(self):
-        ac, ok = self.probe("<html><title>Sign In - AtCoder</title></html>")
-        self.assertEqual((ac, ok), (None, False))
+    def test_wj_row_is_judging(self):
+        html = ("<table>"
+                + row(TASK, USER, "WJ", "2026-07-05 12:20:00+0900")
+                + "</table>")
+        p = self.probe(html)
+        self.assertIsNone(p["first_ac"])
+        self.assertEqual(p["judging_at"], self.epoch(12, 20, 0))
 
-    def test_fetch_failure_is_not_authoritative(self):
-        ac, ok = self.probe(None)
-        self.assertEqual((ac, ok), (None, False))
+    def test_progress_row_is_judging(self):
+        p = self.probe(
+            "<table>" + row(TASK, USER, "3/15", "2026-07-05 12:21:00+0900") + "</table>")
+        self.assertEqual(p["judging_at"], self.epoch(12, 21, 0))
 
-    def test_broken_fixtime_falls_back(self):
-        # AC行はあるのに時刻が取れない＝ページ構造変化 → 断定せず fallback
+    def test_final_verdicts_are_not_judging(self):
+        for verdict in ("TLE", "RE", "CE", "MLE"):
+            p = self.probe(
+                "<table>" + row(TASK, USER, verdict, "2026-07-05 12:22:00+0900") + "</table>")
+            self.assertIsNone(p["judging_at"], verdict)
+            self.assertIsNone(p["first_ac"], verdict)
+
+    def test_sign_in_redirect_is_none(self):
+        self.assertIsNone(self.probe("<html><title>Sign In - AtCoder</title></html>"))
+
+    def test_fetch_failure_is_none(self):
+        self.assertIsNone(self.probe(None))
+
+    def test_broken_fixtime_is_none(self):
+        # 対象行はあるのに時刻が取れない＝構造変化 → 断定せず fallback
         broken = row(TASK, USER, "AC", "x").replace(
             'class="fixtime fixtime-second"', 'class="renamed"')
-        ac, ok = self.probe("<table>" + broken + "</table>")
-        self.assertEqual((ac, ok), (None, False))
+        self.assertIsNone(self.probe("<table>" + broken + "</table>"))
 
-    def test_unparsable_time_falls_back(self):
-        ac, ok = self.probe(
-            "<table>" + row(TASK, USER, "AC", "not a timestamp") + "</table>")
-        self.assertEqual((ac, ok), (None, False))
+    def test_unparsable_time_is_none(self):
+        self.assertIsNone(self.probe(
+            "<table>" + row(TASK, USER, "AC", "not a timestamp") + "</table>"))
 
 
 class SessionSourceTest(unittest.TestCase):
     def test_env_override(self):
         with mock.patch.dict(os.environ, {"CP_ATCODER_SESSION": "tok"}):
             self.assertEqual(sp.atcoder_session(), "tok")
+
+
+class TestedMarkerTest(unittest.TestCase):
+    def test_marker_matches_task_within_window(self):
+        with tempfile.TemporaryDirectory() as d:
+            marker = Path(d) / "test-passed.json"
+            marker.write_text(json.dumps({"task_id": TASK, "passed_at": 1000}))
+            with mock.patch.object(sp, "MARKER", marker):
+                self.assertEqual(sp.tested_at_for(TASK, 1300), 1000)
+                self.assertIsNone(sp.tested_at_for(TASK, 1000 + sp.TESTED_SHOW_S + 1))
+                self.assertIsNone(sp.tested_at_for("abc086_b", 1300))
+
+
+class SigTest(unittest.TestCase):
+    def test_resubmit_advances_submitted_at(self):
+        # 再提出で仮停止時刻が進んだら盤面を再描画する（judging フラグは同じでも）
+        a = {"status": "running", "task_id": TASK, "start": 1,
+             "judging": True, "submitted_at": 100}
+        self.assertNotEqual(sp.sig(a), sp.sig({**a, "submitted_at": 200}))
+        self.assertEqual(sp.sig(a), sp.sig({**a, "updated_at": 999}))
 
 
 class DatasetAppendTest(unittest.TestCase):

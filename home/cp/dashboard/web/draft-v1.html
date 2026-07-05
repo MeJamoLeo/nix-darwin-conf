@@ -352,10 +352,13 @@ const fmtHMS = s => {
 R.stopwatch = () => {
   const px = swPx;
   const fm = m => m < 60 ? Math.round(m)+'m' : Math.floor(m/60)+'h'+(m%60 ? String(Math.round(m%60)).padStart(2,'0') : '');
-  const sw = D.stopwatch;                                  // null | {status,task_id,grade,start,elapsed}
+  const sw = D.stopwatch;                                  // null | {status,task_id,grade,start,elapsed,judging,submitted_at,wa_at,tested_at}
   const running = sw && sw.status === 'running';
+  const judging = running && sw.judging && sw.submitted_at; // 仮停止＝提出時刻で止めて見せる
   const frozen  = sw && sw.status === 'frozen';
-  const elapS   = frozen ? sw.elapsed : running ? Math.floor(Date.now()/1000) - sw.start : 0;
+  const elapS   = frozen ? sw.elapsed
+                : judging ? sw.submitted_at - sw.start
+                : running ? Math.floor(Date.now()/1000) - sw.start : 0;
   const elapM   = elapS / 60;
   const rows = SOLVE_REF.map(r => {
     const hot = sw && sw.grade === r.g;
@@ -386,10 +389,19 @@ R.stopwatch = () => {
   const vs = frozen && ref
     ? `<span class="xs ${elapM <= ref.med ? 'g' : elapM <= ref.mean ? 'a' : 'r'}" style="margin-left:auto">vs ${esc(sw.grade)} med ${fm(ref.med)} ${elapM <= ref.med ? '▼' : '▲'}${fm(Math.abs(elapM - ref.med))}</span>`
     : '';
-  const head = running
+  const nowS = Math.floor(Date.now()/1000);
+  const tested = running && sw.tested_at && nowS - sw.tested_at < 600
+    ? `<span class="xs g">✓ tests</span>` : '';
+  const waNote = running && sw.wa_at
+    ? `<span class="xs r">WA ${fmtHMS(sw.wa_at - sw.start)}</span>` : '';
+  const head = judging
+    ? `<span class="a pulse" style="font-size:1.2vh">⏳</span><span class="xs" style="letter-spacing:.2vw;color:var(--amber)">${esc(sw.task_id)} · JUDGING</span>
+       <div class="big a" style="font-size:2.8vh">${fmtHMS(elapS)}</div>
+       ${waNote}<span class="xs" style="margin-left:auto;color:var(--faint)">AC→■ WA→▶</span>`
+    : running
     ? `<span class="c pulse" style="font-size:1.2vh">▶</span><span class="xs" style="letter-spacing:.2vw;color:var(--cyan)">${esc(sw.task_id)}${sw.grade ? ' · '+esc(sw.grade) : ''}</span>
        <div class="big c" id="sw-clock" style="font-size:2.8vh">${fmtHMS(elapS)}</div>
-       <span class="xs" style="margin-left:auto;color:var(--faint)">AC→■</span>`
+       ${tested}${waNote}<span class="xs" style="margin-left:auto;color:var(--faint)">AC→■</span>`
     : frozen
     ? `<span class="g" style="font-size:1.2vh">■</span><span class="xs" style="letter-spacing:.2vw;color:var(--green)">AC · ${esc(sw.task_id)}</span>
        <div class="big g" style="font-size:2.8vh">${fmtHMS(elapS)}</div>
@@ -668,7 +680,8 @@ if(D.next_abc){
     if(cd) cd.textContent = countdown(D.next_abc.e);
   }, 1000);
 }
-if(D.stopwatch && D.stopwatch.status === 'running'){
+if(D.stopwatch && D.stopwatch.status === 'running'
+   && !(D.stopwatch.judging && D.stopwatch.submitted_at)){   // JUDGING は仮停止＝秒針を止める
   setInterval(() => {
     const s = Math.floor(Date.now()/1000) - D.stopwatch.start;
     const clock = document.getElementById('sw-clock');
