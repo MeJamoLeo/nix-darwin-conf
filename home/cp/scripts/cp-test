@@ -1,0 +1,35 @@
+# cp-test (macOS port) — oj test with language auto-detection.
+#
+# x1nano's cp-test per nixos-cp README (.py -> python3, .cpp -> g++); the
+# original script was never vendored, so this is a from-spec rewrite.
+# Runs in a problem dir prepared by cp-go (test/ from oj download).
+#
+# `oj` resolves via PATH to the wrapper in cp/tools.nix, so a passing run
+# drops the STOPWATCH arming marker automatically — cp-test needs no hook.
+set -euo pipefail
+
+SOLUTION="${1:-main.py}"
+shift 2>/dev/null || true          # 残りの引数は oj test にそのまま渡す
+
+if [[ ! -f "$SOLUTION" ]]; then
+    echo "Error: $SOLUTION not found" >&2
+    exit 1
+fi
+if [[ ! -d test ]]; then
+    echo "Error: test/ not found — run cp-go (oj download) first" >&2
+    exit 1
+fi
+
+case "${SOLUTION##*.}" in
+    py)
+        exec oj test -c "python3 $SOLUTION" "$@"
+        ;;
+    cpp|cc)
+        g++ -std=c++20 -O2 -o a.out "$SOLUTION"
+        exec oj test "$@"
+        ;;
+    *)
+        echo "Error: unsupported extension .${SOLUTION##*.} (py/cpp/cc)" >&2
+        exit 1
+        ;;
+esac

@@ -30,6 +30,7 @@ in
   #   oj            wrapped online-judge-tools (test-pass marker, see above)
   #   cp-go         clipboard AtCoder URL -> ~/cp/contests/.../ + oj download + nvim
   #   cp-go-launch  alt-g entry: drop/focus a cp-go window in cmux's tmux (no spawn)
+  #   cp-test       oj test with language auto-detect (.py -> python3, .cpp -> g++)
   #   cp-login      paste REVEL_SESSION -> Keychain (stopwatch freeze detection)
   #
   # alt-g binding lives in home/macos/aerospace.nix and calls cp-go-launch via
@@ -38,6 +39,7 @@ in
     oj
     (pkgs.writeShellScriptBin "cp-go" (builtins.readFile ./scripts/cp-go))
     (pkgs.writeShellScriptBin "cp-go-launch" (builtins.readFile ./scripts/cp-go-launch))
+    (pkgs.writeShellScriptBin "cp-test" (builtins.readFile ./scripts/cp-test))
     (pkgs.writeShellScriptBin "cp-login" (builtins.readFile ./scripts/cp-login))
   ];
 }
