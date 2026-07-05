@@ -1,0 +1,59 @@
+# cp-login (macOS port) — store the AtCoder REVEL_SESSION in the login Keychain.
+#
+# AtCoder has no API/token auth and CLI login is CAPTCHA-walled (2025), so the
+# ecosystem standard is pasting the browser session cookie (aclogin pattern).
+# x1nano's cp-login writes a plaintext cookie.jar for oj; this port stores the
+# cookie in the Keychain instead (no plaintext on disk — 2026-07-04 policy)
+# for stopwatch_poll.py's freeze detection. Re-run on expiry (~6 months).
+#
+# Known tradeoffs (accepted, single-user machine):
+#   - `security add-generic-password -w <val>` exposes the value in argv for
+#     ~1s (same class of exposure as x1nano's curl-based cp-submit).
+#   - The -T /usr/bin/security ACL lets any user-space process read the item
+#     silently via the security CLI — required for unattended launchd reads.
+#     The AtCoder session is a comparatively low-value secret.
+set -euo pipefail
+
+SERVICE="atcoder-revel-session"
+PROBE_URL="https://atcoder.jp/contests/abc086/submissions"
+UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+echo "=== AtCoder Login (Keychain) ==="
+echo ""
+echo "1. ブラウザで https://atcoder.jp にログイン"
+echo "2. DevTools → Application(Chrome)/Storage(Firefox) → Cookies → atcoder.jp"
+echo "3. REVEL_SESSION の値をコピー（httpOnly なので JS からは取れない）"
+echo ""
+printf 'REVEL_SESSION= '
+read -rs SESSION
+echo ""
+
+if [[ -z "$SESSION" ]]; then
+    echo "Error: empty session" >&2
+    exit 1
+fi
+if ! printf '%s' "$SESSION" | grep -qE '^[A-Za-z0-9%+_=.:-]+$'; then
+    echo "Error: invalid session format" >&2
+    exit 1
+fi
+
+echo "Testing (要ログインの提出一覧が開けるか)..."
+# cookie は argv に晒さず --config を process substitution で渡す（ps 対策）。
+# ネットワーク失敗と cookie 無効は別扱い：前者では保存しない。
+# -L 必須: 無効 cookie は 302 → Sign In に飛ぶ（追わないと空ボディで検証をすり抜ける）
+BODY=$(curl -sfL --max-time 15 -A "$UA" \
+        --config <(printf 'cookie = "REVEL_SESSION=%s"\n' "$SESSION") \
+        "$PROBE_URL") || {
+    echo "Error: 接続失敗（ネットワーク/タイムアウト）。cookie の有効性は未判定のため保存しない" >&2
+    exit 1
+}
+if printf '%s' "$BODY" | grep -q '<title>Sign In'; then
+    echo "Error: cookie が無効（Sign In に飛ばされた）。コピーし直して再実行を" >&2
+    exit 1
+fi
+
+security add-generic-password -U -a "$USER" -s "$SERVICE" -w "$SESSION" -T /usr/bin/security
+
+echo ""
+echo "OK: Keychain に保存した (service=$SERVICE)"
+echo "確認: security find-generic-password -s $SERVICE -w | head -c 8"

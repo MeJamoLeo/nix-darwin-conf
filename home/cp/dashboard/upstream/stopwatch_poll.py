@@ -8,6 +8,10 @@ x1nano analyze_solve_times.py / vault atcoder-solve-time-data):
   freeze = epoch of the FIRST AC submission at/after start (WA keeps running)
   expire = 4h after start (beyond the single-session cap → back to READY)
 
+AC sources, in order: local submissions cache → AtCoder official submissions
+page (fast, needs REVEL_SESSION in Keychain via cp-login; the page went
+login-only in the 2025 anti-bot wave) → kenkoooo API (no auth, crawler lag).
+
 elapsed = ac_epoch - start, so polling lag never distorts the frozen value.
 
 Invocation:
@@ -22,13 +26,15 @@ Dataset: ~/.cache/cp-dashboard/solve_times.jsonl (frozen sessions, 30s–4h
 import fcntl
 import json
 import os
+import re
 import subprocess
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from fetch_stats import KENKOOOO_BASE, _fetch_json  # noqa: E402
+from fetch_stats import ATCODER_BASE, KENKOOOO_BASE, _fetch, _fetch_json  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent          # ~/cp-dashboard
 CACHE = Path(os.environ.get("CP_DASH_CACHE", Path.home() / ".cache" / "cp-dashboard"))
@@ -82,14 +88,84 @@ def grade_of(task_id):
     return None
 
 
-def first_ac_epoch(user, task_id, start):
-    """Earliest AC at/after start: local cache first, then kenkoooo delta."""
+ATCODER_KEYCHAIN_SERVICE = "atcoder-revel-session"
+FIXTIME_RE = re.compile(r'<time class=["\']fixtime fixtime-second["\']>([^<]+)</time>')
+
+
+def atcoder_session():
+    """REVEL_SESSION from env (tests) or the login Keychain. None if absent.
+    Stored by cp-login with -T /usr/bin/security so launchd reads it silently."""
+    env = os.environ.get("CP_ATCODER_SESSION")
+    if env:
+        return env
+    try:
+        r = subprocess.run(
+            ["/usr/bin/security", "find-generic-password",
+             "-s", ATCODER_KEYCHAIN_SERVICE, "-w"],
+            capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    tok = r.stdout.strip()
+    return tok if r.returncode == 0 and tok else None
+
+
+def first_ac_epoch_atcoder(user, contest, task_id, start, session):
+    """速報経路: 公式の提出一覧（要ログイン）から初ACを引く。
+    Returns (epoch|None, authoritative) — authoritative=False は認証切れ/取得失敗
+    （kenkoooo へフォールバック）、True の epoch=None は「まだACが無い」の確定."""
+    url = (f"{ATCODER_BASE}/contests/{contest}/submissions"
+           f"?f.Task={task_id}&f.User={user}&f.Status=AC")
+    raw = _fetch(url, headers={"Cookie": f"REVEL_SESSION={session}"})
+    if raw is None:
+        return None, False
+    html = raw.decode("utf-8", "replace")
+    if "<title>Sign In" in html:
+        print("[stopwatch] atcoder cookie expired — run cp-login", file=sys.stderr)
+        return None, False
+    # クエリフィルタを信用せず行単位で task/user/AC を検証してから時刻を取る
+    epochs = []
+    suspect = False   # AC行はあるのに時刻が取れない＝ページ構造変化の兆候
+    for row in html.split("<tr>"):
+        if f"/contests/{contest}/tasks/{task_id}" not in row:
+            continue
+        if f"/users/{user}" not in row or ">AC</span>" not in row:
+            continue
+        m = FIXTIME_RE.search(row)
+        if not m:
+            suspect = True
+            continue
+        try:
+            epochs.append(int(datetime.strptime(
+                m.group(1).strip(), "%Y-%m-%d %H:%M:%S%z").timestamp()))
+        except ValueError:
+            suspect = True
+            continue
+    acs = [e for e in epochs if e >= int(start)]
+    if acs:
+        return min(acs), True
+    if suspect:
+        # 「無い」と断定せず kenkoooo に回す（構造変化で両経路が死ぬのを防ぐ）
+        print("[stopwatch] atcoder page structure changed? — fallback",
+              file=sys.stderr)
+        return None, False
+    return None, True
+
+
+def first_ac_epoch(user, contest, task_id, start):
+    """Earliest AC at/after start.
+    Order: local cache (offline) → AtCoder 公式 (速報・要 cookie) → kenkoooo."""
     subs = load_json(CACHE / f"submissions_{user}.json", []) or []
     acs = [s["epoch_second"] for s in subs
            if s.get("problem_id") == task_id and s.get("result") == "AC"
            and s.get("epoch_second", 0) >= int(start)]
     if acs:
         return min(acs)
+    session = atcoder_session()
+    if session:
+        ac, authoritative = first_ac_epoch_atcoder(
+            user, contest, task_id, start, session)
+        if authoritative:
+            return ac          # 公式の「無い」は kenkoooo より新しい＝これで確定
     url = (f"{KENKOOOO_BASE}/atcoder-api/v3/user/submissions"
            f"?user={user}&from_second={int(start)}")
     batch = _fetch_json(url)
@@ -172,7 +248,8 @@ def main():
                 and prev.get("start") == int(cand["start"])):
             new = prev
         else:
-            ac = first_ac_epoch(user, cand["task_id"], cand["start"])
+            ac = first_ac_epoch(user, cand["contest"], cand["task_id"],
+                                cand["start"])
             if ac is not None:
                 elapsed = int(ac - cand["start"])
                 new = {**base, "status": "frozen", "ac_epoch": int(ac),
