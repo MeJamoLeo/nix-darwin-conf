@@ -112,7 +112,7 @@ def write_cache(cache_dir: Path, key: str, data: Any) -> None:
 # HTTP
 # ---------------------------------------------------------------------------
 
-def _fetch(url: str, retries: int = 1) -> bytes | None:
+def _fetch(url: str, retries: int = 1, headers: dict | None = None) -> bytes | None:
     for attempt in range(retries + 1):
         try:
             req = urllib.request.Request(
@@ -125,6 +125,7 @@ def _fetch(url: str, retries: int = 1) -> bytes | None:
                     ),
                     "Accept": "application/json, text/html, */*",
                     "Accept-Encoding": "gzip",
+                    **(headers or {}),
                 },
             )
             with urllib.request.urlopen(req, timeout=30) as resp:
