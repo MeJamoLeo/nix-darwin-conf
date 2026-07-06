@@ -33,7 +33,17 @@ in {
   # set-environment を全シェル(ssh の非対話 exec 含む)で読むため、
   # systemPackages に置けばクライアントから `mosh <host>` だけで見つかる。
   # 見つからない端末アプリからは --server=/run/current-system/sw/bin/mosh-server。
-  environment.systemPackages = [pkgs.mosh];
+  #
+  # ghostty-bin.terminfo: Ghostty は TERM=xterm-ghostty を名乗るが、nix の
+  # mosh/ncurses が引く terminfo DB に定義が無いと mosh が起動時に死ぬ
+  # ("'xterm-ghostty': unknown terminal type"、tanegashima で実機確認)。
+  # terminfo 定義だけの出力を systemPackages に置くと
+  # /run/current-system/sw/share/terminfo に入り、TERMINFO_DIRS 経由で
+  # クライアント側 mosh・サーバ側 TUI の双方から解決できる。
+  environment.systemPackages = [
+    pkgs.mosh
+    pkgs.ghostty-bin.terminfo
+  ];
 
   # Remote Login(sshd)を宣言的に ON に保つ(有効済みなら no-op)。
   # systemsetup -setremotelogin は Full Disk Access を要求するので launchctl で。
