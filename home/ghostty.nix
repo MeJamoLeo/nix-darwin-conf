@@ -12,8 +12,9 @@
       font-size = 13;
       theme = "Catppuccin Latte"; # Ghostty 組み込み(+list-themes で確認)
       background-opacity = 0.8;
-      # blur はオフ（未指定＝Ghostty 既定で無効）。有効化するなら background-blur = 1
-      # （整数のみ有効、0.1 は invalid value を実機確認済み。旧名 background-blur-radius は廃止）
+      # blur はオフ（0 = 無効を明示）。有効化するなら 1 以上の整数
+      # （0.1 等の小数は invalid value を実機確認済み。旧名 background-blur-radius は廃止）
+      background-blur = 0;
       macos-titlebar-style = "hidden";
       keybind = [
         "super+d=new_split:right"
