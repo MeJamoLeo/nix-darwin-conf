@@ -40,9 +40,8 @@
         # NOTE: setting this fully replaces the dock contents on rebuild.
         persistent-apps = [
           "/Applications/Zen.app"
-          "/Applications/cmux.app"
           "/Applications/Cursor.app"
-          "/Applications/Zed.app"
+          "/Users/${username}/Applications/Home Manager Apps/Zed.app"
           "/Applications/Discord.app"
           "/Applications/Obsidian.app"
           "/Applications/Dynalist.app"
