@@ -80,7 +80,21 @@ PLIST
       fi
     '';
 
-  #--- launchd エージェント2本（宣言化）------------------------------------
+  #--- ライブ層の再起動（新バイナリ読み込み）--------------------------------
+  # cp-dash-live は KeepAlive の常駐プロセス。plist のパス（${root}/bin/cp-dash-live）は
+  # rebuild 間で不変なので、バイナリだけ作り替えても home-manager は plist 差分を検出せず
+  # 旧プロセスを bounce しない → 盤面が古いまま張り付く（2026-07-06 実際に発生）。
+  # deploy でバイナリを作り直したこの activation の直後に明示 kickstart して差し替える。
+  # 初回インストール時はまだ agent 未ロードで kickstart が失敗し得るが、その場合は
+  # RunAtLoad で新バイナリが起動するので || true で握りつぶしてよい。
+  # 他2本（update.sh / stopwatch_poll.py）は launchd が毎回 fork し直す非常駐なので不要。
+  home.activation.cpDashboardRestartLive =
+    lib.hm.dag.entryAfter [ "cpDashboardDeploy" ] ''
+      label="org.nix-community.home.com.treo.cp-dashboard-live"
+      /bin/launchctl kickstart -k "gui/$(id -u)/$label" 2>/dev/null || true
+    '';
+
+  #--- launchd エージェント3本（宣言化）------------------------------------
   launchd.agents."com.treo.cp-dashboard" = {
     enable = true;
     config = {
