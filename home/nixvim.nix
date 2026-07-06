@@ -143,13 +143,38 @@
       mode = "n";
       options.desc = "[L]azy[G]it";
     }
-    # CP: テストケース実行（x1nano の Space+cr / competitest と同じ指癖）。
-    # cp-test は言語自動判定で oj test を呼ぶ → 成功で STOPWATCH 臨戦マーカーも発火。
+    # CP: competitest（x1nano modules/nvim/default.nix から忠実移植）。
+    # competitest は自前ランナーで oj ラッパーを通らないため、STOPWATCH の
+    # 臨戦マーカーは <leader>cs（cp-submit）が発火する（提出こそ最強の予兆）。
     {
-      action = "<CMD>write | belowright split | terminal cp-test %<CR>";
+      action = "<cmd>CompetiTest run<cr>";
       key = "<leader>cr";
       mode = "n";
-      options.desc = "[C]p test [R]un (cp-test)";
+      options.desc = "Run testcases";
+    }
+    {
+      action = "<cmd>w<cr><cmd>!cp-submit %<cr>";
+      key = "<leader>cs";
+      mode = "n";
+      options.desc = "Save + submit";
+    }
+    {
+      action = "<cmd>CompetiTest add_testcase<cr>";
+      key = "<leader>ca";
+      mode = "n";
+      options.desc = "Add testcase";
+    }
+    {
+      action = "<cmd>CompetiTest edit_testcase<cr>";
+      key = "<leader>ce";
+      mode = "n";
+      options.desc = "Edit testcase";
+    }
+    {
+      action = "<cmd>CompetiTest receive testcases<cr>";
+      key = "<leader>ct";
+      mode = "n";
+      options.desc = "Receive testcases";
     }
     # smart-splits: ウィンドウリサイズ (Ctrl+q)
     {
@@ -314,6 +339,34 @@ in {
 
     # プラグイン設定
     plugins = {
+      # CP: compile + run + test in nvim（x1nano から忠実移植・oj の test/ 形式に適合）
+      competitest = {
+        enable = true;
+        settings = {
+          save_current_file = true;
+          compile_command = {
+            cpp = {
+              exec = "g++";
+              args = ["-std=c++20" "-O2" "-Wall" "$(FNAME)" "-o" "$(FNOEXT)"];
+            };
+          };
+          run_command = {
+            cpp.exec = "./$(FNOEXT)";
+            python = {
+              exec = "python3";
+              args = ["$(FNAME)"];
+            };
+          };
+          runner_ui.interface = "popup";
+          output_compare_method = "squish";
+          maximum_time = 5000;
+          # oj downloadのtest/ディレクトリに合わせる
+          testcases_directory = "test";
+          testcases_input_file_format = "sample-$(TCNUM).in";
+          testcases_output_file_format = "sample-$(TCNUM).out";
+        };
+      };
+
       # 補完エンジン
       cmp = {
         enable = true;

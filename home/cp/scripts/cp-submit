@@ -1,0 +1,147 @@
+# cp-submit (macOS port) — submit solution to AtCoder
+#
+# Contest mode:  curl POST（rated 中は CAPTCHA 免除帯なので自動提出が通る）
+# Practice mode: clipboard + browser（コンテスト外の提出は Turnstile 必須のため
+#                人間がブラウザで貼って出す。atcoder.jp/posts/1456）
+#
+# x1nano 版からの適応: wl-copy→pbcopy / firefox→open /
+# cookie.jar→Keychain（cp-login が格納・平文ファイル禁止の 2026-07-04 方針）/
+# GNU grep -oP→bash パラメータ展開。
+# 呼び出し時に STOPWATCH の臨戦マーカーを書く（提出＝最強のアーミング信号）。
+set -euo pipefail
+
+SOLUTION="${1:-main.py}"
+SERVICE="atcoder-revel-session"
+UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+SOLUTION=$(realpath "$SOLUTION" 2>/dev/null || echo "$SOLUTION")
+if [[ ! -f "$SOLUTION" ]]; then
+    echo "Error: $SOLUTION not found" >&2
+    exit 1
+fi
+
+# Find .problem_url from solution file's directory
+PROB_DIR=$(dirname "$SOLUTION")
+if [[ -f "$PROB_DIR/.problem_url" ]]; then
+    URL=$(cat "$PROB_DIR/.problem_url")
+elif [[ -f ".problem_url" ]]; then
+    URL=$(cat .problem_url)
+else
+    echo -n "Problem URL: "
+    read -r URL
+fi
+
+# Validate URL domain and extract IDs (no GNU grep on macOS)
+if [[ ! "$URL" =~ ^https://atcoder\.jp/contests/[^/]+/tasks/[^/]+$ ]]; then
+    echo "Error: URL must be https://atcoder.jp/contests/<c>/tasks/<t>" >&2
+    exit 1
+fi
+PID="${URL##*/tasks/}"
+CONTEST_ID="${URL#https://atcoder.jp/contests/}"
+CONTEST_ID="${CONTEST_ID%%/*}"
+if [[ ! "$CONTEST_ID" =~ ^[a-z0-9_-]+$ ]] || [[ ! "$PID" =~ ^[a-z0-9_]+$ ]]; then
+    echo "Error: invalid contest/problem ID" >&2
+    exit 1
+fi
+
+SUBMIT_URL="https://atcoder.jp/contests/$CONTEST_ID/submit"
+
+# STOPWATCH (#36): 提出に向かう＝臨戦マーカー＋poller を1回キック
+if command -v jq >/dev/null 2>&1; then
+    mkdir -p "$HOME/.cache/cp-dashboard"
+    jq -n --arg t "$PID" --argjson p "$(date +%s)" '{task_id: $t, passed_at: $p}' \
+        > "$HOME/.cache/cp-dashboard/test-passed.json"
+    if [[ -f "$HOME/cp-dashboard/upstream/stopwatch_poll.py" ]]; then
+        (python3 "$HOME/cp-dashboard/upstream/stopwatch_poll.py" >/dev/null 2>&1 &)
+    fi
+fi
+
+# --- Detect contest mode (現在時刻がいずれかの開催中コンテスト内か) ---
+IN_CONTEST=$(python3 -c "
+import json, time, os, glob
+paths = glob.glob(os.path.expanduser('~/.cache/cp-dashboard/stats*.json'))
+now = time.time()
+for p in paths:
+    try:
+        with open(p) as f:
+            data = json.load(f)
+        for c in data.get('contests', []):
+            start = c.get('start_epoch', 0)
+            dur = c.get('duration_seconds', 0)
+            if start <= now <= start + dur:
+                print('yes')
+                exit()
+    except Exception: pass
+print('no')
+" 2>/dev/null || echo "no")
+
+echo "=== cp-submit ==="
+echo "Problem:  $PID"
+echo "Contest:  $CONTEST_ID"
+echo "Mode:     $([ "$IN_CONTEST" = "yes" ] && echo "CONTEST (auto)" || echo "PRACTICE (browser)")"
+echo ""
+
+if [[ "$IN_CONTEST" == "yes" ]]; then
+    # --- Contest mode: curl POST（cookie は Keychain・argv に晒さない）---
+    SESSION=$(security find-generic-password -s "$SERVICE" -w 2>/dev/null || true)
+    if [[ -z "$SESSION" ]]; then
+        echo "Error: No cookie in Keychain. Run cp-login first." >&2
+        exit 1
+    fi
+
+    TMPHTML=$(mktemp)
+    trap 'rm -f "$TMPHTML"' EXIT
+
+    echo "Fetching CSRF token..."
+    SUBMIT_PAGE=$(curl -sL --max-time 20 -A "$UA" \
+        --config <(printf 'cookie = "REVEL_SESSION=%s"\n' "$SESSION") \
+        "$SUBMIT_URL")
+    CSRF=$(printf '%s' "$SUBMIT_PAGE" | grep 'var csrfToken' | sed 's/.*var csrfToken = "//;s/".*//' || echo "")
+
+    if [[ -z "$CSRF" ]]; then
+        echo "CSRF token failed. Falling back to browser..."
+        IN_CONTEST="no"
+    else
+        # Auto-detect language ID
+        EXT="${SOLUTION##*.}"
+        case "$EXT" in
+            py)  LANG_ID=$(printf '%s' "$SUBMIT_PAGE" | grep 'option.*Python.*CPython' | head -1 | sed 's/.*value="//;s/".*//') ;;
+            cpp) LANG_ID=$(printf '%s' "$SUBMIT_PAGE" | grep 'option.*C++.*GCC' | head -1 | sed 's/.*value="//;s/".*//') ;;
+            *)   LANG_ID="" ;;
+        esac
+        LANG_ID="${LANG_ID:-6082}"
+
+        echo "Language: $LANG_ID"
+        echo "Submitting..."
+
+        RESPONSE=$(curl -s -w "%{http_code}" -o "$TMPHTML" --max-time 20 \
+            -A "$UA" \
+            --config <(printf 'cookie = "REVEL_SESSION=%s"\n' "$SESSION") \
+            -H "Referer: $SUBMIT_URL" \
+            --data-urlencode "data.TaskScreenName=$PID" \
+            --data-urlencode "data.LanguageId=$LANG_ID" \
+            --data-urlencode "sourceCode@$SOLUTION" \
+            --data-urlencode "csrf_token=$CSRF" \
+            "$SUBMIT_URL")
+
+        if [[ "$RESPONSE" == "302" ]] || ! grep -q 'alert-danger' "$TMPHTML" 2>/dev/null; then
+            echo "Submitted!"
+            echo "Check result: https://atcoder.jp/contests/$CONTEST_ID/submissions/me"
+            exit 0
+        else
+            echo "Auto-submit failed. Falling back to browser..."
+            IN_CONTEST="no"
+        fi
+    fi
+fi
+
+if [[ "$IN_CONTEST" != "yes" ]]; then
+    # --- Practice mode: clipboard + browser ---
+    pbcopy < "$SOLUTION"
+    echo "Copied to clipboard!"
+    open "$SUBMIT_URL" >/dev/null 2>&1 || true
+    echo ""
+    echo "1. Cmd+V to paste code"
+    echo "2. Select language"
+    echo "3. Click Submit"
+fi
