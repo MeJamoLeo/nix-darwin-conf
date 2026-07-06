@@ -137,9 +137,11 @@ fi
 
 if [[ "$IN_CONTEST" != "yes" ]]; then
     # --- Practice mode: clipboard + browser ---
+    # ?taskScreenName=<PID> で提出フォームの Task ドロップダウンを当該問題に事前選択
+    # （無いと先頭の A 問題のまま＝毎回手で選び直す手間）。PID は上で ^[a-z0-9_]+$ に検証済。
     pbcopy < "$SOLUTION"
     echo "Copied to clipboard!"
-    open "$SUBMIT_URL" >/dev/null 2>&1 || true
+    open "$SUBMIT_URL?taskScreenName=$PID" >/dev/null 2>&1 || true
     echo ""
     echo "1. Cmd+V to paste code"
     echo "2. Select language"
