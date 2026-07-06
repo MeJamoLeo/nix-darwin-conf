@@ -89,6 +89,7 @@
           ./modules/apps.nix
           ./modules/host-users.nix
           ./modules/latex.nix
+          ./modules/remote-access.nix
           # ./modules/network-block.nix
           ./modules/school/txst.nix
           ./modules/courses/cs3354.nix
@@ -153,6 +154,11 @@
     # NixOS(nixos-cp) はこの flake を input にして homeModules.tmux を import する。
     # system 非依存（純粋な module 関数）なので Linux/Darwin 双方で評価できる。
     homeModules.tmux = import ./home/tmux.nix;
+
+    # デバイス公開鍵台帳（単一源）。詳細は keys.nix のコメント参照。
+    # NixOS(x1nano) からは inputs.nix-darwin-conf.sshKeys.<device> で参照して
+    # authorizedKeys に選択する（homeModules.tmux と同じ共有パターン）。
+    sshKeys = import ./keys.nix;
 
     # nix code formatter
     formatter.${system} = nixpkgs.legacyPackages.${system}.alejandra;
