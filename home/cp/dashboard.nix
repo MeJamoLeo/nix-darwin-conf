@@ -80,16 +80,24 @@ PLIST
       fi
     '';
 
-  #--- ライブ層の再起動（新バイナリ読み込み）--------------------------------
-  # cp-dash-live は KeepAlive の常駐プロセス。plist のパス（${root}/bin/cp-dash-live）は
-  # rebuild 間で不変なので、バイナリだけ作り替えても home-manager は plist 差分を検出せず
-  # 旧プロセスを bounce しない → 盤面が古いまま張り付く（2026-07-06 実際に発生）。
-  # deploy でバイナリを作り直したこの activation の直後に明示 kickstart して差し替える。
-  # 初回インストール時はまだ agent 未ロードで kickstart が失敗し得るが、その場合は
-  # RunAtLoad で新バイナリが起動するので || true で握りつぶしてよい。
-  # 他2本（update.sh / stopwatch_poll.py）は launchd が毎回 fork し直す非常駐なので不要。
+  #--- draft-data.js 再生成 → ライブ層の再起動 ------------------------------
+  # (1) cpDashboardDeploy は web/ を rm -rf して repo から張り直す。draft-data.js は
+  #     runtime 生成物（repo に無い）なので毎 rebuild で消える。draft-v1.html は
+  #     <script src="draft-data.js"> を読むので、欠損すると window.DRAFT=undefined で
+  #     描画が例外＝空画面（2026-07-06 実際に発生）。poller は状態不変だと refresh_board を
+  #     呼ばず再生成しないので、次の状態遷移／30分 update.sh まで空のまま張り付く。
+  #     → deploy 直後にここで一度 gen-draft-data.py を回して web/draft-data.js を必ず用意する
+  #     （キャッシュは ~/.cache/cp-dashboard に永続なので活性化時に生成できる。初回で
+  #     キャッシュ空なら失敗し得るが、その時は次の update.sh が埋めるので || true）。
+  # (2) cp-dash-live は KeepAlive 常駐。plist の ProgramArguments パスが rebuild 間で
+  #     不変なので home-manager は plist 差分を検出せず旧プロセスを bounce しない → 旧バイナリ
+  #     （draft-data.js 非監視世代）に張り付く（同 2026-07-06）。明示 kickstart で差し替える。
+  #     (1) の後に回すことで、再起動後のライブ層が必ず有効な draft-data.js を読む。
+  #     初回は agent 未ロードで kickstart 失敗し得るが RunAtLoad が新バイナリを起こすので || true。
+  # 他2本（update.sh / stopwatch_poll.py）は launchd が毎回 fork し直す非常駐なので再起動不要。
   home.activation.cpDashboardRestartLive =
     lib.hm.dag.entryAfter [ "cpDashboardDeploy" ] ''
+      ${pkgs.python3}/bin/python3 "${root}/web/gen-draft-data.py" >/dev/null 2>&1 || true
       label="org.nix-community.home.com.treo.cp-dashboard-live"
       /bin/launchctl kickstart -k "gui/$(id -u)/$label" 2>/dev/null || true
     '';
