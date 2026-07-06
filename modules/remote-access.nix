@@ -1,11 +1,19 @@
 {
   pkgs,
   username,
+  hostname,
+  lib,
   ...
 }: let
   # デバイス公開鍵台帳(単一源)。鍵の追加・失効は keys.nix 側で行う。
   keys = import ../keys.nix;
 in {
+  # ogasawara は常時待受サーバー: システムスリープすると tailscaled ごと止まり
+  # tailnet から消える(スリープ中の応答は CPU 停止のため原理的に不可。Power Nap /
+  # WoL / Wake on Demand はいずれも tailscale+Wi-Fi 構成では効かない)。
+  # 実測で sleep=1分 だったため never に。ディスプレイスリープは従来通り。
+  # M4 mini のアイドルは数W＝常時稼働の電気代は年千円強。laptop には適用しない。
+  power.sleep.computer = lib.mkIf (hostname == "ogasawara") "never";
   ##########################################################################
   #
   #  Remote access: iPhone/Mac → Tailscale → ssh/mosh → この Mac
