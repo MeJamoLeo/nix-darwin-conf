@@ -43,10 +43,11 @@ in {
     # 新 pane/tab は現在の作業ディレクトリを継承（tmux: split-window -c "#{pane_current_path}"）
     terminal.new_cwd = "follow";
 
-    # Ghostty の "Catppuccin Latte" と揃える（herdr 組み込み。"latte"/"light" も同義）。
+    # herdr 組み込みの Tokyo Night Day（"tokyo-day"/"tokyonight-day" も同義）。
+    # Ghostty 側は Catppuccin Latte のまま（あえて不揃い）。
     # ※config.toml は nix store の read-only symlink なので UI からのテーマ変更は
     #   保存されない（herdr-server.log の config.write error はその既知の挙動）。
-    theme.name = "catppuccin-latte";
+    theme.name = "tokyo-night-day";
   };
 
   # Claude Code SessionStart hook: herdr pane 内で起動した Claude に
