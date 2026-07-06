@@ -5,10 +5,15 @@
     # dejima で確認済み）。本体は Homebrew cask "ghostty" で入れ、ここは設定のみ管理。
     package = null;
     settings = {
+      # 標準 TERM を名乗る: xterm-ghostty だと terminfo の無い接続先
+      # (nix の mosh・大学サーバー等)で "unknown terminal type" になるため。
+      # Ghostty 固有の機能宣言を捨てるだけで 256色/truecolor は無影響
+      term = "xterm-256color";
       font-size = 13;
-      theme = "Kasugano";
+      theme = "Catppuccin Latte"; # Ghostty 組み込み(+list-themes で確認)
       background-opacity = 0.8;
-      background-blur-radius = 20;
+      # 整数のみ有効（0.1 は invalid value を実機確認済み）。旧名 background-blur-radius は廃止
+      background-blur = 1;
       macos-titlebar-style = "hidden";
       keybind = [
         "super+d=new_split:right"
