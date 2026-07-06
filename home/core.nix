@@ -42,6 +42,10 @@
     go
     nodejs
     tree-sitter
+
+    # GUI apps (nixpkgs 製。~/Applications/Home Manager Apps/ に .app が入る。
+    # Dock の persistent-apps もそのパスを参照: modules/system.nix)
+    zed-editor # High-performance collaborative code editor
   ];
 
   programs = {

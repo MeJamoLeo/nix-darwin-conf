@@ -77,6 +77,7 @@
       # Development
       "visual-studio-code" # Code editor
       "cursor" # AI-first code editor
+      # zed は nixpkgs の zed-editor で管理 (home/core.nix)
       "claude" # Anthropic's AI assistant
       {
         name = "claude-code";

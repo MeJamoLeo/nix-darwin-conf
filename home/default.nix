@@ -17,6 +17,7 @@
     ./wezterm.nix
     ./ghostty.nix
     ./cmux.nix
+    ./zed.nix
     ./herdr.nix
     ./cp
     ./claude.nix
