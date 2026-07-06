@@ -41,10 +41,8 @@ final class LiveLayer: NSObject, NSApplicationDelegate {
             let fitH = fitW * 9.0 / 16.0
             let frame = NSRect(x: (b.width - fitW) / 2, y: (b.height - fitH) / 2,
                                width: fitW, height: fitH)
-            let webView = WKWebView(frame: frame)
-            webView.autoresizingMask = [.minXMargin, .maxXMargin, .minYMargin, .maxYMargin]
+            let webView = makeWebView(frame: frame)
             win.contentView!.addSubview(webView)
-            webView.loadFileURL(htmlURL, allowingReadAccessTo: root)
 
             win.orderFrontRegardless()
             windows.append(win)
@@ -55,6 +53,16 @@ final class LiveLayer: NSObject, NSApplicationDelegate {
             self?.pollInject()
         }
         print("[cp-dash-live] up: \(windows.count) screen(s), watching \(injectURL.path)")
+    }
+
+    // 新しい WKWebView を作って draft-v1.html を読む。作りたてはキャッシュも
+    // 前ページの setInterval タイマーも持たないので、reload 時にこれで作り直せば
+    // 必ず disk の最新 draft-data.js を反映できる（下記 pollInject 参照）。
+    private func makeWebView(frame: NSRect) -> WKWebView {
+        let webView = WKWebView(frame: frame)
+        webView.autoresizingMask = [.minXMargin, .maxXMargin, .minYMargin, .maxYMargin]
+        webView.loadFileURL(htmlURL, allowingReadAccessTo: root)
+        return webView
     }
 
     private var draftDataURL: URL { root.appendingPathComponent("web/draft-data.js") }
@@ -71,10 +79,21 @@ final class LiveLayer: NSObject, NSApplicationDelegate {
         let mtime = injectMTime()
         guard mtime > lastMTime else { return }
         lastMTime = mtime
-        for webView in webViews {
-            webView.loadFileURL(htmlURL, allowingReadAccessTo: root)
+        // loadFileURL による再読込では WKWebView が file:// のサブリソース
+        // （draft-v1.html が読む draft-data.js）をキャッシュし、古い draft-data.js を
+        // 再実行して running のまま張り付く（2026-07-06: AC で frozen になっても秒針が
+        // 回り続けた）。確実に最新を反映するため webView を丸ごと作り直す
+        // ＝キャッシュも前ページの setInterval も残らない。reload は状態遷移時のみで頻度は
+        // 低いのでコストは無視できる。
+        for i in webViews.indices {
+            let old = webViews[i]
+            guard let parent = old.superview else { continue }
+            let fresh = makeWebView(frame: old.frame)
+            parent.addSubview(fresh)
+            old.removeFromSuperview()
+            webViews[i] = fresh
         }
-        print("[cp-dash-live] inject.js changed — reloaded")
+        print("[cp-dash-live] data changed — webview rebuilt")
     }
 }
 
