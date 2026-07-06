@@ -10,7 +10,8 @@
       # Ghostty 固有の機能宣言を捨てるだけで 256色/truecolor は無影響
       term = "xterm-256color";
       font-size = 13;
-      theme = "Catppuccin Latte"; # Ghostty 組み込み(+list-themes で確認)
+      # theme 未指定 = Ghostty デフォルト配色。戻すなら例: theme = "Catppuccin Latte"
+      # （組み込み一覧は `ghostty +list-themes`）
       background-opacity = 0.8;
       # blur はオフ（0 = 無効を明示）。有効化するなら 1 以上の整数
       # （0.1 等の小数は invalid value を実機確認済み。旧名 background-blur-radius は廃止）
