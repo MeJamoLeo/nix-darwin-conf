@@ -16,7 +16,7 @@
     ./macos/chrome-anjin.nix
     ./wezterm.nix
     ./ghostty.nix
-    ./cmux.nix
+    # ./cmux.nix  # cmux 引退（Ghostty + herdr へ移行）。cmux.json 管理を停止。ファイルは温存し、戻すならこの行を復活
     ./zed.nix
     ./herdr.nix
     ./cp
