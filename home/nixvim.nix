@@ -143,6 +143,14 @@
       mode = "n";
       options.desc = "[L]azy[G]it";
     }
+    # CP: テストケース実行（x1nano の Space+cr / competitest と同じ指癖）。
+    # cp-test は言語自動判定で oj test を呼ぶ → 成功で STOPWATCH 臨戦マーカーも発火。
+    {
+      action = "<CMD>write | belowright split | terminal cp-test %<CR>";
+      key = "<leader>cr";
+      mode = "n";
+      options.desc = "[C]p test [R]un (cp-test)";
+    }
     # smart-splits: ウィンドウリサイズ (Ctrl+q)
     {
       action.__raw = "function() require('smart-splits').resize_left() end";
