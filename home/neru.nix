@@ -9,12 +9,11 @@
       passthrough_unbounded_keys = false
       should_exit_after_passthrough = false
       passthrough_unbounded_keys_blacklist = []
-      hide_overlay_in_screen_share = false
+      hide_overlay_in_screen_share = true
 
       [hotkeys]
       "Cmd+Shift+Space" = "hints"
       "Cmd+Shift+G" = "grid"
-      "Cmd+Shift+C" = "recursive_grid"
       "Cmd+Shift+S" = "scroll"
 
       [hints]
