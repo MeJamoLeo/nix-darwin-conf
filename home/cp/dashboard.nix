@@ -34,7 +34,7 @@ in
       mkdir -p "$dst/out"
 
       # repo を source of truth として書き換え可能コピーを配置（out/ は runtime 状態なので温存）
-      for d in bin swift upstream web; do
+      for d in bin swift upstream web data; do
         rm -rf "$dst/$d"
         cp -R "$src/$d" "$dst/$d"
         chmod -R u+w "$dst/$d"
