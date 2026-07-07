@@ -525,6 +525,9 @@ R.novitopics = () => {
   const gi = Object.fromEntries(gcols.map((g, i) => [g, i]));
   const NC = gcols.length;
   const fs = NC > 8 ? '.8vh' : '.92vh';
+  // トピックは2列に均等分割。列あたりの行数に応じてセル高を詰める（多いほど薄く）。
+  const half = Math.ceil(D.novi.topics.length / 2);
+  const rowH = half > 26 ? '1.35vh' : half > 20 ? '1.6vh' : '1.9vh';
   const gridStyle = `display:grid;grid-template-columns:6.4vw repeat(${NC},1fr) 3vw;gap:.1vh .16vw;align-items:center`;
   const head = `<div style="${gridStyle};font-size:.95vh;color:var(--faint)">
     <span></span>${gcols.map(g => `<span style="text-align:center">Q${g}</span>`).join('')}<span></span></div>`;
@@ -535,7 +538,7 @@ R.novitopics = () => {
       const dn = a + e2;
       const tc = dn === 0 && w === 0 ? '#42506a' : '#e8f0f4';
       return `<span title="Q${gn}: self ${a} · editorial ${e2} · trying ${w} · new ${tt - dn - w}"
-        style="grid-column:${gi[gn] + 2};height:1.9vh;border-radius:.2vh;background:${bg};
+        style="grid-column:${gi[gn] + 2};height:${rowH};border-radius:.2vh;background:${bg};
         display:flex;align-items:center;justify-content:center;font-size:${fs};color:${tc};text-shadow:0 0 3px rgba(0,0,0,.85)">${dn}/${tt}</span>`;
     }).join('');
     return `<div style="${gridStyle};font-size:1.15vh">
@@ -548,9 +551,9 @@ R.novitopics = () => {
     <div class="xs"><b class="g">${t.ac}</b><span class="d">/</span><b class="a">${t.ed}</b><span class="d">/</span><b class="r">${t.wa}</b>
       <span class="d">· ${done}/${total} · </span><b class="c">${t.ns}</b><span class="d"> left</span>
       <span style="float:right"><span class="g">■</span><span class="d"> self </span><span class="a">■</span><span class="d"> editorial </span><span class="r">■</span><span class="d"> trying</span></span></div>
-    <div class="fill" style="display:grid;grid-template-columns:1fr 1fr;gap:0 1.4vw;align-content:start">
-      <div style="display:flex;flex-direction:column;gap:.16vh;justify-content:space-around">${colHTML(D.novi.topics.slice(0, 18))}</div>
-      <div style="display:flex;flex-direction:column;gap:.16vh;justify-content:space-around">${colHTML(D.novi.topics.slice(18))}</div>
+    <div class="fill" style="display:grid;grid-template-columns:1fr 1fr;gap:0 1.4vw;align-content:start;overflow:hidden">
+      <div style="display:flex;flex-direction:column;gap:.1vh;justify-content:space-around;min-height:0">${colHTML(D.novi.topics.slice(0, half))}</div>
+      <div style="display:flex;flex-direction:column;gap:.1vh;justify-content:space-around;min-height:0">${colHTML(D.novi.topics.slice(half))}</div>
     </div>`;
 };
 
