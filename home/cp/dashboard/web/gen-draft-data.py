@@ -233,6 +233,25 @@ def main():
              "a": 1 if s["result"] == "AC" else 0, "d": diff_of(s["problem_id"])}
         )
 
+    # ---- solve segments: 問題を開いた時刻(始点)→初AC(終点=AC ドット)の線（直近28日） ----
+    # start=.problem_url の btime、ac_epoch=初AC。散布図と同じ day×hour 座標で描く。
+    solve_segments = []
+    for rec in _load_jsonl(SEED) + _load_jsonl(LIVE):
+        ac_e, st_e = rec.get("ac_epoch"), rec.get("start")
+        if not isinstance(ac_e, (int, float)) or not isinstance(st_e, (int, float)):
+            continue
+        dac = day_of(ac_e)
+        if dac < start28:
+            continue
+        la, ls = time.localtime(ac_e), time.localtime(st_e)
+        solve_segments.append({
+            "sx": (day_of(st_e) - start28).days,
+            "sh": round(ls.tm_hour + ls.tm_min / 60, 2),
+            "x": (dac - start28).days,
+            "h": round(la.tm_hour + la.tm_min / 60, 2),
+            "d": diff_of(rec.get("task_id")),
+        })
+
     # ---- last sub ----
     last = subs[-1] if subs else None
     last_sub = (
@@ -375,6 +394,7 @@ def main():
         "hours": hours,
         "cal": cal,
         "scatter": scatter,
+        "solve_segments": solve_segments,
         "novi": {"totals": tot, "topics": topics, "user": novi.get("user")},
         "records": {"max_diff": best["diff"], "max_diff_pid": best["pid"], "max_streak": max_streak},
         "stopwatch": stopwatch,
