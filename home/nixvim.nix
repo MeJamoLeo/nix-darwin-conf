@@ -1,6 +1,76 @@
 # nixvim.nix - Neovim configuration via nixvim
 # LSP、補完、ファジーファインダー、Git連携などを設定
-{pkgs, ...}: let
+{pkgs, config, ...}: let
+  # CP デバッグ用: debugpy 入り python と、sample-N.in を stdin にして対象ファイルを
+  # debugpy 下で実行するランナー（x1nano nixos-cp から移植）。
+  pythonWithDebugpy = pkgs.python3.withPackages (ps: [ps.debugpy]);
+  cpDebugRunner = pkgs.writeText "cp-debug-runner.py" ''
+    import os, sys, runpy
+    script, input_file = sys.argv[1], sys.argv[2]
+    sys.stdin = open(input_file, "r")
+    os.chdir(os.path.dirname(os.path.abspath(script)))
+    sys.argv = [script]
+    runpy.run_path(script, run_name="__main__")
+  '';
+
+  # CP 用 Lua（luasnip ローダー＋markdown 数式スニペット＋DAP の CP デバッグ config
+  # ビルダー）。x1nano nixos-cp modules/nvim/default.nix から逐語移植。
+  cpNvimLua = ''
+    local ls = require("luasnip")
+    local s = ls.snippet
+    local t = ls.text_node
+    local i = ls.insert_node
+
+    -- ~/cp/snippets/<filetype>.lua を読む（この repo への out-of-store symlink 経由）
+    require("luasnip.loaders.from_lua").lazy_load({
+      paths = vim.fn.expand("~/cp/snippets"),
+    })
+
+    ls.add_snippets("markdown", {
+      s("$", { t("$"), i(1), t("$") }),
+      s("$$", { t("$$"), i(1), t("$$") }),
+      s("On", { t("$O(n)$") }),
+      s("Onlogn", { t("$O(n \\log n)$") }),
+      s("On2", { t("$O(n^2)$") }),
+      s("Ologn", { t("$O(\\log n)$") }),
+      s("sum", { t("$\\sum_{"), i(1, "i=1"), t("}^{"), i(2, "n"), t("} "), i(3), t("$") }),
+      s("frac", { t("$\\frac{"), i(1), t("}{"), i(2), t("}$") }),
+      s("sqrt", { t("$\\sqrt{"), i(1), t("}$") }),
+      s("leq", { t("$\\leq$") }),
+      s("geq", { t("$\\geq$") }),
+      s("neq", { t("$\\neq$") }),
+      s("inf", { t("$\\infty$") }),
+      s("floor", { t("$\\lfloor "), i(1), t(" \\rfloor$") }),
+      s("ceil", { t("$\\lceil "), i(1), t(" \\rceil$") }),
+      s("mod", { t("$"), i(1), t(" \\bmod "), i(2), t("$") }),
+      s("arr", { t("$a_"), i(1, "i"), t("$") }),
+      s("dp", { t("$dp["), i(1), t("]"), t("$") }),
+    })
+
+    -- CP debug: 現在ファイルを debugpy 下で test/sample-N.in を stdin に実行する DAP config
+    _G.cp_debug_config = function()
+      local file = vim.fn.expand("%:p")
+      local dir = vim.fn.expand("%:p:h")
+      local tc = vim.fn.input("Testcase number: ", "1")
+      if tc == "" then tc = "1" end
+      local input_file = dir .. "/test/sample-" .. tc .. ".in"
+      if vim.fn.filereadable(input_file) == 0 then
+        vim.notify("Input file not found: " .. input_file, vim.log.levels.ERROR)
+        return nil
+      end
+      return {
+        type = "python",
+        request = "launch",
+        name = "CP: " .. vim.fn.fnamemodify(file, ":t") .. " < sample-" .. tc .. ".in",
+        program = "${cpDebugRunner}",
+        args = { file, input_file },
+        cwd = dir,
+        console = "integratedTerminal",
+        justMyCode = false,
+      }
+    end
+  '';
+
   # カーソル位置の診断メッセージをフロートウィンドウで自動表示
   diagnosticFloatAutocmd = ''
     vim.api.nvim_create_autocmd("CursorHold", {
@@ -98,10 +168,20 @@
     "<CR>" = "cmp.mapping.confirm({ behavior = cmp.ConfirmBehavior.Insert, select = true })";
     "<Down>" = "cmp.mapping.select_next_item()";
     "<Up>" = "cmp.mapping.select_prev_item()";
+    # Tab でスニペット展開/ジャンプ（luasnip）。展開対象が無ければ通常の Tab。
+    "<Tab>" = ''cmp.mapping(function(fallback)
+      local luasnip = require("luasnip")
+      if luasnip.expand_or_jumpable() then luasnip.expand_or_jump() else fallback() end
+    end, {"i", "s"})'';
+    "<S-Tab>" = ''cmp.mapping(function(fallback)
+      local luasnip = require("luasnip")
+      if luasnip.jumpable(-1) then luasnip.jump(-1) else fallback() end
+    end, {"i", "s"})'';
   };
 
   # 補完ソース（優先度順）
   cmpSources = [
+    {name = "luasnip";} # スニペット（CP snippets）
     {name = "buffer";} # バッファ内の単語
     {name = "nvim_lsp";} # LSP
     {name = "omni";} # オムニ補完（Vlime等）
@@ -233,6 +313,22 @@
       mode = "n";
       options.desc = "File Browser";
     }
+    # DAP（デバッガ・全 leader ベース。x1nano から移植）
+    {action = "<cmd>DapContinue<cr>";        key = "<leader>dc"; mode = "n"; options.desc = "Debug: Continue/start";}
+    {action = "<cmd>DapStepOver<cr>";        key = "<leader>do"; mode = "n"; options.desc = "Debug: Step over";}
+    {action = "<cmd>DapStepInto<cr>";        key = "<leader>di"; mode = "n"; options.desc = "Debug: Step into";}
+    {action = "<cmd>DapStepOut<cr>";         key = "<leader>dO"; mode = "n"; options.desc = "Debug: Step out";}
+    {action = "<cmd>DapToggleBreakpoint<cr>"; key = "<leader>db"; mode = "n"; options.desc = "Debug: Breakpoint";}
+    {action = "<cmd>lua require('dap').set_breakpoint(vim.fn.input('Condition: '))<cr>"; key = "<leader>dB"; mode = "n"; options.desc = "Debug: Conditional breakpoint";}
+    {action = "<cmd>DapToggleRepl<cr>";      key = "<leader>dr"; mode = "n"; options.desc = "Debug: Toggle REPL";}
+    {action = "<cmd>DapTerminate<cr>";       key = "<leader>dx"; mode = "n"; options.desc = "Debug: Terminate";}
+    {action = "<cmd>lua require('dapui').toggle()<cr>"; key = "<leader>du"; mode = "n"; options.desc = "Debug: Toggle UI";}
+    {action = "<cmd>lua require('dap-python').test_method()<cr>"; key = "<leader>dt"; mode = "n"; options.desc = "Debug nearest test (Python)";}
+    {action = "<cmd>lua require('dap-python').debug_selection()<cr>"; key = "<leader>dn"; mode = "v"; options.desc = "Debug selection (Python)";}
+    {action = "<cmd>lua require('dap').run(_G.cp_debug_config())<cr>"; key = "<leader>cd"; mode = "n"; options.desc = "CP debug (stdin = test/sample-N.in)";}
+    # Nabla（LaTeX 数式レンダリング）
+    {action = "<cmd>lua require('nabla').popup()<cr>"; key = "<leader>np"; mode = "n"; options.desc = "Nabla: popup math under cursor";}
+    {action = "<cmd>lua require('nabla').toggle_virt({autogen=true})<cr>"; key = "<leader>nt"; mode = "n"; options.desc = "Nabla: toggle inline math";}
   ];
 
   # Telescope キーマップ
@@ -303,10 +399,11 @@ in {
     # 追加プラグイン（nixvim に専用オプションがないもの）
     extraPlugins = with pkgs.vimPlugins; [
       vim-table-mode # Markdown テーブル自動整形
+      nabla-nvim # LaTeX 数式をバッファ内にレンダリング（<leader>np/nt）
     ];
 
-    # Lua 設定の挿入
-    extraConfigLua = diagnosticFloatAutocmd + nvimAutopairsConfig;
+    # Lua 設定の挿入（CP スニペットローダー・数式スニペット・DAP デバッグ config 込み）
+    extraConfigLua = diagnosticFloatAutocmd + nvimAutopairsConfig + cpNvimLua;
     extraConfigLuaPre = rainbowDelimitersConfig;
 
     # グローバル変数
@@ -324,7 +421,7 @@ in {
       autoindent = true;
       background = "dark";
       clipboard = "unnamedplus"; # システムクリップボード連携
-      expandtab = false; # タブをスペースに展開しない
+      expandtab = true; # インデントはスペース（x1nano/CP 環境と統一。Python が主体で安全）
       list = true; # 不可視文字表示
       listchars = listchars;
       number = true; # 行番号表示
@@ -332,7 +429,7 @@ in {
       shiftwidth = 4;
       showtabline = 2; # 常にタブライン表示
       signcolumn = "yes"; # サイン列を常に表示
-      softtabstop = 0;
+      softtabstop = 4; # Tab/Backspace が 4 スペースを 1 単位として扱う
       tabstop = 4;
       termguicolors = true; # 24bit カラー
     };
@@ -373,6 +470,7 @@ in {
         settings = {
           mapping = cmpMappings;
           sources = cmpSources;
+          snippet.expand = ''function(args) require("luasnip").lsp_expand(args.body) end'';
         };
       };
       cmp-buffer.enable = true; # バッファ補完
@@ -392,11 +490,38 @@ in {
       # Git クライアント
       lazygit.enable = true;
 
-      # LSP
+      # LSP（ナビゲーションキーマップ込み。x1nano から移植。code_action は competitest
+      # <leader>ca と衝突するため x1nano 同様 <leader>la）
       lsp = {
         enable = true;
         servers = lspServers;
+        keymaps = {
+          lspBuf = {
+            "gd" = "definition";
+            "gD" = "declaration";
+            "gr" = "references";
+            "K" = "hover";
+            "<leader>rn" = "rename";
+            "<leader>la" = "code_action";
+          };
+          diagnostic = {
+            "[d" = "goto_prev";
+            "]d" = "goto_next";
+          };
+        };
       };
+
+      # スニペットエンジン（CP snippets の基盤）
+      luasnip.enable = true;
+
+      # DAP（デバッガ）: CP 用に sample-N.in を stdin にステップ実行（<leader>cd）
+      dap.enable = true;
+      dap-ui.enable = true;
+      dap-python = {
+        enable = true;
+        settings.adapterPythonPath = "${pythonWithDebugpy}/bin/python";
+      };
+      dap-virtual-text.enable = true;
 
       # 括弧の自動補完
       nvim-autopairs.enable = true;
@@ -461,4 +586,10 @@ in {
     vimAlias = true;
     vimdiffAlias = true;
   };
+
+  # CP スニペット: ~/cp/snippets を repo の home/cp/snippets への out-of-store symlink に。
+  # repo の python.lua を編集 → nvim 再起動で即反映（再ビルド不要。x1nano の方式を踏襲）。
+  home.file."cp/snippets".source =
+    config.lib.file.mkOutOfStoreSymlink
+    "${config.home.homeDirectory}/Box/nix-darwin-conf/home/cp/snippets";
 }
