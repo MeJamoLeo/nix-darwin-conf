@@ -312,6 +312,30 @@ def sig(st):
             st.get("wa_at"), st.get("tested_at"))
 
 
+NOVI_REFRESH_GATE_S = 1200   # NoviSteps は上流クロールが遅い→20分に1回で十分（AC連発を集約）
+
+
+def kick_novisteps(task_id):
+    """初 AC = NoviSteps の進捗が変わる唯一の瞬間。該当トピック（workbook）だけ
+    fetch_novisteps.py --task で差分更新する。上流反映が遅いので鮮度ゲートで AC 連発を
+    1回に集約。cookie 不在なら fetch 側が黙って終わる（ここは投げっぱなし）。"""
+    novi = CACHE / "novisteps.json"
+    fa = (load_json(novi) or {}).get("fetched_at") if novi.is_file() else None
+    if fa:
+        try:
+            if time.time() - datetime.fromisoformat(fa).timestamp() < NOVI_REFRESH_GATE_S:
+                return
+        except Exception:
+            pass
+    fetch = ROOT / "upstream" / "fetch_novisteps.py"
+    if fetch.is_file():
+        subprocess.Popen(
+            [sys.executable, str(fetch), "--task", task_id],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            start_new_session=True)
+        print(f"[stopwatch] kicked novisteps --task {task_id}")
+
+
 def commit(prev, new):
     changed = sig(prev) != sig(new) or not STATE.is_file()
     write_state(new)
@@ -320,6 +344,10 @@ def commit(prev, new):
         print(f"[stopwatch] {prev.get('status', '-')} -> {new['status']}"
               f"{' judging' if new.get('judging') else ''}"
               f" {new.get('task_id', '')}")
+        # 初 AC（running/judging → frozen）でその問題のトピックだけ NoviSteps 差分更新
+        if (new.get("status") == "frozen" and prev.get("status") != "frozen"
+                and new.get("task_id")):
+            kick_novisteps(new["task_id"])
     return changed
 
 

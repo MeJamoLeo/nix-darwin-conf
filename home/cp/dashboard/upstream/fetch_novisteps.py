@@ -11,6 +11,7 @@ import gzip
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 import urllib.error
@@ -48,6 +49,32 @@ USER_RE = re.compile(r'user:\{id:"[^"]+",name:"([^"]+)"')
 
 class CookieExpired(Exception):
     pass
+
+
+NOVISTEPS_KEYCHAIN_SERVICE = "novisteps-auth-session"
+
+
+def novisteps_session() -> str:
+    """auth_session cookie を env（テスト用）or login Keychain から取る。
+    平文ファイルは廃止（2026-07 方針）。cookie は Anjin の Chrome から一度だけ
+    ローカル復号して格納済み（-T /usr/bin/security で無人 launchd も読める）。
+    失効したら再復号（scripts の cp-novisteps-login 等）で入れ直す。"""
+    env = os.environ.get("CP_NOVISTEPS_SESSION")
+    if env:
+        return env
+    try:
+        r = subprocess.run(
+            ["/usr/bin/security", "find-generic-password",
+             "-s", NOVISTEPS_KEYCHAIN_SERVICE, "-w"],
+            capture_output=True, text=True, timeout=10)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        raise SystemExit(f"Keychain 読み出し失敗: {e}")
+    tok = r.stdout.strip()
+    if r.returncode != 0 or not tok:
+        raise SystemExit(
+            f"NoviSteps cookie が Keychain に無い（service={NOVISTEPS_KEYCHAIN_SERVICE}）。"
+            "Anjin にログインしてから cookie を復号・格納してください。")
+    return tok
 
 
 def load_cookie(path: Path) -> str:
@@ -143,9 +170,11 @@ def fetch_workbook(slug: str, cookie: str) -> list[dict]:
     return parse_workbook_tasks(html)
 
 
-def handle_cookie_expired(output_path: Path, cookie_path: str, exc: CookieExpired) -> None:
+def handle_cookie_expired(output_path: Path, exc: CookieExpired) -> None:
     """Mark JSON as cookie_expired so the dashboard can show a banner."""
-    print(f"[novisteps] COOKIE_EXPIRED: {exc}\n  → update {cookie_path}", file=sys.stderr)
+    print(f"[novisteps] COOKIE_EXPIRED: {exc}\n"
+          f"  → Anjin で NoviSteps に再ログイン後、cookie を復号して Keychain "
+          f"(service={NOVISTEPS_KEYCHAIN_SERVICE}) に入れ直す", file=sys.stderr)
     existing: dict = {}
     if output_path.exists():
         try:
@@ -170,7 +199,7 @@ def run_one(args, cookie: str) -> None:
     try:
         username, workbooks = fetch_index(cookie)
     except CookieExpired as e:
-        handle_cookie_expired(output_path, args.cookie, e)
+        handle_cookie_expired(output_path, e)
     print(
         f"[novisteps] user={username or '?'}, "
         f"{len(workbooks)} SOLUTION workbooks",
@@ -197,7 +226,7 @@ def run_one(args, cookie: str) -> None:
     try:
         tasks = fetch_workbook(slug, cookie)
     except CookieExpired as e:
-        handle_cookie_expired(output_path, args.cookie, e)
+        handle_cookie_expired(output_path, e)
     workbooks_data[slug] = {
         "title": target["title"],
         "tasks": tasks,
@@ -257,7 +286,7 @@ def run_task(args, cookie: str) -> None:
         try:
             tasks = fetch_workbook(slug, cookie)
         except CookieExpired as e:
-            handle_cookie_expired(output_path, args.cookie, e)
+            handle_cookie_expired(output_path, e)
         workbooks_data[slug] = {
             "title": workbooks_data[slug].get("title", ""),
             "tasks": tasks,
@@ -278,7 +307,7 @@ def run_all(args, cookie: str) -> None:
     try:
         username, workbooks = fetch_index(cookie)
     except CookieExpired as e:
-        handle_cookie_expired(output_path, args.cookie, e)
+        handle_cookie_expired(output_path, e)
     print(
         f"[novisteps] user={username or '?'}, "
         f"{len(workbooks)} SOLUTION workbooks",
@@ -293,7 +322,7 @@ def run_all(args, cookie: str) -> None:
         try:
             tasks = fetch_workbook(slug, cookie)
         except CookieExpired as e:
-            handle_cookie_expired(output_path, args.cookie, e)
+            handle_cookie_expired(output_path, e)
         result[slug] = {
             "title": wb["title"],
             "tasks": tasks,
@@ -321,8 +350,8 @@ def run_all(args, cookie: str) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Fetch NoviSteps progress")
     parser.add_argument(
-        "--cookie", default=str(DEFAULT_COOKIE_PATH),
-        help="path to file containing auth_session value",
+        "--cookie", default=None,
+        help="（任意）auth_session を含むファイルパス。未指定なら Keychain から読む",
     )
     parser.add_argument(
         "--output", default=str(DEFAULT_OUTPUT),
@@ -344,7 +373,8 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    cookie = load_cookie(Path(args.cookie))
+    # cookie: --cookie ファイル指定があればそれ、無ければ Keychain（既定）
+    cookie = load_cookie(Path(args.cookie)) if args.cookie else novisteps_session()
     if args.task:
         run_task(args, cookie)
     elif args.one:
