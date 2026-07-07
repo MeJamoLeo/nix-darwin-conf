@@ -600,6 +600,12 @@ function drawMeasured(){
     for(const d of [0, 7, 14, 21])
       s += `<text x="${xd(d)}" y="${h - 2}" fill="#31405a" font-size="10">-${27 - d}d</text>`;
     s += `<text x="${w - mR}" y="${h - 2}" fill="#31405a" font-size="10" text-anchor="end">now</text>`;
+    // 問題を開いた時刻(始点・小)→初AC(終点=AC ドット)の線。色は難易度色に合わせ、AC ドットの下に敷く。
+    for(const g of (D.solve_segments || [])){
+      const c = dcolor(g.d);
+      s += `<line x1="${xd(g.sx).toFixed(1)}" y1="${yh(g.sh).toFixed(1)}" x2="${xd(g.x).toFixed(1)}" y2="${yh(g.h).toFixed(1)}" stroke="${c}" stroke-width="1" opacity=".45"/>`
+         + `<circle cx="${xd(g.sx).toFixed(1)}" cy="${yh(g.sh).toFixed(1)}" r="1.7" fill="${c}" opacity=".7"/>`;
+    }
     for(const p of (D.scatter || []))
       s += p.a
         ? `<circle cx="${xd(p.x).toFixed(1)}" cy="${yh(p.h).toFixed(1)}" r="3.5" fill="${dcolor(p.d)}" opacity=".92"/>`
