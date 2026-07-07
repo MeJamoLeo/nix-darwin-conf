@@ -524,12 +524,12 @@ R.novitopics = () => {
   const gcols = [...gset].sort((a, b) => b - a);            // Q大(易) → Q小(難)
   const gi = Object.fromEntries(gcols.map((g, i) => [g, i]));
   const NC = gcols.length;
-  const fs = NC > 8 ? '.8vh' : '.92vh';
-  // トピックは2列に均等分割。列あたりの行数に応じてセル高を詰める（多いほど薄く）。
   const half = Math.ceil(D.novi.topics.length / 2);
-  const rowH = half > 26 ? '1.35vh' : half > 20 ? '1.6vh' : '1.9vh';
-  const gridStyle = `display:grid;grid-template-columns:6.4vw repeat(${NC},1fr) 3vw;gap:.1vh .16vw;align-items:center`;
-  const head = `<div style="${gridStyle};font-size:.95vh;color:var(--faint)">
+  // 行高・フォントは drawMeasured() が列の実高÷行数から算出し CSS 変数で流し込む
+  // （--nc-ch=セル高 / --nc-fs=フォント）。トピック数がいくつでも実測でフィットして切れない。
+  // 下のフォールバック値は初回描画（drawMeasured 実行前）用。
+  const gridStyle = `display:grid;grid-template-columns:6.4vw repeat(${NC},1fr) 3vw;gap:.1vh .16vw;align-items:center;font-size:var(--nc-fs,.95vh)`;
+  const head = `<div style="${gridStyle};color:var(--faint)">
     <span></span>${gcols.map(g => `<span style="text-align:center">Q${g}</span>`).join('')}<span></span></div>`;
   const row = tp => {
     const cells = tp.grades.map(([gn, a, e2, w, tt]) => {
@@ -538,26 +538,35 @@ R.novitopics = () => {
       const dn = a + e2;
       const tc = dn === 0 && w === 0 ? '#42506a' : '#e8f0f4';
       return `<span title="Q${gn}: self ${a} · editorial ${e2} · trying ${w} · new ${tt - dn - w}"
-        style="grid-column:${gi[gn] + 2};height:${rowH};border-radius:.2vh;background:${bg};
-        display:flex;align-items:center;justify-content:center;font-size:${fs};color:${tc};text-shadow:0 0 3px rgba(0,0,0,.85)">${dn}/${tt}</span>`;
+        style="grid-column:${gi[gn] + 2};height:var(--nc-ch,1.5vh);border-radius:.2vh;background:${bg};
+        display:flex;align-items:center;justify-content:center;font-size:.85em;color:${tc};text-shadow:0 0 3px rgba(0,0,0,.85)">${dn}/${tt}</span>`;
     }).join('');
-    return `<div style="${gridStyle};font-size:1.15vh">
+    return `<div style="${gridStyle}">
       <span style="overflow:hidden;white-space:nowrap;color:${tp.active ? 'var(--amber)' : 'var(--ink)'}">${esc(tp.title)}</span>
       ${cells}
-      <span style="grid-column:${NC + 2};font-size:.95vh;text-align:right;color:var(--dim)">${tp.done}/${tp.total}</span></div>`;
+      <span style="grid-column:${NC + 2};font-size:.85em;text-align:right;color:var(--dim)">${tp.done}/${tp.total}</span></div>`;
   };
   const colHTML = list => head + list.map(row).join('');
   return `<span class="tag">NOVISTEPS <span style="letter-spacing:.05vw;color:var(--faint)">${esc(D.novi.user || '')} · ${D.novi.topics.length} topics</span></span>
     <div class="xs"><b class="g">${t.ac}</b><span class="d">/</span><b class="a">${t.ed}</b><span class="d">/</span><b class="r">${t.wa}</b>
       <span class="d">· ${done}/${total} · </span><b class="c">${t.ns}</b><span class="d"> left</span>
       <span style="float:right"><span class="g">■</span><span class="d"> self </span><span class="a">■</span><span class="d"> editorial </span><span class="r">■</span><span class="d"> trying</span></span></div>
-    <div class="fill" style="display:grid;grid-template-columns:1fr 1fr;gap:0 1.4vw;align-content:start;overflow:hidden">
-      <div style="display:flex;flex-direction:column;gap:.1vh;justify-content:space-around;min-height:0">${colHTML(D.novi.topics.slice(0, half))}</div>
-      <div style="display:flex;flex-direction:column;gap:.1vh;justify-content:space-around;min-height:0">${colHTML(D.novi.topics.slice(half))}</div>
+    <div class="fill" style="display:grid;grid-template-columns:1fr 1fr;gap:0 1.4vw;align-content:stretch;overflow:hidden">
+      <div data-nc="0" style="display:flex;flex-direction:column;gap:.1vh;justify-content:space-around;min-height:0;overflow:hidden">${colHTML(D.novi.topics.slice(0, half))}</div>
+      <div data-nc="1" style="display:flex;flex-direction:column;gap:.1vh;justify-content:space-around;min-height:0;overflow:hidden">${colHTML(D.novi.topics.slice(half))}</div>
     </div>`;
 };
 
 function drawMeasured(){
+  /* NOVISTEPS: 列の実高 ÷ 行数 でセル高・フォントを算出して流し込む＝トピック数が
+     いくつでも実測でフィット（切れない）。resize でも再フィット。0.9 は行間ぶんの余裕。 */
+  document.querySelectorAll('[data-nc]').forEach(col => {
+    const n = col.children.length;                         // header + topic 行
+    if(!n || !col.clientHeight) return;
+    const per = col.clientHeight / n;                      // 1行あたりの実 px（列高÷行数）
+    col.style.setProperty('--nc-ch', (per * 0.9).toFixed(1) + 'px');   // セル高＝行の9割（残りは行間+切れ防止）
+    col.style.setProperty('--nc-fs', Math.max(7, Math.min(per * 0.56, 14)).toFixed(1) + 'px');
+  });
   /* カレンダー: セルは常に正方形。枠幅に入るだけの週を末尾から表示 */
   const calBox = document.querySelector('[data-c="cal"]');
   if(calBox && calBox.clientWidth){
