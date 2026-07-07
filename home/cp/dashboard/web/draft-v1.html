@@ -113,9 +113,15 @@ R.timealpha = () => {
     const col = h.t === 0 ? '#141b28' : inPeak ? '#2ea043' : '#33404f';
     return `<rect x="${i*4.2}" y="${26-24*h.t/mx}" width="3.3" height="${24*h.t/mx}" rx="1" fill="${col}"/>`;
   }).join('');
-  return `<span class="tag">HOURS</span>
-    <div class="fill"><svg viewBox="0 0 101 27" preserveAspectRatio="none">${bars}</svg></div>
-    <span class="xs d">${best.h != null ? `PEAK ${best.h}–${best.h+3}h · AC ${(best.p*100).toFixed(0)}%` : 'n < 6'}</span>`;
+  // 現在時刻の点線縦線（1日を左→右に横断）。ライブ層では下の setInterval が動かす。
+  const now = new Date();
+  const nowX = (now.getHours() + now.getMinutes() / 60) * 4.2;
+  // 横軸の時刻ラベル（0/6/12/18/24 時）。棒と同じ 4.2/h スケールで配置。
+  const axis = [0, 6, 12, 18, 24].map(h =>
+    `<span style="position:absolute;left:${Math.min(h * 4.2 / 1.01, 100)}%;transform:translateX(-50%)">${h}</span>`).join('');
+  return `<span class="tag">HOURS <span style="color:var(--faint);letter-spacing:.05vw">${best.h != null ? `peak ${best.h}–${best.h+3}h ${(best.p*100).toFixed(0)}%` : 'n<6'}</span></span>
+    <div class="fill"><svg viewBox="0 0 101 27" preserveAspectRatio="none">${bars}<line id="hours-now" x1="${nowX}" y1="0" x2="${nowX}" y2="27" stroke="var(--cyan)" stroke-width=".6" stroke-dasharray="1.4 1.6" opacity=".9"/></svg></div>
+    <span class="xs d" style="position:relative;display:block;height:1.3vh">${axis}</span>`;
 };
 
 R.streakmini = () => {
@@ -698,6 +704,14 @@ if(D.stopwatch && D.stopwatch.status === 'running'
     if(head) head.style.left = w;
   }, 1000);
 }
+/* HOURS の現在時刻ライン: 30秒ごとに左→右へ進める（ライブ層のみ。壁紙はレンダ時点で静止） */
+setInterval(() => {
+  const el = document.getElementById('hours-now');
+  if(!el) return;
+  const n = new Date();
+  const x = (n.getHours() + n.getMinutes()/60) * 4.2;
+  el.setAttribute('x1', x); el.setAttribute('x2', x);
+}, 30000);
 </script>
 </body>
 </html>
