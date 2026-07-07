@@ -101,7 +101,8 @@
 
       # Utilities
       "ghostty" # GUI terminal (nixpkgs は darwin 非対応→cask。設定は home/ghostty.nix)
-      "cmux" # Ghostty-based terminal with vertical tabs for AI coding agents
+      # "cmux" # 引退（Ghostty + herdr へ移行）。nix の管理対象から外す。cleanup="none" のため
+      #        app 本体は自動削除されない → 消すなら手動 `brew uninstall --cask cmux`。戻すならこの行を復活
       "nikitabobko/tap/aerospace" # Tiling window manager for macOS
       "raycast" # Productivity tool (HotKey: alt/option + space)
       "stats" # System monitor for the menu bar
