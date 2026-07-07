@@ -6,12 +6,18 @@ next to this script. Called from bin/update.sh each cycle; safe to re-run manual
 """
 import json
 import os
+import statistics
 import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
 CACHE = Path(os.environ.get("CP_DASH_CACHE", Path.home() / ".cache" / "cp-dashboard"))
 OUT = Path(__file__).parent / "draft-data.js"
+# solve-time baseline のデータセット。seed=x1nano の 288 不変シード（モジュール同梱）、
+# live=このマシンのストップウォッチが貯める分（~/.cache）。両者同じ open→AC 定義。
+SEED = Path(__file__).parent.parent / "data" / "solve_times_seed.jsonl"
+LIVE = CACHE / "solve_times.jsonl"
+BASELINE_MIN_N = 3          # grade をラダーに出す最小サンプル数
 try:
     _wl = json.loads((Path(__file__).parent.parent / "watchlist.json").read_text())
 except Exception:
@@ -40,6 +46,49 @@ def meta_age_min(name, now):
         return int((now - t.timestamp()) / 60)
     except Exception:
         return None
+
+
+def _load_jsonl(path):
+    try:
+        return [json.loads(x) for x in path.read_text().splitlines() if x.strip()]
+    except Exception:
+        return []
+
+
+def solve_baseline():
+    """grade 別 solve-time 統計（分）を seed+live から計算。ライブのストップウォッチと
+    同じ open→AC 定義。med/mean/max に加え Q1/Q3/四分位偏差(qd)を出す。
+    n>=BASELINE_MIN_N の grade のみ、難易度順（Q 数字が小さいほど難＝先頭）。"""
+    recs = _load_jsonl(SEED) + _load_jsonl(LIVE)
+    by_grade = {}
+    for r in recs:
+        g, el = r.get("grade"), r.get("elapsed")
+        if not g or not isinstance(el, (int, float)):
+            continue
+        by_grade.setdefault(g, []).append(el / 60.0)
+    out = []
+    total = 0
+    for g, xs in by_grade.items():
+        total += len(xs)
+        if len(xs) < BASELINE_MIN_N:
+            continue
+        xs.sort()
+        q1, med, q3 = statistics.quantiles(xs, n=4, method="inclusive")
+        out.append({
+            "g": g, "n": len(xs),
+            "q1": round(q1, 1), "med": round(med, 1), "q3": round(q3, 1),
+            "qd": round((q3 - q1) / 2, 1),        # 四分位偏差
+            "mean": round(statistics.mean(xs), 1), "max": round(max(xs), 1),
+        })
+
+    def gkey(g):
+        try:
+            return int(g[1:])
+        except Exception:
+            return 99
+
+    out.sort(key=lambda r: gkey(r["g"]))
+    return {"grades": out, "n_total": total}
 
 
 def day_of(epoch):
@@ -329,6 +378,7 @@ def main():
         "novi": {"totals": tot, "topics": topics, "user": novi.get("user")},
         "records": {"max_diff": best["diff"], "max_diff_pid": best["pid"], "max_streak": max_streak},
         "stopwatch": stopwatch,
+        "solveRef": solve_baseline(),
     }
     OUT.write_text("window.DRAFT = " + json.dumps(draft, ensure_ascii=False) + ";\n")
     print(f"wrote {OUT} ({OUT.stat().st_size} bytes)  streak={streak} rating={rating} "

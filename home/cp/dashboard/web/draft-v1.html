@@ -337,11 +337,14 @@ R.novieta = () => {
 };
 
 /* ============ 中央 ============ */
-/* 実測 solve-time（x1nano 288セッション・2026-06-28）。running 時はこの基準線が生きたゲージになる */
-const SOLVE_REF = [
-  {g:'Q3', med:30, mean:54,  max:193},
-  {g:'Q4', med:28, mean:52,  max:233},
-  {g:'Q5', med:8,  mean:26,  max:137},
+/* 実測 solve-time baseline。gen-draft-data.py が seed(x1nano 288)+live から grade 別に
+   Q1/med/Q3/四分位偏差(qd)/mean/max を算出（分）。running 時はこの基準線が生きたゲージになる。
+   D.solveRef が無い場合のみ旧ハードコードにフォールバック。 */
+const _SR = D.solveRef || {grades:[], n_total:0};
+const SOLVE_REF = _SR.grades.length ? _SR.grades : [
+  {g:'Q3', n:0, q1:11, med:30, q3:45, qd:17, mean:54, max:193},
+  {g:'Q4', n:0, q1:13, med:28, q3:60, qd:24, mean:52, max:233},
+  {g:'Q5', n:0, q1:6,  med:8,  q3:13, qd:4,  mean:26, max:137},
 ];
 const SW_CAP = 240;                                        // 4h（分）
 const swPx = m => Math.sqrt(Math.min(m, SW_CAP)/SW_CAP)*100;    // sqrt スケール（短時間側を広く）
@@ -371,18 +374,20 @@ R.stopwatch = () => {
            background:linear-gradient(90deg,rgba(57,208,216,.2),rgba(57,208,216,.4))"></div>
          <div style="position:absolute;left:${px(elapM)}%;top:-30%;width:2px;height:160%;background:var(--cyan)"></div>`
       : '';
+    // 箱ひげ風: Q1–Q3 の四分位箱＋median 線＋mean 線＋max ひげ。箱幅=IQR、その半分=四分位偏差。
+    const boxL = px(r.q1), boxW = Math.max(px(r.q3) - px(r.q1), 0.6);
     return `
     <div class="row" style="gap:.7vw">
-      <span class="sml ${hot ? 'c' : 'gy'}" style="width:2.2vw">${r.g}${hot ? ' ◀' : ''}</span>
+      <span class="sml ${hot ? 'c' : 'gy'}" style="width:3.2vw">${r.g}${hot ? ' ◀' : ''}<span class="d" style="font-size:1vh"> ${r.n||'–'}</span></span>
       <div style="flex:1;position:relative;height:1.5vh;background:#0e1420;border-radius:.75vh">
-        <div style="position:absolute;left:0;top:0;height:100%;width:${px(r.med)}%;border-radius:.75vh;
-          background:linear-gradient(90deg,rgba(126,231,135,.16),rgba(126,231,135,.34))"></div>
+        <div style="position:absolute;left:${boxL}%;width:${boxW}%;top:10%;height:80%;border-radius:.35vh;
+          background:linear-gradient(90deg,rgba(126,231,135,.12),rgba(126,231,135,.26));box-shadow:inset 0 0 0 1px rgba(126,231,135,.30)"></div>
         ${gauge}
         <div style="position:absolute;left:${px(r.med)}%;top:-22%;width:2px;height:144%;background:var(--green)"></div>
-        <div style="position:absolute;left:${px(r.mean)}%;top:-10%;width:2px;height:120%;background:var(--amber);opacity:.85"></div>
-        <div style="position:absolute;left:${px(r.max)}%;top:22%;width:1.5px;height:56%;background:var(--red);opacity:.6"></div>
+        <div style="position:absolute;left:${px(r.mean)}%;top:-6%;width:2px;height:112%;background:var(--amber);opacity:.85"></div>
+        <div style="position:absolute;left:${px(r.max)}%;top:24%;width:1.5px;height:52%;background:var(--red);opacity:.55"></div>
       </div>
-      <span class="xs" style="width:7.5vw;white-space:nowrap"><span class="g">${fm(r.med)}</span><span class="d">·</span><span class="a">${fm(r.mean)}</span><span class="d">·</span><span class="r" style="opacity:.75">${fm(r.max)}</span></span>
+      <span class="xs" style="width:9vw;white-space:nowrap"><span class="g">${fm(r.med)}</span><span class="d">·</span><span class="a">${fm(r.mean)}</span> <span class="c">±${fm(r.qd)}</span><span class="d">·</span><span class="r" style="opacity:.7">${fm(r.max)}</span></span>
     </div>`;
   }).join('');
   const ref = sw && SOLVE_REF.find(r => r.g === sw.grade);
@@ -413,12 +418,12 @@ R.stopwatch = () => {
   <span class="tag">SOLVE STOPWATCH</span>
   <div class="row" style="gap:.8vw">${head}</div>
   <div class="fill" style="display:flex;flex-direction:column;justify-content:center;gap:1vh">
-    <span class="lbl">SELF BASELINE · n=288　<span class="g">▎med</span> <span class="a">▎mean</span> <span class="r" style="opacity:.75">▎max</span></span>
+    <span class="lbl">SELF BASELINE · n=${_SR.n_total||288}　<span class="g">▎med</span> <span class="a">▎mean</span> <span style="color:rgba(126,231,135,.5)">▨IQR</span> <span class="c">±QD</span> <span class="r" style="opacity:.7">▏max</span></span>
     ${rows}
     <div class="row xs" style="color:var(--faint);gap:0">
-      <span style="width:2.2vw"></span>
+      <span style="width:3.2vw"></span>
       <span style="flex:1;position:relative"><span>0</span><span style="position:absolute;left:${px(30)}%">30m</span><span style="position:absolute;left:${px(60)}%">1h</span><span style="position:absolute;left:${px(120)}%">2h</span><span style="position:absolute;right:0">4h cap</span></span>
-      <span style="width:7.5vw"></span>
+      <span style="width:9vw"></span>
     </div>
   </div>
   <span class="xs" style="color:var(--faint)">open → first AC · WA keeps running</span>`;
