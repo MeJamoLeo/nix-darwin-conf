@@ -137,6 +137,9 @@
           {
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
+            # HM が新たに管理し始めたファイル（例: ~/.zprofile）と既存の
+            # 管理外ファイルが衝突したとき、エラーで止めず .hm-backup に退避する
+            home-manager.backupFileExtension = "hm-backup";
             home-manager.extraSpecialArgs = specialArgs;
             home-manager.users.${username} = import ./home;
           }

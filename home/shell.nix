@@ -12,6 +12,13 @@
   programs.zsh = {
     enable = true;
     enableCompletion = true;
+    # 旧 ~/.zprofile（Homebrew インストーラが書いた1行）の宣言化。
+    # home-manager 25.11+ は zsh 有効時に ~/.zprofile を生成するため、
+    # 管理外ファイルのままだと activation が clobber エラーで止まる。
+    # dejima 等 homebrew の無いホストでも壊れないよう存在ガード付き。
+    profileExtra = ''
+      [[ -x /opt/homebrew/bin/brew ]] && eval "$(/opt/homebrew/bin/brew shellenv)"
+    '';
     initContent = ''
       export PATH="$PATH:$HOME/bin:$HOME/.local/bin:$HOME/go/bin"
       bindkey -e  # emacsモードを有効化（Ctrl+N, Ctrl+Pが使えるようになる）
