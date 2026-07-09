@@ -1,6 +1,22 @@
-{ config, ... }: let
-  bordersBin = "/opt/homebrew/bin/borders";
+{
+  config,
+  pkgs,
+  ...
+}: let
+  # nixpkgs の jankyborders を参照 — store パスなので存在が保証され、
+  # /opt/homebrew ハードコード（brew 依存）が消える
+  bordersBin = "${pkgs.jankyborders}/bin/borders";
 in {
+  # AeroSpace 本体 + JankyBorders は nixpkgs 管理（cask/tap から移行 2026-07-08）。
+  # 設定は元々ここで nix 管理で本体だけ brew という分裂だった。移行により
+  # サードパーティ tap 2本 (nikitabobko/tap, FelixKratz/formulae) も削除できた。
+  # .app は ~/Applications/Home Manager Apps/ に入る。旧 cask を消したら
+  # 新 AeroSpace.app を一度手動起動（start-at-login が新パスで再登録される）。
+  home.packages = [
+    pkgs.aerospace
+    pkgs.jankyborders
+  ];
+
   # AeroSpace main configuration
   home.file.".aerospace.toml" = {
     force = true;

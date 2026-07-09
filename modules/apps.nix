@@ -49,22 +49,22 @@
       Xcode = 497799835; # Apple's IDE for macOS/iOS development
     };
 
+    # nikitabobko/tap (aerospace) と FelixKratz/formulae (borders) は
+    # nixpkgs 移行 (home/macos/aerospace.nix) で不要に → 各機で手動
+    # `brew untap nikitabobko/tap felixkratz/formulae`
     taps = [
       "homebrew/services"
-      "nikitabobko/tap"
-      "FelixKratz/formulae"
     ];
 
     # `brew install` - Command line tools
+    # direnv/wget/gh/lazygit は nixpkgs 管理へ移行 (home/core.nix 2026-07-08):
+    # dejima は homebrew 無効なので brew だと headless 機に届かないため。
+    # cleanup="none" で旧 formula は残る → 各機で手動
+    # `brew uninstall direnv wget gh lazygit borders`
     brews = [
       "curl" # HTTP client (don't install via nixpkgs, not working well on macOS!)
-      "direnv" # Tool for managing environment variables per directory
-      "FelixKratz/formulae/borders" # Window border helper (JankyBorders)
       "mas" # Mac App Store CLI (required for `masApps` to work)
       # "neovim"  # Terminal-based text editor (nixvim manages nvim)
-      "wget" # Download tool
-      "gh" # github cli
-      "lazygit" # Git terminal UI
     ];
 
     # `brew install --cask` - GUI applications
@@ -78,11 +78,11 @@
       "visual-studio-code" # Code editor
       "cursor" # AI-first code editor
       # zed は nixpkgs の zed-editor で管理 (home/core.nix)
-      "claude" # Anthropic's AI assistant
-      {
-        name = "claude-code";
-        greedy = true;
-      }
+      "claude" # Anthropic's AI assistant (GUI デスクトップ版。nixpkgs 非収録のため cask)
+      # claude-code (CLI) は nixpkgs 管理へ移行 (home/claude.nix)。cask だと
+      # brew upgrade のたびに quarantine 付きで再DLされ、SSH 先で Gatekeeper の
+      # 「DLされたアプリ」確認が出て詰まるため。cleanup="none" なので旧 cask は
+      # 自動削除されない → 各機で手動 `brew uninstall --cask claude-code`
       "grok-build" # xAI Grok CLI (https://x.ai/cli) — installs `grok` and `agent`
 
       # Communication & Meetings
@@ -103,7 +103,8 @@
       "ghostty" # GUI terminal (nixpkgs は darwin 非対応→cask。設定は home/ghostty.nix)
       # "cmux" # 引退（Ghostty + herdr へ移行）。nix の管理対象から外す。cleanup="none" のため
       #        app 本体は自動削除されない → 消すなら手動 `brew uninstall --cask cmux`。戻すならこの行を復活
-      "nikitabobko/tap/aerospace" # Tiling window manager for macOS
+      # aerospace は nixpkgs 管理へ移行 (home/macos/aerospace.nix 2026-07-08)。
+      # 旧 cask は手動 `brew uninstall --cask aerospace`（quit してから）
       "raycast" # Productivity tool (HotKey: alt/option + space)
       "stats" # System monitor for the menu bar
       "gyazo" # Screenshot and sharing tool
