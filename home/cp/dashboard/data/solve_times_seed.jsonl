@@ -286,3 +286,8 @@
 {"task_id": "abc169_a", "contest": "abc169", "start": 1777546740, "ac_epoch": 1777546781, "elapsed": 41, "grade": null, "source": "x1nano-seed"}
 {"task_id": "abc307_a", "contest": "abc307", "start": 1778177913, "ac_epoch": 1778178565, "elapsed": 652, "grade": null, "source": "x1nano-seed"}
 {"task_id": "abc307_b", "contest": "abc307", "start": 1779570602, "ac_epoch": 1779571492, "elapsed": 890, "grade": null, "source": "x1nano-seed"}
+{"task_id": "abc465_a", "contest": "abc465", "start": 1783376375, "ac_epoch": 1783376607, "elapsed": 231, "grade": null}
+{"task_id": "abc465_b", "contest": "abc465", "start": 1783376876, "ac_epoch": 1783379124, "elapsed": 2247, "grade": null}
+{"task_id": "abc260_c", "contest": "abc260", "start": 1783380077, "ac_epoch": 1783382853, "elapsed": 2775, "grade": "Q3"}
+{"task_id": "abc340_c", "contest": "abc340", "start": 1783436169, "ac_epoch": 1783437973, "elapsed": 1803, "grade": "Q3"}
+{"task_id": "abc416_c", "contest": "abc416", "start": 1783448930, "ac_epoch": 1783455853, "elapsed": 6922, "grade": "Q3"}
