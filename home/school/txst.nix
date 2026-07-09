@@ -5,36 +5,31 @@
 {lib, ...}: let
   txstIdentity = "~/.ssh/id_ed25519_txstate";
 
-  mkTxstHost = {
-    hostname,
-    extraOptions ? {},
-  }: {
-    inherit hostname;
-    user = "kif33";
-    identityFile = txstIdentity;
-    identitiesOnly = true;
-    extraOptions = {AddKeysToAgent = "yes";} // extraOptions;
-  };
+  # programs.ssh.settings は OpenSSH 本家のディレクティブ名 (HostName 等) を
+  # そのまま使うフリーフォーム（HM 25.11+ で matchBlocks/extraOptions は deprecated）
+  mkTxstHost = hostname: extra:
+    {
+      HostName = hostname;
+      User = "kif33";
+      IdentityFile = txstIdentity;
+      IdentitiesOnly = "yes";
+      AddKeysToAgent = "yes";
+    }
+    // extra;
 in {
   programs.ssh = {
     enable = true;
     enableDefaultConfig = false;
-    matchBlocks = {
-      eros = mkTxstHost {hostname = "eros.cs.txstate.edu";};
-      zeus = mkTxstHost {hostname = "zeus.cs.txstate.edu";};
-      brooks = mkTxstHost {
-        hostname = "eros.cs.txstate.edu";
-        extraOptions = {
-          RequestTTY = "yes";
-          RemoteCommand = "ssh brooks";
-        };
+    settings = {
+      eros = mkTxstHost "eros.cs.txstate.edu" {};
+      zeus = mkTxstHost "zeus.cs.txstate.edu" {};
+      brooks = mkTxstHost "eros.cs.txstate.edu" {
+        RequestTTY = "yes";
+        RemoteCommand = "ssh brooks";
       };
-      capi = mkTxstHost {
-        hostname = "eros.cs.txstate.edu";
-        extraOptions = {
-          RequestTTY = "yes";
-          RemoteCommand = "ssh capi";
-        };
+      capi = mkTxstHost "eros.cs.txstate.edu" {
+        RequestTTY = "yes";
+        RemoteCommand = "ssh capi";
       };
     };
   };
