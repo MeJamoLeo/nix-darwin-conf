@@ -18,6 +18,14 @@
     yq-go # yaml processer https://github.com/mikefarah/yq
     fzf # A command-line fuzzy finder
 
+    # CLI dev tools (Homebrew から移行 2026-07-08)。dejima は homebrew ごと
+    # 無効 (flake.nix) なので brew 管理だと headless 機に入らない。nix 化で
+    # 全ホストに flake.lock 固定の同一バージョンが届き、quarantine とも無縁。
+    gh # github cli
+    lazygit # Git terminal UI
+    direnv # Tool for managing environment variables per directory (hook は shell.nix)
+    wget # Download tool
+
     nmap # A utility for network discovery and security auditing
 
     google-clasp
