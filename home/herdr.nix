@@ -6,7 +6,11 @@
 # 注意: この config.toml は nix store への read-only symlink になるため、herdr 自身の
 # 設定書換コマンド（`herdr config reset-keys` 等）は無効。設定は今後この nix で編集する。
 # 変更の反映は switch 後に `herdr server reload-config`（or herdr 再起動）。
-{pkgs, ...}: let
+{
+  pkgs,
+  config,
+  ...
+}: let
   toml = pkgs.formats.toml {};
 in {
   xdg.configFile."herdr/config.toml".source = toml.generate "herdr-config.toml" {
@@ -38,6 +42,44 @@ in {
       #   初回起動で向き/キーを目視確認し、合わなければ prefix+v 等へ変更する。
       split_vertical = "prefix+backslash";
       split_horizontal = "prefix+minus";
+
+      # tmux の select-layout プリセット（M-1..M-5 / prefix+Space = next-layout 相当）。
+      # herdr に組み込みが無いので自前スクリプト herdr-layout（下の home.file で
+      # ~/bin に配置。socket API で pane を一時 tab 経由で組み替える＝端末は生存）を叩く。
+      # ※キー名が invalid だと herdr は該当バインドだけ無効化して server.log に残す。
+      #   reload 後に `grep -i invalid ~/.config/herdr/herdr-server.log` で確認する。
+      command = [
+        {
+          key = "prefix+space";
+          type = "shell";
+          command = "${config.home.homeDirectory}/bin/herdr-layout next";
+        }
+        {
+          key = "prefix+alt+1";
+          type = "shell";
+          command = "${config.home.homeDirectory}/bin/herdr-layout even-horizontal";
+        }
+        {
+          key = "prefix+alt+2";
+          type = "shell";
+          command = "${config.home.homeDirectory}/bin/herdr-layout even-vertical";
+        }
+        {
+          key = "prefix+alt+3";
+          type = "shell";
+          command = "${config.home.homeDirectory}/bin/herdr-layout main-horizontal";
+        }
+        {
+          key = "prefix+alt+4";
+          type = "shell";
+          command = "${config.home.homeDirectory}/bin/herdr-layout main-vertical";
+        }
+        {
+          key = "prefix+alt+5";
+          type = "shell";
+          command = "${config.home.homeDirectory}/bin/herdr-layout tiled";
+        }
+      ];
     };
 
     # 新 pane/tab は現在の作業ディレクトリを継承（tmux: split-window -c "#{pane_current_path}"）
@@ -58,6 +100,18 @@ in {
   # herdr integration も書き込む可変ファイルのため home-manager では所有しない。
   home.file.".claude/hooks/herdr-auto-name.sh" = {
     source = ./herdr-auto-name.sh;
+    executable = true;
+  };
+
+  # tmux select-layout 相当（even-h/even-v/main-h/main-v/tiled/next）。
+  # 上の keys.command から呼ぶほか、CLI からも `herdr-layout tiled` 等で使える。
+  # stdlib のみの python スクリプト。shebang を nix の python3 に差し替えて hermetic に
+  # する（dejima のような素の VM には /usr/bin/env python3 が無くても動くように）。
+  home.file."bin/herdr-layout" = {
+    text =
+      builtins.replaceStrings
+      ["#!/usr/bin/env python3"] ["#!${pkgs.python3}/bin/python3"]
+      (builtins.readFile ./herdr-layout);
     executable = true;
   };
 }

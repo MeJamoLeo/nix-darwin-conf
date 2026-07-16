@@ -1,0 +1,160 @@
+#!/usr/bin/env python3
+"""herdr-layout — tmux select-layout presets for herdr.
+
+Non-destructive: rearranges existing panes (terminals survive) by moving them
+through a temporary tab, then equalizes split ratios via the socket API.
+
+Usage:
+  herdr-layout even-horizontal   # panes side by side, equal widths (tmux M-1)
+  herdr-layout even-vertical     # panes stacked, equal heights   (tmux M-2)
+  herdr-layout main-horizontal   # big pane on top, rest in a row below (tmux M-3)
+  herdr-layout main-vertical     # big pane on left, rest stacked right (tmux M-4)
+  herdr-layout tiled             # balanced grid                  (tmux M-5)
+  herdr-layout next              # cycle through presets          (tmux prefix+Space)
+  ... [--tab TAB_ID]             # target a specific tab (default: focused)
+  ... [--main-ratio 0.6]         # main pane share for main-* layouts
+"""
+import argparse
+import json
+import math
+import os
+import socket
+import subprocess
+import sys
+
+SOCK = os.path.expanduser("~/.config/herdr/herdr.sock")
+STATE = os.path.expanduser("~/.cache/herdr-layout-state.json")
+PRESETS = ["even-horizontal", "even-vertical", "main-horizontal", "main-vertical", "tiled"]
+TMP_LABEL = "__layout_tmp"
+
+
+def call(method, params):
+    s = socket.socket(socket.AF_UNIX)
+    s.connect(SOCK)
+    s.sendall((json.dumps({"id": "1", "method": method, "params": params}) + "\n").encode())
+    s.settimeout(5)
+    buf = b""
+    while not buf.endswith(b"\n"):
+        chunk = s.recv(65536)
+        if not chunk:
+            break
+        buf += chunk
+    s.close()
+    resp = json.loads(buf)
+    if resp.get("error"):
+        sys.exit(f"herdr API error ({method}): {resp['error']}")
+    return resp["result"]
+
+
+def cli(*args):
+    r = subprocess.run(["herdr", *args], capture_output=True, text=True)
+    if r.returncode != 0:
+        sys.exit(f"herdr {' '.join(args)} failed: {r.stderr or r.stdout}")
+    return json.loads(r.stdout) if r.stdout.strip().startswith("{") else None
+
+
+def leaves(node):
+    """Pane ids in visual (in-order) tree order."""
+    if node["type"] == "pane":
+        return [node["pane_id"]]
+    return leaves(node["first"]) + leaves(node["second"])
+
+
+def moves_for(preset, pids, tab_id):
+    """(pane, direction, target) insertions that build the preset around pids[0]."""
+    rest = pids[1:]
+    if preset == "even-horizontal":
+        return [(p, "right", t) for p, t in zip(rest, pids)]
+    if preset == "even-vertical":
+        return [(p, "down", t) for p, t in zip(rest, pids)]
+    if preset == "main-vertical":
+        return [(rest[0], "right", pids[0])] + [(p, "down", t) for p, t in zip(rest[1:], rest)]
+    if preset == "main-horizontal":
+        return [(rest[0], "down", pids[0])] + [(p, "right", t) for p, t in zip(rest[1:], rest)]
+    if preset == "tiled":
+        cols = math.ceil(math.sqrt(len(pids)))
+        rows = [pids[i:i + cols] for i in range(0, len(pids), cols)]
+        anchors = [r[0] for r in rows]
+        out = [(a, "down", t) for a, t in zip(anchors[1:], anchors)]
+        for row in rows:
+            out += [(p, "right", t) for p, t in zip(row[1:], row)]
+        return out
+    sys.exit(f"unknown preset: {preset}")
+
+
+def leaf_count(node, direction):
+    if node["type"] != "split" or node["direction"] != direction:
+        return 1
+    return leaf_count(node["first"], direction) + leaf_count(node["second"], direction)
+
+
+def collect_ratios(node, path=()):
+    """(path, equal_ratio) for every split node."""
+    if node["type"] != "split":
+        return []
+    d = node["direction"]
+    first = leaf_count(node["first"], d)
+    total = first + leaf_count(node["second"], d)
+    return ([(list(path), first / total)]
+            + collect_ratios(node["first"], path + (False,))
+            + collect_ratios(node["second"], path + (True,)))
+
+
+def load_state():
+    try:
+        with open(STATE) as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("preset", choices=PRESETS + ["next"])
+    ap.add_argument("--tab", default=None)
+    ap.add_argument("--main-ratio", type=float, default=0.6)
+    args = ap.parse_args()
+
+    layout = call("layout.export", {"tab_id": args.tab} if args.tab else {})["layout"]
+    tab_id = layout["tab_id"]
+    workspace_id = layout["workspace_id"]
+    pids = leaves(layout["root"])
+
+    state = load_state()
+    preset = args.preset
+    if preset == "next":
+        last = state.get(tab_id)
+        preset = PRESETS[(PRESETS.index(last) + 1) % len(PRESETS)] if last in PRESETS else PRESETS[0]
+
+    if len(pids) > 1:
+        moves = moves_for(preset, pids, tab_id)
+        moved = [m[0] for m in moves]
+
+        # park every pane that needs repositioning in a temporary tab
+        first, *others = moved
+        tmp = cli("pane", "move", first, "--new-tab", "--workspace", workspace_id,
+                  "--label", TMP_LABEL, "--no-focus")
+        tmp_tab = tmp["result"]["move_result"]["pane"]["tab_id"]
+        for p in others:
+            cli("pane", "move", p, "--tab", tmp_tab, "--split", "right", "--no-focus")
+
+        # re-insert each pane at its preset position (temp tab closes with its last pane)
+        for p, direction, target in moves:
+            cli("pane", "move", p, "--tab", tab_id, "--split", direction,
+                "--target-pane", target, "--no-focus")
+
+    # equalize ratios, then carve out the main pane for main-* presets
+    root = call("layout.export", {"tab_id": tab_id})["layout"]["root"]
+    for path, ratio in collect_ratios(root):
+        call("layout.set_split_ratio", {"tab_id": tab_id, "path": path, "ratio": ratio})
+    if preset in ("main-vertical", "main-horizontal") and len(pids) > 1:
+        call("layout.set_split_ratio", {"tab_id": tab_id, "path": [], "ratio": args.main_ratio})
+
+    os.makedirs(os.path.dirname(STATE), exist_ok=True)
+    with open(STATE, "w") as f:
+        json.dump({**state, tab_id: preset}, f)
+    print(f"{tab_id}: {preset} ({len(pids)} panes)")
+
+
+if __name__ == "__main__":
+    main()
