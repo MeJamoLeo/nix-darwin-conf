@@ -273,6 +273,15 @@
       #
       # disabled, caused only problems!
       swapLeftCommandAndLeftAlt = false;
+
+      # 物理 LCtrl (0x7000000E0) → F18 (0x70000006D)。
+      # Ctrl は CapsLock（上の remapCapsLockToControl）が担うので物理 Ctrl は死にキー。
+      # F18 は誰も使わない空き番地で、Handy の push-to-talk トリガーに割り当てる
+      # （home/handy.nix の current_binding = "f18" と対）。
+      # hidutil の UserKeyMapping はフラットな同時置換なので CapsLock→Ctrl と連鎖しない。
+      userKeyMapping = [
+        { HIDKeyboardModifierMappingSrc = 30064771296; HIDKeyboardModifierMappingDst = 30064771181; }
+      ];
     };
   };
 

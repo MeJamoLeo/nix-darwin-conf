@@ -43,7 +43,19 @@ in {
             name = "Transcribe";
             description = "Converts your speech into text.";
             default_binding = "option+space";
-            current_binding = "command_right";
+            # 物理 LCtrl が hidutil で F18 化されている (modules/system.nix userKeyMapping)。
+            # macOS では F13-F20 のハードウェアイベントに Fn(SecondaryFn) フラグが常に付くため
+            # "f18" 単体ではマッチしない（handy-keys v0.3.0 types/key.rs の Fn 注記）。fn+ が必須。
+            current_binding = "fn+f18";
+          };
+          cancel = {
+            id = "cancel";
+            name = "Cancel";
+            description = "Cancels the current recording.";
+            # 出所不明の "shift_left+space" が settings に居座っていたので既定値にピン留め
+            # （2026-07-16。activation の deep-merge は宣言していないキーを触らないため）。
+            default_binding = "escape";
+            current_binding = "escape";
           };
         };
       };
