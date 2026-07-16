@@ -2,61 +2,40 @@
 
 macOS (aarch64-darwin) configuration using nix-darwin, home-manager, and nixvim.
 
-## Module Dependency
+## 構造（ドメイン軸ツリー）
+
+```
+flake.nix            入力宣言＋配線＋外部公開 output のみ
+keys.nix             デバイス公開鍵台帳（◆ sshKeys として外部公開）
+hosts/<name>.nix     機体 = 1台1ファイル。profile を import し、機体固有差分だけ書く
+profiles/<role>.nix  役割 = トピックの束（システム層＋ユーザー層の配線）
+modules/<topic>/     1 関心事 = 1 ディレクトリ。ファイル名が適用層を宣言する：
+                       darwin.nix … nix-darwin（システム）層
+                       home.nix   … home-manager（ユーザー）層
+                       （将来 NixOS を足すなら nixos.nix を同じ部屋に足す）
+                     スクリプト・アセットはトピックのディレクトリに同居させる
+modules/_archive/    退役トピック。復帰は profile に import 1行
+```
+
+ルール：**新しい関心事 = modules/ に新しいディレクトリ**。ユーザー設定は
+home.nix、システム設定は darwin.nix に書く。どのホストに入るかは
+profiles/ が列挙し、機体固有の差分は hosts/ に書く。
 
 ```mermaid
 graph TD
-    flake["flake.nix<br/>mkDarwinConfig"] --> ogasawara["ogasawara<br/>Mac mini M4"]
-    flake --> tanegashima["tanegashima<br/>MacBook Air M1"]
+    flake["flake.nix<br/>mkDarwinConfig"] --> ogasawara["hosts/ogasawara.nix<br/>Mac mini M4"]
+    flake --> tanegashima["hosts/tanegashima.nix<br/>MacBook Air M1"]
+    flake --> dejima["hosts/dejima.nix<br/>使い捨て VM<br/>(homebrew/mas 無効・MTU daemon)"]
 
-    ogasawara --> modules["Shared Modules"]
-    tanegashima --> modules
+    ogasawara --> profile["profiles/mac-workstation.nix"]
+    tanegashima --> profile
+    dejima --> profile
 
-    modules --> nix-core["nix-core.nix"]
-    modules --> system["system.nix"]
-    modules --> apps["apps.nix"]
-    modules --> host-users["host-users.nix"]
-    modules --> mod-cs3354["courses/cs3354.nix"]
-    modules --> hm["home-manager"]
+    profile --> sys["modules/&lt;topic&gt;/darwin.nix<br/>nix-core / macos-defaults / homebrew-base /<br/>host-users / remote-access / latex /<br/>school/txst / courses/cs3354"]
+    profile --> usr["modules/&lt;topic&gt;/home.nix<br/>shell / core-packages / git / tmux / nixvim /<br/>starship / wezterm / ghostty / zed / herdr /<br/>claude / aerospace / chrome-anjin / handy / neru /<br/>latex / cp/tools / cp/dashboard /<br/>school/txst / courses/*"]
 
-    hm --> home-default["home/default.nix"]
-    home-default --> shell["shell.nix"]
-    home-default --> core["core.nix"]
-    home-default --> git["git.nix"]
-    home-default --> nixvim["nixvim.nix"]
-    home-default --> starship["starship.nix"]
-    home-default --> wezterm["wezterm.nix"]
-    home-default --> aerospace["macos/aerospace.nix"]
-    home-default --> cs3339["courses/cs3339.nix"]
-    home-default --> cs3354["courses/cs3354.nix"]
-
-    subgraph "Flake Inputs"
-        nixpkgs-unstable
-        nix-darwin
-        hm-input["home-manager"]
-        nixvim-input["nixvim"]
-    end
-
-    subgraph "System Modules"
-        nix-core
-        system
-        apps
-        host-users
-        mod-cs3354
-    end
-
-    subgraph "User Modules"
-        home-default
-        shell
-        core
-        git
-        nixvim
-        starship
-        wezterm
-        aerospace
-        cs3339
-        cs3354
-    end
+    flake -. "◆ homeModules.tmux<br/>(nixos-cp が消費)" .-> tmux["modules/tmux/home.nix"]
+    flake -. "◆ sshKeys<br/>(x1nano が消費)" .-> keys["keys.nix"]
 ```
 
 ## Build Flow

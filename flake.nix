@@ -1,13 +1,6 @@
 {
   description = "Nix for macOS configuration";
 
-  ##################################################################################################################
-  #
-  # Want to know Nix in details? Looking for a beginner-friendly tutorial?
-  # Check out https://github.com/ryan4yin/nixos-and-flakes-book !
-  #
-  ##################################################################################################################
-
   # the nixConfig here only affects the flake itself, not the system configuration!
   nixConfig = {
     # Use this to add custom substituters if needed; keeping commented preserves history.
@@ -18,10 +11,7 @@
     # ];
   };
 
-  # This is the standard format for flake.nix. `inputs` are the dependencies of the flake,
-  # Each item in `inputs` will be passed as a parameter to the `outputs` function after being pulled and built.
   inputs = {
-    # nixpkgs-darwin.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     nixpkgs-darwin.url = "github:nixos/nixpkgs/nixpkgs-unstable";
 
     # git だけ安定版にピン留めするための独立 nixpkgs。
@@ -29,16 +19,14 @@
     #   untracked 走査（git status --untracked-files=all / git ls-files -o）で
     #   SIGTRAP（スタック保護が検知するバッファオーバーフロー）を起こすリグレッション。
     #   hunk・git-crypt も内部で untracked 走査を呼ぶため巻き添えで落ちる。
-    #   nixos-25.05 の git 2.50.1 は無傷なので、home/git.nix の programs.git.package
-    #   でこれを参照する。2.54.x で修正されたらこの input ごと外す。
+    #   nixos-25.05 の git 2.50.1 は無傷なので、modules/git/home.nix の
+    #   programs.git.package でこれを参照する。2.54.x で修正されたらこの input ごと外す。
     #   （follows を張らない＝git を古い版に固定するのが目的なので独立させる）
     nixpkgs-stable.url = "github:nixos/nixpkgs/nixos-25.05";
 
     # home-manager, used for managing user configuration
     home-manager = {
-      # The `follows` keyword in inputs is used for inheritance.
-      # Here, `inputs.nixpkgs` of home-manager is kept consistent with the `inputs.nixpkgs` of the current flake,
-      # to avoid problems caused by different versions of nixpkgs dependencies.
+      # `follows` で nixpkgs を親と揃え、依存バージョン差異による問題を避ける。
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs-darwin";
     };
@@ -67,11 +55,19 @@
     };
   };
 
-  # The `outputs` function will return all the build results of the flake.
-  # A flake can have many use cases and different types of outputs,
-  # parameters in `outputs` are defined in `inputs` and can be referenced by their names.
-  # However, `self` is an exception, this special parameter points to the `outputs` itself (self-reference)
-  # The `@` syntax here is used to alias the attribute set of the inputs's parameter, making it convenient to use inside the function.
+  ##################################################################################
+  #
+  #  構造の地図（詳細ルールは各ディレクトリの中身が自己記述する）：
+  #
+  #    hosts/<name>.nix       機体 = 1台1ファイル。profile を import し差分だけ書く
+  #    profiles/<role>.nix    役割 = トピックの束（システム層 + ユーザー層の配線）
+  #    modules/<topic>/       1 関心事 = 1 ディレクトリ。ファイル名が適用層を宣言：
+  #                             darwin.nix = nix-darwin 層 / home.nix = home-manager 層
+  #                             （将来 NixOS を足すなら nixos.nix を同居させる）
+  #    modules/_archive/      退役トピック。復帰は profile に import 1行
+  #    keys.nix               デバイス公開鍵台帳（◆外部公開、下の sshKeys）
+  #
+  ##################################################################################
   outputs = inputs @ {
     self,
     nixpkgs,
@@ -94,55 +90,10 @@
         modules = [
           {nixpkgs.overlays = [inputs.neru.overlays.default inputs.herdr.overlays.default];}
 
-          ./modules/nix-core.nix
-          ./modules/system.nix
-          ./modules/apps.nix
-          ./modules/host-users.nix
-          ./modules/latex.nix
-          ./modules/remote-access.nix
-          # ./modules/network-block.nix
-          ./modules/school/txst.nix
-          ./modules/courses/cs3354.nix
+          # 機体ファイル（profile の import と機体固有差分はこの中）
+          ./hosts/${hostname}.nix
 
-          # dejima (使い捨て VM) のみ mas を無効化。
-          # App Store 経由アプリは Apple ID ログインが必要で、headless な使い捨て
-          # VM では毎回サインインするのが面倒なため空にする（casks/brews は入る）。
-          ({
-            lib,
-            hostname,
-            ...
-          }:
-            lib.mkIf (hostname == "dejima") {
-              # App Store 経由アプリは Apple ID ログインが要るので空にする。
-              homebrew.masApps = lib.mkForce {};
-
-              # dejima は headless の使い捨て島。Homebrew の GUI アプリ(~30個)は
-              #  (1) 50GB の VM ディスクに収まらず (2) headless では起動して使えない
-              # ので、dejima 限定で Homebrew activation ごと無効化する。
-              # → switch が緑・数十秒、base が軽い。casks/brews の宣言は実機用に
-              #   config に残るが dejima では実行しない（ogasawara/tanegashima は無変更）。
-              homebrew.enable = lib.mkForce false;
-
-              # tart の NAT は MTU ブラックホール（小パケットは通るが TLS の大パケットが
-              # 落ちる）。en0 の MTU を 1400 に下げると外向き TLS が通る。
-              # postActivation は boot 時に走らない/早すぎるので、専用 LaunchDaemon で
-              # 「起動ごと・en0 が上がるまでリトライ」で確実に下げる（switch 時も
-              # RunAtLoad で再発火）。→ respin 後も自動で効く自己修復。
-              launchd.daemons.dejima-mtu = {
-                script = ''
-                  for _ in $(seq 1 15); do
-                    /sbin/ifconfig en0 mtu 1400 && exit 0
-                    sleep 2
-                  done
-                '';
-                serviceConfig = {
-                  RunAtLoad = true;
-                  StandardErrorPath = "/var/log/dejima-mtu.log";
-                };
-              };
-            })
-
-          # home manager
+          # home-manager の土台配線。ユーザーのモジュール選択は profile 側が行う
           home-manager.darwinModules.home-manager
           {
             home-manager.useGlobalPkgs = true;
@@ -151,7 +102,6 @@
             # 管理外ファイルが衝突したとき、エラーで止めず .hm-backup に退避する
             home-manager.backupFileExtension = "hm-backup";
             home-manager.extraSpecialArgs = specialArgs;
-            home-manager.users.${username} = import ./home;
           }
         ];
       };
@@ -159,14 +109,16 @@
     darwinConfigurations = {
       ogasawara = mkDarwinConfig "ogasawara"; # Mac mini M4
       tanegashima = mkDarwinConfig "tanegashima"; # MacBook Air M1
-      dejima = mkDarwinConfig "dejima"; # 使い捨て VM (sandbox) — mas 無効
+      dejima = mkDarwinConfig "dejima"; # 使い捨て VM (sandbox)
     };
 
+    # ◆ 外部公開 output（他リポジトリとの契約。パスを動かしても output 名は変えない）
+
     # 全マシンで共有する home-manager モジュール（単一源）。
-    # mac 2台は home/default.nix 経由で取り込み済み。
+    # mac 3台は profiles/mac-workstation.nix 経由で取り込み済み。
     # NixOS(nixos-cp) はこの flake を input にして homeModules.tmux を import する。
     # system 非依存（純粋な module 関数）なので Linux/Darwin 双方で評価できる。
-    homeModules.tmux = import ./home/tmux.nix;
+    homeModules.tmux = import ./modules/tmux/home.nix;
 
     # デバイス公開鍵台帳（単一源）。詳細は keys.nix のコメント参照。
     # NixOS(x1nano) からは inputs.nix-darwin-conf.sshKeys.<device> で参照して
