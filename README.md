@@ -31,8 +31,8 @@ graph TD
     tanegashima --> profile
     dejima --> profile
 
-    profile --> sys["modules/&lt;topic&gt;/darwin.nix<br/>nix-core / macos-defaults / homebrew-base /<br/>host-users / remote-access / latex /<br/>school/txst / courses/cs3354"]
-    profile --> usr["modules/&lt;topic&gt;/home.nix<br/>shell / core-packages / git / tmux / nixvim /<br/>starship / wezterm / ghostty / zed / herdr /<br/>claude / aerospace / chrome-anjin / handy / neru /<br/>latex / cp/tools / cp/dashboard /<br/>school/txst / courses/*"]
+    profile --> sys["modules/&lt;topic&gt;/darwin.nix<br/>nix-core / macos-defaults / homebrew-base /<br/>host-users / remote-access / network-block /<br/>latex / school/txst"]
+    profile --> usr["modules/&lt;topic&gt;/home.nix<br/>shell / core-packages / git / tmux / nixvim /<br/>starship / ghostty / zed / herdr /<br/>claude / aerospace / chrome-anjin / handy / neru /<br/>latex / cp/tools / cp/dashboard / school/txst"]
 
     flake -. "◆ homeModules.tmux<br/>(nixos-cp が消費)" .-> tmux["modules/tmux/home.nix"]
     flake -. "◆ sshKeys<br/>(x1nano が消費)" .-> keys["keys.nix"]

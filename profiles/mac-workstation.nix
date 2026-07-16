@@ -23,9 +23,9 @@
     ../modules/homebrew-base/darwin.nix
     ../modules/host-users/darwin.nix
     ../modules/remote-access/darwin.nix
+    ../modules/network-block/darwin.nix
     ../modules/latex/darwin.nix
     ../modules/school/txst/darwin.nix
-    ../modules/courses/cs3354/darwin.nix
   ];
 
   # ── ユーザー層（home-manager）───────────────────────────
@@ -38,7 +38,6 @@
       ../modules/tmux/home.nix # ◆ homeModules.tmux として外部公開中
       ../modules/nixvim/home.nix
       ../modules/starship/home.nix
-      ../modules/wezterm/home.nix
       ../modules/ghostty/home.nix
       ../modules/zed/home.nix
       ../modules/herdr/home.nix
@@ -53,8 +52,6 @@
       ../modules/cp/tools/home.nix
       ../modules/cp/dashboard/home.nix
       ../modules/school/txst/home.nix
-      ../modules/courses/cs3339/home.nix
-      ../modules/courses/cs3354/home.nix
       # 外部 flake 供給の HM モジュール
       ((nixvim.homeModules or nixvim.homeManagerModules).nixvim)
       neru.homeManagerModules.default
