@@ -24,6 +24,16 @@
     # nixpkgs-darwin.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     nixpkgs-darwin.url = "github:nixos/nixpkgs/nixpkgs-unstable";
 
+    # git だけ安定版にピン留めするための独立 nixpkgs。
+    #   unstable の git 2.54.0 は「長い unicode ファイル名」を含む作業ツリーの
+    #   untracked 走査（git status --untracked-files=all / git ls-files -o）で
+    #   SIGTRAP（スタック保護が検知するバッファオーバーフロー）を起こすリグレッション。
+    #   hunk・git-crypt も内部で untracked 走査を呼ぶため巻き添えで落ちる。
+    #   nixos-25.05 の git 2.50.1 は無傷なので、home/git.nix の programs.git.package
+    #   でこれを参照する。2.54.x で修正されたらこの input ごと外す。
+    #   （follows を張らない＝git を古い版に固定するのが目的なので独立させる）
+    nixpkgs-stable.url = "github:nixos/nixpkgs/nixos-25.05";
+
     # home-manager, used for managing user configuration
     home-manager = {
       # The `follows` keyword in inputs is used for inheritance.

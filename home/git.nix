@@ -1,8 +1,17 @@
 {
   lib,
   username,
+  pkgs,
+  nixpkgs-stable,
   ...
-}: {
+}: let
+  # unstable の git 2.54.0 は、長い unicode ファイル名を含む作業ツリーの untracked 走査で
+  # SIGTRAP（バッファオーバーフローをスタック保護が検知）を起こす。hunk / git-crypt も
+  # 内部で untracked 走査を呼ぶため巻き添えで落ちる。安定版(nixos-25.05)の git 2.50.1 は
+  # 無傷なので git だけこれにピン留めする。2.54.x で修正されたら flake.nix の
+  # nixpkgs-stable input ごと外す。詳細は flake.nix の nixpkgs-stable コメント参照。
+  pkgsStable = nixpkgs-stable.legacyPackages.${pkgs.stdenv.hostPlatform.system};
+in {
   # `programs.git` will generate the config file: ~/.config/git/config
   # to make git use this config file, `~/.gitconfig` should not exist!
   #
@@ -13,6 +22,8 @@
 
   programs.git = {
     enable = true;
+    # 上記コメント参照：unstable git 2.54.0 の untracked 走査 SIGTRAP 回避のため 2.50.1 に固定
+    package = pkgsStable.git;
     lfs.enable = true;
 
     includes = [
