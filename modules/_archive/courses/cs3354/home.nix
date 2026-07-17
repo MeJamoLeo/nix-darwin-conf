@@ -1,5 +1,5 @@
 # CS 3354 - Software Engineering 開発環境
-# TxState 用 git identity は modules/school/txst/home.nix を参照
+# TxState 用 git identity は modules/domain/school/txst/home.nix を参照
 {
   pkgs,
   lib,

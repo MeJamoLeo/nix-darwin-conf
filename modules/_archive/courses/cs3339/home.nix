@@ -1,5 +1,5 @@
 # CS 3339 - Common Lisp 開発環境
-# TxState CS サーバへの SSH 設定は modules/school/txst/home.nix を参照
+# TxState CS サーバへの SSH 設定は modules/domain/school/txst/home.nix を参照
 {pkgs, ...}: {
   home.packages = with pkgs; [
     poppler-utils # PDF tools (pdftotext, pdfinfo, etc.)

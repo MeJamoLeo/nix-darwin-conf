@@ -19,7 +19,7 @@
     #   untracked 走査（git status --untracked-files=all / git ls-files -o）で
     #   SIGTRAP（スタック保護が検知するバッファオーバーフロー）を起こすリグレッション。
     #   hunk・git-crypt も内部で untracked 走査を呼ぶため巻き添えで落ちる。
-    #   nixos-25.05 の git 2.50.1 は無傷なので、modules/git/home.nix の
+    #   nixos-25.05 の git 2.50.1 は無傷なので、modules/apps/git/home.nix の
     #   programs.git.package でこれを参照する。2.54.x で修正されたらこの input ごと外す。
     #   （follows を張らない＝git を古い版に固定するのが目的なので独立させる）
     nixpkgs-stable.url = "github:nixos/nixpkgs/nixos-25.05";
@@ -61,9 +61,15 @@
   #
   #    hosts/<name>.nix       機体 = 1台1ファイル。profile を import し差分だけ書く
   #    profiles/<role>.nix    役割 = トピックの束（システム層 + ユーザー層の配線）
-  #    modules/<topic>/       1 関心事 = 1 ディレクトリ。ファイル名が適用層を宣言：
+  #    modules/<kind>/<topic>/  1 関心事 = 1 ディレクトリ。<kind> は種別バケツ：
+  #                             base   = この機体の土台インフラ
+  #                             apps   = 既製品 + 設定値
+  #                             custom = 自作システム
+  #                             domain = 生活ドメイン（“なぜあるか”が主）
+  #                           ファイル名が適用層を宣言：
   #                             darwin.nix = nix-darwin 層 / home.nix = home-manager 層
   #                             （将来 NixOS を足すなら nixos.nix を同居させる）
+  #                           置き場所ルールの全文は modules/CLAUDE.md
   #    modules/_archive/      退役トピック。復帰は profile に import 1行
   #    keys.nix               デバイス公開鍵台帳（◆外部公開、下の sshKeys）
   #
@@ -118,7 +124,7 @@
     # mac 3台は profiles/mac-workstation.nix 経由で取り込み済み。
     # NixOS(nixos-cp) はこの flake を input にして homeModules.tmux を import する。
     # system 非依存（純粋な module 関数）なので Linux/Darwin 双方で評価できる。
-    homeModules.tmux = import ./modules/tmux/home.nix;
+    homeModules.tmux = import ./modules/apps/tmux/home.nix;
 
     # デバイス公開鍵台帳（単一源）。詳細は keys.nix のコメント参照。
     # NixOS(x1nano) からは inputs.nix-darwin-conf.sshKeys.<device> で参照して

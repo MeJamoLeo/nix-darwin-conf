@@ -6,7 +6,7 @@
   ...
 }: let
   # デバイス公開鍵台帳(単一源)。鍵の追加・失効は keys.nix 側で行う。
-  keys = import ../../keys.nix;
+  keys = import ../../../keys.nix;
 in {
   # ogasawara は常時待受サーバー: システムスリープすると tailscaled ごと止まり
   # tailnet から消える(スリープ中の応答は CPU 停止のため原理的に不可。Power Nap /

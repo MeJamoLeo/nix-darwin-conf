@@ -35,7 +35,7 @@ in
   #                 arms the STOPWATCH fast watch on invocation
   #   cp-login      paste REVEL_SESSION -> Keychain (stopwatch freeze detection)
   #
-  # alt-g binding lives in modules/aerospace/home.nix and calls cp-go-launch via
+  # alt-g binding lives in modules/apps/aerospace/home.nix and calls cp-go-launch via
   # the user profile bin (config.home.profileDirectory).
   home.packages = [
     oj

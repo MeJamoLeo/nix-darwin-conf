@@ -50,7 +50,7 @@
     };
 
     # nikitabobko/tap (aerospace) と FelixKratz/formulae (borders) は
-    # nixpkgs 移行 (modules/aerospace/home.nix) で不要に → 各機で手動
+    # nixpkgs 移行 (modules/apps/aerospace/home.nix) で不要に → 各機で手動
     # `brew untap nikitabobko/tap felixkratz/formulae`
     taps = [
       "homebrew/services"
@@ -103,7 +103,7 @@
       "ghostty" # GUI terminal (nixpkgs は darwin 非対応→cask。設定は modules/ghostty/home.nix)
       # "cmux" # 引退（Ghostty + herdr へ移行）。nix の管理対象から外す。cleanup="none" のため
       #        app 本体は自動削除されない → 消すなら手動 `brew uninstall --cask cmux`。戻すならこの行を復活
-      # aerospace は nixpkgs 管理へ移行 (modules/aerospace/home.nix 2026-07-08)。
+      # aerospace は nixpkgs 管理へ移行 (modules/apps/aerospace/home.nix 2026-07-08)。
       # 旧 cask は手動 `brew uninstall --cask aerospace`（quit してから）
       "raycast" # Productivity tool (HotKey: alt/option + space)
       "stats" # System monitor for the menu bar
