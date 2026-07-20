@@ -8,7 +8,7 @@ UP="$ROOT/upstream"
 OUT="$ROOT/out"
 LOG="$OUT/update.log"
 CACHE="$HOME/.cache/cp-dashboard"
-NOVI_COOKIE="$HOME/tmp/cp-navisteps/auth_session"
+NOVI_KEYCHAIN_SERVICE="novisteps-auth-session"
 
 mkdir -p "$OUT" "$CACHE"
 
@@ -30,14 +30,14 @@ else
     log "fetch_stats FAILED — rendering from cache"
 fi
 
-if [ -s "$NOVI_COOKIE" ]; then
+if /usr/bin/security find-generic-password -s "$NOVI_KEYCHAIN_SERVICE" -w >/dev/null 2>&1; then
     if python3 "$UP/fetch_novisteps.py" --one >> "$LOG" 2>&1; then
         log "fetch_novisteps ok"
     else
         log "fetch_novisteps FAILED — rendering from cache"
     fi
 else
-    log "novisteps cookie missing ($NOVI_COOKIE) — skip"
+    log "novisteps cookie missing (Keychain service=$NOVI_KEYCHAIN_SERVICE) — skip"
 fi
 
 # draft-v1 盤面のデータ生成（キャッシュから直接計算・fetch 失敗時は stale で描く）
@@ -54,16 +54,20 @@ else
     exit 1
 fi
 
-# スクリーンセーバー用: 主画面の PNG を saver の sandbox コンテナへコピー
-# (legacyScreenSaver は HOME がコンテナに remap されるため直接 ~/cp-dashboard を読めない)
+# スクリーンセーバー用: saver は HOME remap されたコンテナ内 cp-dash/wall.png を読む。
+# コンテナへの毎サイクル cp は saver 選択後 TCC で拒否される（2026-07-20）ため、
+# 実体 wall-main.png への symlink を一度だけ張る方式。既存 symlink には触らない。
 latest="$OUT/wall-main.png"
 if [ -s "$latest" ]; then
     for c in com.apple.ScreenSaver.Engine.legacyScreenSaver com.apple.wallpaper.extension.legacy; do
-        cdir="$HOME/Library/Containers/$c/Data/cp-dash"
-        mkdir -p "$cdir" 2>/dev/null && cp "$latest" "$cdir/wall.png" 2>/dev/null \
-            || log "saver copy FAILED for $c"
+        lnk="$HOME/Library/Containers/$c/Data/cp-dash/wall.png"
+        if [ ! -L "$lnk" ]; then
+            mkdir -p "$(dirname "$lnk")" 2>/dev/null
+            rm -f "$lnk" 2>/dev/null
+            ln -s "$latest" "$lnk" 2>/dev/null \
+                || log "saver symlink MISSING for $c (TCC?) — run once from terminal: ln -sf $latest $lnk"
+        fi
     done
-    log "saver png updated"
 fi
 
 log "cycle done"

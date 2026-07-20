@@ -1,7 +1,8 @@
 // CPDashSaver — CP ダッシュボードの最新レンダリング PNG を表示する最小 .saver。
 // WebKit 不使用（WVSS は macOS 26 で黒画面 = upstream issue #97）。
 // sandbox 対策: legacyScreenSaver の HOME はコンテナに remap されるため、
-// update.sh がコンテナ内 (~/cp-dash/wall.png) へ PNG をコピーし、ここはそれを読む。
+// コンテナ内 ~/cp-dash/wall.png は実体 (~/cp-dashboard/out/wall-main.png) への symlink
+// （activation/update.sh が一度だけ張る。毎サイクル cp は saver 選択後 TCC 拒否・2026-07-20）。
 //
 // Tahoe (macOS 26) の legacyScreenSaver 既知バグ対策
 // （wiki: macos-screensaver-requirements / ScreenSaverMinimal の定番回避を踏襲）:

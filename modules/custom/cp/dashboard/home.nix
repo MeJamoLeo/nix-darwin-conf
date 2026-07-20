@@ -10,7 +10,11 @@ in
   # CP ダッシュボードを macOS に常駐（壁紙 / ライブ層 / スクリーンセーバー）。
   # 正典アセットは ./dashboard/（repo 内）。activation で ~/cp-dashboard へ配置し、
   # Swift 3本を機体の swiftc(CLT) でビルド、launchd 2本を宣言的に管理する。
-  # 詳細設計: vault/wiki/1_Projects/cp-dashboard-macos。
+  # 詳細設計: vault/wiki/1_Projects/cp-dashboard-macos（→ 4_Archives）。
+  #
+  # 新機体のセットアップ = switch → 末尾の doctor 出力の ✗ を潰す → 再 switch で全✓。
+  # 散文の手順書は無い。手作業（CLT / NoviSteps cookie / saver 4クリック）は
+  # bin/doctor.sh が毎 switch 検査して修正コマンドごと表示する。
 
   #--- 旧・手置き plist の takeover ------------------------------------------
   # home-manager が launchd.agents を symlink で張る前に、imperative 時代の
@@ -100,6 +104,21 @@ PLIST
       ${pkgs.python3}/bin/python3 "${root}/web/gen-draft-data.py" >/dev/null 2>&1 || true
       label="org.nix-community.home.com.treo.cp-dashboard-live"
       /bin/launchctl kickstart -k "gui/$(id -u)/$label" 2>/dev/null || true
+    '';
+
+  #--- セットアップ健診（腐らない手順書）------------------------------------
+  # switch はターミナル発なので、コンテナ symlink の作成もここで通る（launchd は TCC 拒否）。
+  home.activation.cpDashboardDoctor =
+    lib.hm.dag.entryAfter [ "cpDashboardRestartLive" ] ''
+      for c in com.apple.ScreenSaver.Engine.legacyScreenSaver com.apple.wallpaper.extension.legacy; do
+        lnk="$HOME/Library/Containers/$c/Data/cp-dash/wall.png"
+        if [ ! -L "$lnk" ]; then
+          mkdir -p "$(dirname "$lnk")" 2>/dev/null || true
+          rm -f "$lnk" 2>/dev/null || true
+          ln -s "${root}/out/wall-main.png" "$lnk" 2>/dev/null || true
+        fi
+      done
+      /bin/bash "${root}/bin/doctor.sh" "${root}" || true
     '';
 
   #--- launchd エージェント3本（宣言化）------------------------------------
