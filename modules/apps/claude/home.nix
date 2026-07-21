@@ -24,9 +24,19 @@ in {
   home.packages = [pkgs.claude-code];
 
   home.file =
-    builtins.listToAttrs (map (name: {
-        name = ".claude/skills/${name}";
-        value.source = skillsDir + "/${name}";
-      })
-      skillNames);
+    {
+      # グローバル CLAUDE.md（全プロジェクト横断ルール＋vault マウントポイント）。
+      # 正史はこの repo の ./CLAUDE.md（編集→rebuild で反映）。settings.json と違い
+      # runtime に書き換えられないファイルなので store symlink で所有してよい
+      # （settings.json を所有しない決定は modules/apps/herdr/home.nix 参照）。
+      ".claude/CLAUDE.md" = {
+        source = ./CLAUDE.md;
+        force = true; # 手動運用時代の ~/.claude/CLAUDE.md が残っていても上書きする
+      };
+    }
+    // builtins.listToAttrs (map (name: {
+      name = ".claude/skills/${name}";
+      value.source = skillsDir + "/${name}";
+    })
+    skillNames);
 }
