@@ -9,11 +9,12 @@
 let
   # Domains routed to 0.0.0.0 / :: via /etc/hosts.
   blockedDomains = [
-    "youtube.com"
-    "www.youtube.com"
-    "m.youtube.com"
-    "youtu.be"
-    "music.youtube.com"
+    # 一時解除中（yt-dlp でレシピ動画の字幕取得のため）— 済んだら戻す
+    # "youtube.com"
+    # "www.youtube.com"
+    # "m.youtube.com"
+    # "youtu.be"
+    # "music.youtube.com"
     "luna.amazon.com"
   ];
 
