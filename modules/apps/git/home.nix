@@ -60,16 +60,5 @@ in {
         foreach = "submodule foreach";
       };
     };
-
-    # signing = {
-    #   key = "xxx";
-    #   signByDefault = true;
-    # };
-  };
-
-  programs.delta = {
-    enable = true;
-    enableGitIntegration = true;
-    options.features = "side-by-side";
   };
 }
