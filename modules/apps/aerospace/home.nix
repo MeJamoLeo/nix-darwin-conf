@@ -37,6 +37,7 @@ in {
       enable-normalization-opposite-orientation-for-nested-containers = false
       on-window-detected = [
         { if.app-id = "com.apple.Terminal", run = "layout floating" }, # macOS Terminal
+        { if.app-id = "com.github.cirruslabs.tart", run = "layout floating" }, # tart VM 窓（NixOS VM 等）はフローティング既定
         { if.app-id = "com.spotify.client", run = "move-node-to-workspace w" }, # Spotify
         { if.app-id = "com.hnc.Discord", run = "move-node-to-workspace q" }, # Discord
         { if.app-id = "jp.naver.line.mac", run = "move-node-to-workspace q" }, # LINE
