@@ -22,7 +22,7 @@
     initContent = ''
       export PATH="$PATH:$HOME/bin:$HOME/.local/bin:$HOME/go/bin"
       bindkey -e  # emacsモードを有効化（Ctrl+N, Ctrl+Pが使えるようになる）
-      eval "$(direnv hook zsh)" # direnvを有効化, direnvは環境変数を管理するツール
+      # direnv の zsh フックは programs.direnv (modules/apps/core-packages/home.nix) が生成する
 
       # Ghostty shell integration: 統合ファイルが実在する時だけ source する。
       # 本物の Ghostty では効き、壊れた GHOSTTY_RESOURCES_DIR（cmux バンドル等）では黙ってスキップ。

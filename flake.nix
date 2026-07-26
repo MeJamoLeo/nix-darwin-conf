@@ -53,6 +53,15 @@
       url = "github:ogulcancelik/herdr";
       inputs.nixpkgs.follows = "nixpkgs-darwin";
     };
+
+    # hunk: エージェント製 changeset をレビューするデスクトップ風ターミナル差分ビューア
+    #   （github:modem-dev/hunk・Rust）。nixpkgs 未収録なので flake input で取り込む。
+    #   overlay は無いので packages.<system>.hunk を specialArgs 経由で
+    #   modules/apps/core-packages/home.nix が直接参照する（herdr と違い pkgs.* にはしない）。
+    hunk = {
+      url = "github:modem-dev/hunk";
+      inputs.nixpkgs.follows = "nixpkgs-darwin";
+    };
   };
 
   ##################################################################################
