@@ -44,7 +44,7 @@
     masApps = {
       # TODO Feel free to add your favorite apps here.
       DisplayMenu = 549083868; # Menu bar tool for display management
-      Klack = 6446206067; # Mechanical keyboard sound effects
+      Keeby = 6760791739; # Mechanical keyboard sound effects
       LINE = 539883307; # Messaging app
       Xcode = 497799835; # Apple's IDE for macOS/iOS development
     };
