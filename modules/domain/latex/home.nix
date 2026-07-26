@@ -1,5 +1,6 @@
 # LaTeX 用 Neovim 設定 (vimtex + texlab + 雛形挿入 + Skim 連携)。
-# texlive / skim 本体のインストールは同ディレクトリの darwin.nix 側。
+# texlive は同ディレクトリの darwin.nix。skim 本体は homebrew-base
+# （PDF 既定ビューアとして file-defaults と共有）。
 {pkgs, ...}: {
   home.packages = with pkgs; [
     neovim-remote # Skim からの逆検索用 (nvr)

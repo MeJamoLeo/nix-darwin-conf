@@ -32,6 +32,8 @@
   # ── ユーザー層（home-manager）───────────────────────────
   home-manager.users.${username} = {
     imports = [
+      # base — 機体の土台規約
+      ../modules/base/forge/home.nix # ◆ homeModules.forge として外部公開中
       # apps — 既製品 + 設定値
       ../modules/apps/shell/home.nix
       ../modules/apps/core-packages/home.nix
@@ -46,6 +48,8 @@
       ../modules/apps/aerospace/home.nix
       ../modules/apps/handy/home.nix
       ../modules/apps/neru/home.nix
+      ../modules/apps/file-defaults/home.nix # IINA/Skim/Zed 関連付け + noTunes
+
       # custom — 自作システム
       ../modules/custom/chrome-anjin/home.nix
       ../modules/custom/cp/tools/home.nix

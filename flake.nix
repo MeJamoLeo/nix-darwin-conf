@@ -135,6 +135,11 @@
     # system 非依存（純粋な module 関数）なので Linux/Darwin 双方で評価できる。
     homeModules.tmux = import ./modules/apps/tmux/home.nix;
 
+    # ~/Forge 規約（旧 ~/Box の後継）。全機で単一の作業 repo 置き場を共有する。
+    # mac 3台は profiles/mac-workstation.nix 経由。NixOS(x1nano) はこの output を
+    # input.nix-darwin-conf.homeModules.forge として import する（tmux と同パターン）。
+    homeModules.forge = import ./modules/base/forge/home.nix;
+
     # デバイス公開鍵台帳（単一源）。詳細は keys.nix のコメント参照。
     # NixOS(x1nano) からは inputs.nix-darwin-conf.sshKeys.<device> で参照して
     # authorizedKeys に選択する（homeModules.tmux と同じ共有パターン）。
