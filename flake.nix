@@ -62,6 +62,15 @@
       url = "github:modem-dev/hunk";
       inputs.nixpkgs.follows = "nixpkgs-darwin";
     };
+
+    # ghostty-cursor-shaders: Ghostty 用の GLSL カーソルシェーダ集（trail / boom）。
+    #   パッケージではなく素の .glsl ファイル群なので flake = false でソースツリーとして取り込み、
+    #   modules/apps/ghostty/home.nix が custom-shader に store 絶対パスで参照する
+    #   （~/.config/ghostty/shaders に生 clone しない＝宣言的に固定）。更新は nix flake update。
+    ghostty-cursor-shaders = {
+      url = "github:sahaj-b/ghostty-cursor-shaders";
+      flake = false;
+    };
   };
 
   ##################################################################################

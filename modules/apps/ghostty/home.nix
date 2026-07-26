@@ -1,4 +1,8 @@
-{pkgs, ...}: {
+{
+  pkgs,
+  ghostty-cursor-shaders,
+  ...
+}: {
   programs.ghostty = {
     enable = true;
     # nixpkgs の ghostty は meta.platforms が Linux 限定（darwin 非対応・ビルド不可、
@@ -17,6 +21,18 @@
       # （0.1 等の小数は invalid value を実機確認済み。旧名 background-blur-radius は廃止）
       background-blur = 0;
       macos-titlebar-style = "hidden";
+      # カーソルシェーダ（sahaj-b/ghostty-cursor-shaders・MIT）。custom-shader は
+      # 繰り返し可能キー = リストで複数指定でき、store の絶対パスを取れる（相対だと
+      # config ディレクトリ基準になり ~/.config/ghostty/shaders への実体配置が要る）。
+      # trail 系（warp/sweep/tail）から1つ＋任意で boom 系を足す運用。差し替えは下の
+      # ファイル名を変えるだけ。全一覧: cursor_warp / cursor_sweep / cursor_tail /
+      # sonic_boom_cursor / ripple_cursor / rectangle_boom_cursor / ripple_rectangle_cursor。
+      custom-shader = [
+        "${ghostty-cursor-shaders}/cursor_warp.glsl"
+      ];
+      # unfocus 時に line カーソルのエフェクトが凍るのを防ぐ（always は非フォーカス中も
+      # 描画継続＝GPU/バッテリーを食う。凍結が気にならなければこの行を消す）。
+      custom-shader-animation = "always";
       keybind = [
         "super+d=new_split:right"
         "super+shift+d=new_split:down"
