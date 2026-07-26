@@ -68,3 +68,6 @@ WA/TLE デバッグは対象外（それは cp-guide）。
 - vault への書き込みは tutor コアの書き戻し手順のみ。learning-competitive の全文 Read 禁止。
 - claude-obsidian セッション内で CP を扱う場合は project 版 tutor の CP モードが優先
   （作法は同一。divergence したら project 版が正）。
+- **モデル規律**: 本体が Fable/Opus のとき、素材ロード（WebFetch）や複数ファイルの
+  大量読みが嵩む場合は `model: "sonnet"` のサブエージェントに委譲してよい。
+  評価・ソクラテス対話・書き戻しの判断は本体に残す。

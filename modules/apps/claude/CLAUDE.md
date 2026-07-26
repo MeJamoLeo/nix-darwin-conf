@@ -21,6 +21,11 @@ claude-obsidian の vault：`/Users/treo/Forge/claude-obsidian`。
 - 人間への依頼は**【端末・画面・操作】形式・30秒単位に圧縮**してまとめて出す。
 - 詳細な運用ルール・環境制約（TXST 外部連携全面制限・ブラウザに Google ログインさせない等）は vault の `claude-life-admin-operating-rules` と Area `anjin-operations` が正史。
 
+## モデル規律（トークン/レートリミット）
+
+- 原則：**判断＝Fable/Opus、作業＝Sonnet、機械作業＝Haiku**。反復ループ・fan-out・web 大量取得は本体で回さず、Agent tool / Workflow の `agent()` に `model: "sonnet"` を明示して委譲する（**無指定は本体モデル継承**）。エスカレーションは opus のみ・単発。Fable を委譲先に使わない。
+- 用途別の対応表と詳細は claude-obsidian の CLAUDE.md「モデル規律」が正史。
+
 ## 設定・知識の置き場所ポリシー
 
 - **user-level（`~/.claude` 等）で便利なもの**は手動で置かず **nix-darwin-conf**（`~/Forge/nix-darwin-conf`）で宣言的に管理する。user-level に生ファイルを作らない。
