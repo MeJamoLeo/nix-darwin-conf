@@ -54,6 +54,7 @@
       ../modules/custom/chrome-anjin/home.nix
       ../modules/custom/cp/tools/home.nix
       ../modules/custom/cp/dashboard/home.nix
+      ../modules/custom/calendar-dashboard/home.nix
       # domain — 生活ドメイン
       ../modules/domain/latex/home.nix
       ../modules/domain/school/txst/home.nix

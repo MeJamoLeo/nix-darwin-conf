@@ -1,0 +1,10 @@
+{
+  "todayWidth": 0.24,
+  "rightCols": [0.5, 0.5],
+  "rightRows": [0.5, 0.5],
+  "gap": 6,
+  "zoom": 0.75,
+  "weekZoom": 0.5,
+  "account": 0,
+  "tz": "America/Chicago"
+}
