@@ -24,12 +24,24 @@ in {
     home.activation.handy-settings = lib.mkIf cfg.enable (lib.hm.dag.entryAfter ["writeBoundary"] ''
       SETTINGS_FILE="${settingsFile}"
       NIX_SETTINGS='${nixSettings}'
+      # Handy は起動時に settings_store.json を読んでキーバインドを登録するだけで、
+      # 稼働中の JSON 変更は拾わない。書き換え前後の sha256 を比較し、実際に内容が
+      # 動いたときだけ Handy を再起動する（毎 switch で無条件 kill だと副作用が大きい）。
+      before=""
+      [ -f "$SETTINGS_FILE" ] && before="$(${pkgs.coreutils}/bin/sha256sum "$SETTINGS_FILE" | cut -c1-64)"
       if [ -f "$SETTINGS_FILE" ]; then
         ${pkgs.jq}/bin/jq --argjson nix "$NIX_SETTINGS" '. * $nix' "$SETTINGS_FILE" > "$SETTINGS_FILE.tmp"
         mv "$SETTINGS_FILE.tmp" "$SETTINGS_FILE"
       else
         mkdir -p "$(dirname "$SETTINGS_FILE")"
         echo "$NIX_SETTINGS" | ${pkgs.jq}/bin/jq . > "$SETTINGS_FILE"
+      fi
+      after="$(${pkgs.coreutils}/bin/sha256sum "$SETTINGS_FILE" | cut -c1-64)"
+      if [ "$before" != "$after" ] && /usr/bin/pgrep -x handy >/dev/null 2>&1; then
+        /usr/bin/killall handy 2>/dev/null || true
+        # 旧プロセスの解放を待ってから起動（open -a が既存インスタンスに合流するのを避ける）
+        for _ in 1 2 3 4 5; do /usr/bin/pgrep -x handy >/dev/null 2>&1 || break; sleep 0.5; done
+        /usr/bin/open -a Handy
       fi
     '');
 
