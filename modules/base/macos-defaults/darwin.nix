@@ -198,7 +198,9 @@
 
           finder = {
             ShowExternalHardDrivesOnDesktop = true;
-            ShowHardDrivesOnDesktop = true;
+            # 内蔵ドライブ（起動ボリューム "ils" 含む）は常時映るので邪魔 → 非表示。
+            # 外付け・SD・サーバは差し替えの発生ごとに存在を把握したいので true 継続。
+            ShowHardDrivesOnDesktop = false;
             ShowMountedServersOnDesktop = true;
             ShowRemovableMediaOnDesktop = true;
             _FXSortFoldersFirst = true;
