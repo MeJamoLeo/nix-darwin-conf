@@ -36,10 +36,18 @@ var RROWS: [CGFloat] = [0.5, 0.5]    // 右エリアの上下比
 var GAP: CGFloat = 6
 var ZOOM: CGFloat = 0.75             // 全体 pageZoom（<1 で文字を小さく＝密度↑）
 var WEEK_ZOOM: CGFloat = 0.5         // 今週/来週だけ更に圧縮（1日 0-24 時をスクロール無しで収める用）
+// 解像度スケール式（referenceWidth が config にあると式モード起動＝main モニタ幅で自動追随）。
+// 例: baseZoom=0.9 referenceWidth=2560 → 2560幅で 0.9・3840幅で ~0.735・5120幅で ~0.636（sqrt ダンパー）。
+// 現画面幅の変化（モニタ挿抜・SetResolution）は didChangeScreenParametersNotification で購読して再計算。
+var BASE_ZOOM: CGFloat? = nil
+var BASE_WEEK_ZOOM: CGFloat? = nil
+var REFERENCE_WIDTH: CGFloat? = nil
 
 struct Config: Codable {
     var todayWidth: Double?; var rightCols: [Double]?; var rightRows: [Double]?
-    var gap: Double?; var zoom: Double?; var weekZoom: Double?; var account: Int?; var tz: String?
+    var gap: Double?; var zoom: Double?; var weekZoom: Double?
+    var baseZoom: Double?; var baseWeekZoom: Double?; var referenceWidth: Double?
+    var account: Int?; var tz: String?
 }
 func loadConfig() {
     let path = ProcessInfo.processInfo.environment["CALDASH_CONFIG"]
@@ -53,9 +61,21 @@ func loadConfig() {
     if let v = c.gap { GAP = CGFloat(v) }
     if let v = c.zoom { ZOOM = CGFloat(v) }
     if let v = c.weekZoom { WEEK_ZOOM = CGFloat(v) }
+    if let v = c.baseZoom { BASE_ZOOM = CGFloat(v) }
+    if let v = c.baseWeekZoom { BASE_WEEK_ZOOM = CGFloat(v) }
+    if let v = c.referenceWidth { REFERENCE_WIDTH = CGFloat(v) }
     if let v = c.account { ACCOUNT = v }
     if let v = c.tz { TZ_ID = v }
     print("[caldash] config: todayW=\(TODAY_W) rcols=\(RCOLS) rrows=\(RROWS) gap=\(GAP) zoom=\(ZOOM) weekZoom=\(WEEK_ZOOM) u/\(ACCOUNT) \(TZ_ID)")
+    if let ref = REFERENCE_WIDTH {
+        print("[caldash] formula: baseZoom=\(BASE_ZOOM ?? ZOOM) baseWeekZoom=\(BASE_WEEK_ZOOM ?? WEEK_ZOOM) referenceWidth=\(ref)")
+    }
+}
+
+// 解像度スケール式（sqrt ダンパー）。base * sqrt(ref/current)。
+// 現画面が ref より狭い→zoom↑（文字↑）、広い→zoom↓（密度↑）。sqrt で振れ幅を抑える。
+func effectiveZoom(base: CGFloat, ref: CGFloat, current: CGFloat) -> CGFloat {
+    return base * (ref / max(1, current)).squareRoot()
 }
 
 func cal() -> Calendar {
@@ -121,6 +141,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
     var webs: [WKWebView] = []
     let store = WKWebsiteDataStore.default()   // ログイン共有＆永続（実測済み）
 
+    // 式モード時の現行 zoom（画面変化時に再計算＝式が無ければ config の静的値のまま不変）
+    var currentZoom: CGFloat = 0.75
+    var currentWeekZoom: CGFloat = 0.5
+
+    // 式モードか（REFERENCE_WIDTH 指定時のみ）
+    var formulaMode: Bool { REFERENCE_WIDTH != nil }
+
+    // 指定 screen 幅から effective zoom を算出。式 off なら config の静的値を返す。
+    func computeEffectiveZooms(for screen: NSScreen) -> (CGFloat, CGFloat) {
+        guard let ref = REFERENCE_WIDTH else { return (ZOOM, WEEK_ZOOM) }
+        let base = BASE_ZOOM ?? ZOOM
+        let baseW = BASE_WEEK_ZOOM ?? WEEK_ZOOM
+        let w = screen.frame.width
+        return (effectiveZoom(base: base, ref: ref, current: w),
+                effectiveZoom(base: baseW, ref: ref, current: w))
+    }
+
     func makeWeb(_ urlStr: String, zoom: CGFloat) -> WKWebView {
         let cfg = WKWebViewConfiguration()
         cfg.websiteDataStore = store
@@ -142,13 +179,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         grid.wantsLayer = true
         grid.layer?.backgroundColor = NSColor.black.cgColor
         grid.autoresizingMask = [.width, .height]
-        let zooms: [CGFloat] = [ZOOM, WEEK_ZOOM, WEEK_ZOOM, ZOOM, ZOOM]  // 今日/今週/来週/今月/来月
+        let initialScreen = NSScreen.main ?? NSScreen.screens[0]
+        (currentZoom, currentWeekZoom) = computeEffectiveZooms(for: initialScreen)
+        let zooms: [CGFloat] = [currentZoom, currentWeekZoom, currentWeekZoom, currentZoom, currentZoom]  // 今日/今週/来週/今月/来月
         webs = zip(paneURLs(), zooms).map { makeWeb($0, zoom: $1) }
         grid.panes = webs
         webs.forEach { grid.addSubview($0) }
+        if formulaMode {
+            print("[caldash] effective zoom on width=\(initialScreen.frame.width): \(currentZoom)/\(currentWeekZoom)")
+        }
 
         if WALLPAPER {
-            let screen = NSScreen.main ?? NSScreen.screens[0]
+            let screen = initialScreen
             window = NSWindow(contentRect: screen.frame, styleMask: .borderless,
                               backing: .buffered, defer: false)
             window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)))
@@ -160,6 +202,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
             window.setFrame(screen.frame, display: true)
             window.orderFrontRegardless()
             print("[caldash] wallpaper mode on \(screen.frame.size)")
+            // 解像度/main モニタの変化を購読して window と zoom を追随（モニタ挿抜・SetResolution 対応）。
+            NotificationCenter.default.addObserver(
+                forName: NSApplication.didChangeScreenParametersNotification,
+                object: nil, queue: .main
+            ) { [weak self] _ in
+                self?.reapplyForCurrentScreen()
+            }
         } else {
             let frame = NSRect(x: 0, y: 0, width: 1800, height: 1050)
             window = NSWindow(contentRect: frame,
@@ -192,6 +241,29 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
             if let u = URL(string: urls[i]) { wv.load(URLRequest(url: u)) }
         }
         print("[caldash] re-anchored")
+    }
+
+    // 画面変化（モニタ挿抜・main 切替・解像度変更）で window と zoom を追随。
+    // wallpaper mode 専用：現状は main 1画面のみ描画（副モニタは対象外＝C1 スコープ）。
+    func reapplyForCurrentScreen() {
+        guard WALLPAPER else { return }
+        let screen = NSScreen.main ?? NSScreen.screens[0]
+        let oldFrame = window.frame
+        if oldFrame != screen.frame {
+            window.setFrame(screen.frame, display: true)
+        }
+        let (newZ, newWZ) = computeEffectiveZooms(for: screen)
+        if formulaMode && (newZ != currentZoom || newWZ != currentWeekZoom) {
+            currentZoom = newZ
+            currentWeekZoom = newWZ
+            let zooms: [CGFloat] = [newZ, newWZ, newWZ, newZ, newZ]
+            for (i, wv) in webs.enumerated() where i < zooms.count {
+                wv.pageZoom = zooms[i]
+            }
+            print("[caldash] screen changed: width=\(screen.frame.width) → zoom=\(newZ)/\(newWZ)")
+        } else if oldFrame != screen.frame {
+            print("[caldash] screen frame changed: \(oldFrame.size) → \(screen.frame.size)")
+        }
     }
 
     // M1: ポップアップ/新規窓を同 view に流す（サインイン用）。無人常駐では Google 一族のみ許可。
