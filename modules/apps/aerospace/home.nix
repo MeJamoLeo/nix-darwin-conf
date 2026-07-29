@@ -99,6 +99,12 @@ in {
       alt-comma = "resize smart -50"
       alt-period = "resize smart +50"
 
+      # Desktop-level dashboard focus（両者 .desktopWindow レベルの opaque 全画面 window で z-order は
+      # "最後に生成された window が上"。kickstart -k で対象 agent を再起動＝新 window を最上位に敷く。
+      # 両 agent は常時 keepalive 起動を前提（bootout 中は kickstart が no-op に近い状態）。
+      alt-shift-1 = "exec-and-forget /bin/launchctl kickstart -k gui/$(id -u)/org.nix-community.home.com.treo.calendar-dashboard-live"
+      alt-shift-2 = "exec-and-forget /bin/launchctl kickstart -k gui/$(id -u)/org.nix-community.home.com.treo.cp-dashboard-live"
+
       # Right Top Row, Layout switching
       alt-y = "flatten-workspace-tree"
       alt-u = "layout h_accordion h_tiles"
