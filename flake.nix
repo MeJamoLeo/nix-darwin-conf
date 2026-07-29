@@ -14,6 +14,12 @@
   inputs = {
     nixpkgs-darwin.url = "github:nixos/nixpkgs/nixpkgs-unstable";
 
+    # nixvim（他 flake-parts ベースの input）に「aarch64-darwin だけ」を反復させる
+    # ためのシステム集合。nix-systems/default は全 4 systems を返し、その中の
+    # x86_64-darwin は nixpkgs 26.11 でサポートが落ちたため、他の flake の per-system
+    # 評価が throw する。全ホスト aarch64-darwin なので絞って安全。
+    systems.url = "github:nix-systems/aarch64-darwin";
+
     # git だけ安定版にピン留めするための独立 nixpkgs。
     #   unstable の git 2.54.0 は「長い unicode ファイル名」を含む作業ツリーの
     #   untracked 走査（git status --untracked-files=all / git ls-files -o）で
@@ -39,6 +45,9 @@
     nixvim = {
       url = "github:nix-community/nixvim";
       inputs.nixpkgs.follows = "nixpkgs-darwin";
+      # 上の `systems` input を follows。x86_64-darwin を含まないので、
+      # nixpkgs 26.11 (drop 済み) と組み合わせても per-system 評価が throw しない。
+      inputs.systems.follows = "systems";
     };
 
     neru = {
@@ -61,6 +70,14 @@
     hunk = {
       url = "github:modem-dev/hunk";
       inputs.nixpkgs.follows = "nixpkgs-darwin";
+      # hunk -> bun2nix は flake-parts + nix-systems/default を使う。x86_64-darwin
+      # を含めるとドロップ後の nixpkgs 26.11 で per-system 評価が throw するので
+      # 上の `systems`（aarch64-darwin 限定）に follows で差し替える。
+      # nix 2.27 は `inputs.hunk.inputs.bun2nix.inputs.X` の3階層 override 時に
+      # bun2nix を registry で解決しようとして `flake:bun2nix` を探し落ちるので、
+      # URL を明示して registry lookup を回避する。
+      inputs.bun2nix.url = "github:nix-community/bun2nix";
+      inputs.bun2nix.inputs.systems.follows = "systems";
     };
 
     # ghostty-cursor-shaders: Ghostty 用の GLSL カーソルシェーダ集（trail / boom）。
