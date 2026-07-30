@@ -1,7 +1,4 @@
 {
-  "todayWidth": 0.18,
-  "rightCols": [0.5, 0.5],
-  "rightRows": [0.5, 0.5],
   "gap": 6,
   "baseZoom": 0.9,
   "baseWeekZoom": 0.65,

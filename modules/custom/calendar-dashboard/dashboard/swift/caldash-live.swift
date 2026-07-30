@@ -1,17 +1,18 @@
-// caldash-live — カレンダー・ダッシュボード（本体 Google カレンダー×5面）
+// caldash-live — カレンダー・ダッシュボード（本体 Google カレンダー×4面）
 // 本体アプリを WKWebView で"最上位"ロード（iframe でないので X-Frame-Options 回避）。
 // 全面が .default() データストア共有 → ログイン1回で全面認証・再起動で永続（実測済み）。
 //
-// レイアウト（5面）: 今日を左の縦長カラム、右を 2×2（今週/来週・今月/来月）。
-//   ┌───────┬───────┬───────┐
-//   │       │ 今週   │ 来週   │   ← 来週で「次の月曜」も見える（週ビュー日曜起点問題の解）
-//   │ 今日   ├───────┼───────┤
-//   │(縦長) │ 今月   │ 来月   │
-//   └───────┴───────┴───────┘
+// レイアウト（4面）: 3 等幅カラム、左カラムは 2 月を縦スタック。
+//   ┌────────┬────────┬────────┐
+//   │ 今月    │ 今週    │ 来週    │   ← 来週で「次の月曜」も見える（週ビュー日曜起点問題の解）
+//   ├────────┤        │        │
+//   │ 来月    │        │        │
+//   └────────┴────────┴────────┘
 //
 // モード: （無フラグ）interactive=通常窓・ログイン用 / --wallpaper=常在面（アイコン裏・透過・全Space・無人）
 // 設定: ~/calendar-dashboard/caldash-config.json（env CALDASH_CONFIG で上書き）。
-//       todayWidth / rightCols / rightRows / gap / zoom / account(u/N) / tz。
+//       gap / zoom / weekZoom / baseZoom / baseWeekZoom / referenceWidth /
+//       account(u/N) / tz / backgroundOpacity。
 // 日次: ローカル 00:01 に再ロード（各面を今日基準に再アンカー＋来週/来月 URL 再計算）。
 //       ※イベントデータ自体は本体 SPA が自前同期するので定期リロードはしない。
 // 終了 = プロセス kill のみ。システム状態は何も変えない。
@@ -52,9 +53,6 @@ html, body { overflow: hidden !important; margin: 0 !important; padding: 0 !impo
 // ---- 設定（既定値。config で上書き）----
 var ACCOUNT = 0
 var TZ_ID   = "America/Chicago"
-var TODAY_W: CGFloat = 0.24          // 今日カラムの幅（画面比）
-var RCOLS: [CGFloat] = [0.5, 0.5]    // 右エリアの左右比
-var RROWS: [CGFloat] = [0.5, 0.5]    // 右エリアの上下比
 var GAP: CGFloat = 6
 var ZOOM: CGFloat = 0.75             // 全体 pageZoom（<1 で文字を小さく＝密度↑）
 var WEEK_ZOOM: CGFloat = 0.5         // 今週/来週だけ更に圧縮（1日 0-24 時をスクロール無しで収める用）
@@ -70,7 +68,6 @@ var REFERENCE_WIDTH: CGFloat? = nil
 var BG_OPACITY: CGFloat = 1.0
 
 struct Config: Codable {
-    var todayWidth: Double?; var rightCols: [Double]?; var rightRows: [Double]?
     var gap: Double?; var zoom: Double?; var weekZoom: Double?
     var baseZoom: Double?; var baseWeekZoom: Double?; var referenceWidth: Double?
     var account: Int?; var tz: String?
@@ -82,9 +79,6 @@ func loadConfig() {
             .appendingPathComponent("calendar-dashboard/caldash-config.json").path
     guard let data = FileManager.default.contents(atPath: path),
           let c = try? JSONDecoder().decode(Config.self, from: data) else { return }
-    if let v = c.todayWidth { TODAY_W = CGFloat(v) }
-    if let v = c.rightCols, v.count == 2 { RCOLS = v.map { CGFloat($0) } }
-    if let v = c.rightRows, v.count == 2 { RROWS = v.map { CGFloat($0) } }
     if let v = c.gap { GAP = CGFloat(v) }
     if let v = c.zoom { ZOOM = CGFloat(v) }
     if let v = c.weekZoom { WEEK_ZOOM = CGFloat(v) }
@@ -94,7 +88,7 @@ func loadConfig() {
     if let v = c.account { ACCOUNT = v }
     if let v = c.tz { TZ_ID = v }
     if let v = c.backgroundOpacity { BG_OPACITY = max(0, min(1, CGFloat(v))) }
-    print("[caldash] config: todayW=\(TODAY_W) rcols=\(RCOLS) rrows=\(RROWS) gap=\(GAP) zoom=\(ZOOM) weekZoom=\(WEEK_ZOOM) u/\(ACCOUNT) \(TZ_ID) opacity=\(BG_OPACITY)")
+    print("[caldash] config: gap=\(GAP) zoom=\(ZOOM) weekZoom=\(WEEK_ZOOM) u/\(ACCOUNT) \(TZ_ID) opacity=\(BG_OPACITY)")
     if let ref = REFERENCE_WIDTH {
         print("[caldash] formula: baseZoom=\(BASE_ZOOM ?? ZOOM) baseWeekZoom=\(BASE_WEEK_ZOOM ?? WEEK_ZOOM) referenceWidth=\(ref)")
     }
@@ -122,16 +116,17 @@ func nextWeekYMD() -> (Int, Int, Int) {
     let c = cal().dateComponents([.year, .month, .day], from: d)
     return (c.year!, c.month!, c.day!)
 }
+// 4 pane（GridView.layout の panes[0..3] と順序を揃える）:
+//   [0] 今月 (左上) / [1] 来月 (左下) / [2] 今週 (中央) / [3] 来週 (右)
 func paneURLs() -> [String] {
     let base = "https://calendar.google.com/calendar/u/\(ACCOUNT)/r"
     let (ny, nm) = nextMonthYM()
     let (wy, wm, wd) = nextWeekYMD()
     return [
-        "\(base)/day",                     // 今日
-        "\(base)/week",                    // 今週
-        "\(base)/week/\(wy)/\(wm)/\(wd)",  // 来週
         "\(base)/month",                   // 今月
-        "\(base)/month/\(ny)/\(nm)/1"      // 来月
+        "\(base)/month/\(ny)/\(nm)/1",     // 来月
+        "\(base)/week",                    // 今週
+        "\(base)/week/\(wy)/\(wm)/\(wd)"   // 来週
     ]
 }
 
@@ -142,24 +137,23 @@ func isGoogleHost(_ host: String?) -> Bool {
     return owned.contains { h == $0 || h.hasSuffix("." + $0) }
 }
 
-// 今日=左縦長カラム、右=2×2。isFlipped=true で左上原点。
+// 3 等幅カラム、左カラムは月を縦スタック。isFlipped=true で左上原点。
+//   col 0 (1/3 幅): 今月 (上) / 来月 (下)、上下 50/50 の GAP 挟み
+//   col 1 (1/3 幅): 今週  (フル高)
+//   col 2 (1/3 幅): 来週  (フル高)
 final class GridView: NSView {
     var panes: [NSView] = []
     override var isFlipped: Bool { true }
     override func layout() {
         super.layout()
-        guard panes.count == 5 else { return }
+        guard panes.count == 4 else { return }
         let W = bounds.width, H = bounds.height
-        let lw = W * TODAY_W
-        let rx = lw + GAP
-        let rw = max(0, W - rx)
-        panes[0].frame = NSRect(x: 0, y: 0, width: lw, height: H)          // 今日（左フル高）
-        let cw0 = (rw - GAP) * RCOLS[0], cw1 = (rw - GAP) * RCOLS[1]
-        let rh0 = (H - GAP) * RROWS[0], rh1 = (H - GAP) * RROWS[1]
-        panes[1].frame = NSRect(x: rx,           y: 0,         width: cw0, height: rh0) // 今週
-        panes[2].frame = NSRect(x: rx + cw0 + GAP, y: 0,        width: cw1, height: rh0) // 来週
-        panes[3].frame = NSRect(x: rx,           y: rh0 + GAP, width: cw0, height: rh1) // 今月
-        panes[4].frame = NSRect(x: rx + cw0 + GAP, y: rh0 + GAP, width: cw1, height: rh1) // 来月
+        let colW = max(0, (W - 2 * GAP) / 3)
+        let monthH = max(0, (H - GAP) / 2)
+        panes[0].frame = NSRect(x: 0,                       y: 0,             width: colW, height: monthH) // 今月（左上）
+        panes[1].frame = NSRect(x: 0,                       y: monthH + GAP,  width: colW, height: monthH) // 来月（左下）
+        panes[2].frame = NSRect(x: colW + GAP,              y: 0,             width: colW, height: H)      // 今週（中央）
+        panes[3].frame = NSRect(x: 2 * (colW + GAP),        y: 0,             width: colW, height: H)      // 来週（右）
     }
 }
 
@@ -273,7 +267,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         // ここは触らない）。
         grid.layer?.backgroundColor = NSColor.black.cgColor
         grid.autoresizingMask = [.width, .height]
-        let zooms: [CGFloat] = [zoom, weekZoom, weekZoom, zoom, zoom]  // 今日/今週/来週/今月/来月
+        let zooms: [CGFloat] = [zoom, zoom, weekZoom, weekZoom]  // 今月/来月/今週/来週
         let paneWebs = zip(paneURLs(), zooms).map { makeWeb($0, zoom: $1) }
         grid.panes = paneWebs
         paneWebs.forEach { grid.addSubview($0) }
@@ -355,7 +349,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
             if w.frame != area { w.setFrame(area, display: true) }
             guard formulaMode, i < webs.count else { continue }
             let (nz, nwz) = computeEffectiveZooms(for: screen)
-            let zooms: [CGFloat] = [nz, nwz, nwz, nz, nz]
+            let zooms: [CGFloat] = [nz, nz, nwz, nwz]  // 今月/来月/今週/来週
             for (j, wv) in webs[i].enumerated() where j < zooms.count {
                 if wv.pageZoom != zooms[j] { wv.pageZoom = zooms[j] }
             }
