@@ -49,6 +49,13 @@ in {
       enable = true;
       settings = {
         push_to_talk = true;
+        # ログイン時にメインウィンドウを出さず tray 常駐だけにする（2026-07-30）。
+        # Handy 自身の autostart_enabled=true が ~/Library/LaunchAgents/Handy.plist
+        # (RunAtLoad, ProgramArguments=Handy.app/Contents/MacOS/handy) を生成するので、
+        # start_hidden が false だと毎ログインで設定ウィンドウが前面に出る。
+        # GUI 側の値は既に true だったが nix 未宣言のドリフトだったのでここに固定する
+        # （autostart_enabled は Handy 自身が書き換えるので宣言しない＝ログイン常駐は GUI 側の意思に従う）。
+        start_hidden = true;
         bindings = {
           transcribe = {
             id = "transcribe";
