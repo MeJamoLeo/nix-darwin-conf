@@ -27,6 +27,26 @@ import WebKit
 let SAFARI_UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.6 Safari/605.1.15"
 let WALLPAPER = CommandLine.arguments.contains("--wallpaper")
 
+// wallpaper mode 専用: Google カレンダー本体のクロム（トップバー・サイドバー）を消して
+// 盤面だけ残す。class 名は毎リリースでハッシュ化される（例: .aRlgFf）ため landmark で当てる。
+// トップバー(=role='banner')は display:none で真に消す。左サイドバー（Create/ミニカレ/
+// カレンダー一覧/フッター）は Google が非-landmark で組んでいる可能性が高いため、
+// role='main' を viewport 全面に position:fixed で被せる「構造非依存」戦略で覆い隠す。
+// これで DOM を残したまま視覚的にサイドバーが消え、Google の class ハッシュ変更にも
+// 巻き込まれない。interactive mode ではログイン・ナビ用に UI を温存する。
+let HIDE_CHROME_CSS = """
+[role='banner'] { display: none !important; }
+[role='main'] {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 999999 !important;
+  background: #000 !important;
+}
+html, body { overflow: hidden !important; margin: 0 !important; padding: 0 !important; }
+"""
+
 // ---- 設定（既定値。config で上書き）----
 var ACCOUNT = 0
 var TZ_ID   = "America/Chicago"
@@ -163,6 +183,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         cfg.websiteDataStore = store
         // M2: 無人常駐では JS の自動 window.open を禁止。ログインは gesture 起点なので interactive では許可。
         cfg.preferences.javaScriptCanOpenWindowsAutomatically = !WALLPAPER
+        // wallpaper mode 限定: 盤面だけ残す CSS を毎ロード注入（documentElement 直下なので
+        // SPA の DOM 再構築で剥がれない）。interactive では UI 温存でログイン導線を確保。
+        if WALLPAPER {
+            let js = """
+            (() => {
+              if (document.getElementById('caldash-hide-chrome')) return;
+              const s = document.createElement('style');
+              s.id = 'caldash-hide-chrome';
+              s.textContent = `\(HIDE_CHROME_CSS)`;
+              (document.head || document.documentElement).appendChild(s);
+            })();
+            """
+            let script = WKUserScript(source: js, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+            cfg.userContentController.addUserScript(script)
+        }
         let wv = WKWebView(frame: .zero, configuration: cfg)
         wv.customUserAgent = SAFARI_UA
         wv.uiDelegate = self
