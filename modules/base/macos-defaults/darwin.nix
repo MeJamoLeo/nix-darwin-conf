@@ -209,6 +209,19 @@
           # Add a context menu item for showing the Web Inspector in web views
           WebKitDeveloperExtras = true;
         };
+        # NOTE(2026-07-30): 元は `.com.apple.WindowManager` に置かれていたが dead 宣言。
+        # nix-darwin ネイティブは無いので CustomUserPreferences 経由で移設。
+        # 副作用: StandardHideWidgets が 0→1 に変化して、デスクトップの widget が隠れる
+        # （caldash 常在面は WindowServer レベルの borderless window なので影響なし）。
+        # EnableStandardClickToShowDesktop=0 で「壁紙クリックで盤面表示」を無効化する
+        # 意図は caldash（実質壁紙）を誤タップで隠さないため。
+        "com.apple.WindowManager" = {
+          EnableStandardClickToShowDesktop = 0;
+          StandardHideDesktopIcons = 0;
+          HideDesktop = 0;
+          StageManagerHideWidgets = 0;
+          StandardHideWidgets = 1;
+        };
         # NOTE(2026-07-30): 元は `.com.apple.AdLib` / `.com.apple.ImageCapture` に置かれ
         # ていたが dead 宣言。正しいドメイン名に移設。
         "com.apple.AdLib" = {
@@ -248,13 +261,6 @@
           # スコープ外とし別コミットで整理する（TODO）。
 
 
-          WindowManager = {
-            EnableStandardClickToShowDesktop = 0; # Click wallpaper to reveal desktop
-            StandardHideDesktopIcons = 0; # Show items on desktop
-            HideDesktop = 0; # Do not hide items on desktop & stage manager
-            StageManagerHideWidgets = 0;
-            StandardHideWidgets = 1;
-          };
 
 
           screencapture = {
