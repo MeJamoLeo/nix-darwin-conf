@@ -35,7 +35,6 @@ in {
     ];
 
     settings = {
-      # TODO replace with your own name & email
       user = {
         name = "MeJamoLeo";
         email = "55238651+MeJamoLeo@users.noreply.github.com";

@@ -1,5 +1,3 @@
-# just is a command runner, Justfile is very similar to Makefile, but simpler.
-
 # Auto-detect hostname from macOS (override with: just hostname=ogasawara darwin)
 hostname := `scutil --get LocalHostName`
 

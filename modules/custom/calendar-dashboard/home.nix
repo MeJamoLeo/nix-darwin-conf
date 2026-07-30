@@ -17,8 +17,6 @@ in
   # ~/ へ配置→env -i 隔離の xcrun swiftc ビルド→launchd 宣言→doctor 健診）。
   #
   # セットアップ = switch → doctor の ✗ を潰す → 初回だけ手動ログイン1回（doctor が手順表示）。
-  # 既存の HTML 資産（dashboard/gcal.html=embed 版, index.html=自作描画）は no-login フォールバック
-  # として当面残置（このネイティブ版が安定したら _archive へ）。
 
   #--- アセット配置 + Swift ビルド -------------------------------------------
   home.activation.calDashDeploy =

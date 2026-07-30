@@ -3,28 +3,6 @@
   username,
   ...
 }: {
-  ##########################################################################
-  #
-  #  Install all apps and packages here.
-  #
-  # TODO Fell free to modify this file to fit your needs.
-  #
-  ##########################################################################
-
-  # Install packages from nix's official package repository.
-  #
-  # The packages installed here are available to all users, and are reproducible across machines, and are rollbackable.
-  # But on macOS, it's less stable than homebrew.
-  #
-  # Related Discussion: https://discourse.nixos.org/t/darwin-again/29331
-  # CLI ツールは modules/core-packages/home.nix で home.packages 管理。
-  # EDITOR は modules/shell/home.nix で home.sessionVariables 管理。
-  # システム全体に必要なものだけ environment.systemPackages に置く。
-
-  # TODO To make this work, homebrew need to be installed manually, see https://brew.sh
-  #
-  # The apps installed by homebrew are not managed by nix, and not reproducible!
-  # But on macOS, homebrew has a much larger selection of apps than nixpkgs, especially for GUI apps!
   homebrew = {
     enable = true;
 
@@ -42,7 +20,6 @@
     # otherwise Apple Store will refuse to install them.
     # For details, see https://github.com/mas-cli/mas
     masApps = {
-      # TODO Feel free to add your favorite apps here.
       DisplayMenu = 549083868; # Menu bar tool for display management
       Keeby = 6760791739; # Mechanical keyboard sound effects
       LINE = 539883307; # Messaging app

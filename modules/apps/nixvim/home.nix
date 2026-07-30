@@ -1,5 +1,3 @@
-# nixvim.nix - Neovim configuration via nixvim
-# LSP、補完、ファジーファインダー、Git連携などを設定
 {pkgs, config, ...}: let
   # CP デバッグ用: debugpy 入り python と、sample-N.in を stdin にして対象ファイルを
   # debugpy 下で実行するランナー（x1nano nixos-cp から移植）。
