@@ -89,6 +89,7 @@
         TrackpadThreeFingerDrag = true; # enable three finger drag
       };
 
+
       # customize settings that not supported by nix-darwin directly
       # Incomplete list of macOS `defaults` commands :
       #   https://github.com/yannbertrand/macos-defaults
@@ -202,6 +203,15 @@
           # Add a context menu item for showing the Web Inspector in web views
           WebKitDeveloperExtras = true;
         };
+        # NOTE(2026-07-30): 元は `.com.apple.desktopservices` に置かれていたが
+        # `.com.apple` は実ドメインではないため dead 宣言だった。CustomUserPreferences
+        # の正しいドメイン `com.apple.desktopservices` に移設して有効化。
+        # nix-darwin にネイティブオプションは無いため CustomUserPreferences 経由。
+        "com.apple.desktopservices" = {
+          # Avoid creating .DS_Store files on network or USB volumes
+          DSDontWriteNetworkStores = true;
+          DSDontWriteUSBStores = true;
+        };
         ".com.apple" = {
           universalaccess = {
             reduceMotion = true; # 動きを減らす設定を有効化
@@ -212,12 +222,6 @@
           # ↓ 以下 desktopservices / spaces / WindowManager / screensaver / screencapture
           # 等も同じ理由で dead の可能性が高いが、動作差分が出るため今回は disk 問題の
           # スコープ外とし別コミットで整理する（TODO）。
-
-          desktopservices = {
-            # Avoid creating .DS_Store files on network or USB volumes
-            DSDontWriteNetworkStores = true;
-            DSDontWriteUSBStores = true;
-          };
 
           spaces = {
             "spans-displays" = 0; # Display have seperate spaces
