@@ -85,6 +85,9 @@
     yazi = {
       enable = true;
       enableZshIntegration = true;
+      # home-manager 26.05 で default が "yy" → "y" に変わる予定。muscle memory
+      # 保護のため "yy" を明示継続（1文字 y は yes と衝突しがちで危険）。
+      shellWrapperName = "yy";
       settings = {
         manager = {
           show_hidden = true;
