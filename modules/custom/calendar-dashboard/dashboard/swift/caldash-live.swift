@@ -54,12 +54,12 @@ html, body { overflow: hidden !important; margin: 0 !important; padding: 0 !impo
 var ACCOUNT = 0
 var TZ_ID   = "America/Chicago"
 var GAP: CGFloat = 6
-var ZOOM: CGFloat = 0.75             // 全体 pageZoom（<1 で文字を小さく＝密度↑）
-var WEEK_ZOOM: CGFloat = 0.5         // 今週/来週だけ更に圧縮（1日 0-24 時をスクロール無しで収める用）
+var MONTH_ZOOM: CGFloat = 0.75       // 月ペイン pageZoom（<1 で文字を小さく＝密度↑）
+var WEEK_ZOOM: CGFloat = 0.5         // 週ペイン pageZoom（1日 0-24 時をスクロール無しで収める用）
 // 解像度スケール式（referenceWidth が config にあると式モード起動＝main モニタ幅で自動追随）。
-// 例: baseZoom=0.9 referenceWidth=2560 → 2560幅で 0.9・3840幅で ~0.735・5120幅で ~0.636（sqrt ダンパー）。
+// 例: baseMonthZoom=0.9 referenceWidth=2560 → 2560幅で 0.9・3840幅で ~0.735・5120幅で ~0.636（sqrt ダンパー）。
 // 現画面幅の変化（モニタ挿抜・SetResolution）は didChangeScreenParametersNotification で購読して再計算。
-var BASE_ZOOM: CGFloat? = nil
+var BASE_MONTH_ZOOM: CGFloat? = nil
 var BASE_WEEK_ZOOM: CGFloat? = nil
 var REFERENCE_WIDTH: CGFloat? = nil
 // 背景 alpha（config: backgroundOpacity）。1.0=完全不透明、<1.0 で壁紙が透ける。
@@ -68,8 +68,8 @@ var REFERENCE_WIDTH: CGFloat? = nil
 var BG_OPACITY: CGFloat = 1.0
 
 struct Config: Codable {
-    var gap: Double?; var zoom: Double?; var weekZoom: Double?
-    var baseZoom: Double?; var baseWeekZoom: Double?; var referenceWidth: Double?
+    var gap: Double?; var monthZoom: Double?; var weekZoom: Double?
+    var baseMonthZoom: Double?; var baseWeekZoom: Double?; var referenceWidth: Double?
     var account: Int?; var tz: String?
     var backgroundOpacity: Double?
 }
@@ -80,17 +80,17 @@ func loadConfig() {
     guard let data = FileManager.default.contents(atPath: path),
           let c = try? JSONDecoder().decode(Config.self, from: data) else { return }
     if let v = c.gap { GAP = CGFloat(v) }
-    if let v = c.zoom { ZOOM = CGFloat(v) }
+    if let v = c.monthZoom { MONTH_ZOOM = CGFloat(v) }
     if let v = c.weekZoom { WEEK_ZOOM = CGFloat(v) }
-    if let v = c.baseZoom { BASE_ZOOM = CGFloat(v) }
+    if let v = c.baseMonthZoom { BASE_MONTH_ZOOM = CGFloat(v) }
     if let v = c.baseWeekZoom { BASE_WEEK_ZOOM = CGFloat(v) }
     if let v = c.referenceWidth { REFERENCE_WIDTH = CGFloat(v) }
     if let v = c.account { ACCOUNT = v }
     if let v = c.tz { TZ_ID = v }
     if let v = c.backgroundOpacity { BG_OPACITY = max(0, min(1, CGFloat(v))) }
-    print("[caldash] config: gap=\(GAP) zoom=\(ZOOM) weekZoom=\(WEEK_ZOOM) u/\(ACCOUNT) \(TZ_ID) opacity=\(BG_OPACITY)")
+    print("[caldash] config: gap=\(GAP) monthZoom=\(MONTH_ZOOM) weekZoom=\(WEEK_ZOOM) u/\(ACCOUNT) \(TZ_ID) opacity=\(BG_OPACITY)")
     if let ref = REFERENCE_WIDTH {
-        print("[caldash] formula: baseZoom=\(BASE_ZOOM ?? ZOOM) baseWeekZoom=\(BASE_WEEK_ZOOM ?? WEEK_ZOOM) referenceWidth=\(ref)")
+        print("[caldash] formula: baseMonthZoom=\(BASE_MONTH_ZOOM ?? MONTH_ZOOM) baseWeekZoom=\(BASE_WEEK_ZOOM ?? WEEK_ZOOM) referenceWidth=\(ref)")
     }
 }
 
@@ -176,11 +176,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
 
     // 指定 screen 幅から effective zoom を算出。式 off なら config の静的値を返す。
     func computeEffectiveZooms(for screen: NSScreen) -> (CGFloat, CGFloat) {
-        guard let ref = REFERENCE_WIDTH else { return (ZOOM, WEEK_ZOOM) }
-        let base = BASE_ZOOM ?? ZOOM
+        guard let ref = REFERENCE_WIDTH else { return (MONTH_ZOOM, WEEK_ZOOM) }
+        let baseM = BASE_MONTH_ZOOM ?? MONTH_ZOOM
         let baseW = BASE_WEEK_ZOOM ?? WEEK_ZOOM
         let w = screen.frame.width
-        return (effectiveZoom(base: base, ref: ref, current: w),
+        return (effectiveZoom(base: baseM, ref: ref, current: w),
                 effectiveZoom(base: baseW, ref: ref, current: w))
     }
 
