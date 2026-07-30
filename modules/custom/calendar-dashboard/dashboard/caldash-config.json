@@ -1,9 +1,9 @@
 {
   "gap": 6,
   "baseMonthZoom": 0.9,
-  "baseWeekZoom": 1.1,
+  "baseWeekZoom": 1.2,
   "referenceWidth": 2560,
   "account": 0,
   "tz": "America/Chicago",
-  "backgroundOpacity": 0.85
+  "backgroundOpacity": 0.6
 }
