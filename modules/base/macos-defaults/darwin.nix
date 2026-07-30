@@ -209,6 +209,15 @@
           # Add a context menu item for showing the Web Inspector in web views
           WebKitDeveloperExtras = true;
         };
+        # NOTE(2026-07-30): 元は `.com.apple.AdLib` / `.com.apple.ImageCapture` に置かれ
+        # ていたが dead 宣言。正しいドメイン名に移設。
+        "com.apple.AdLib" = {
+          allowApplePersonalizedAdvertising = false;
+        };
+        "com.apple.ImageCapture" = {
+          # Prevent Photos from opening automatically when devices are plugged in
+          disableHotPlug = true;
+        };
         # NOTE(2026-07-30): 元は `.com.apple.screensaver` に置かれていたが dead 宣言だった。
         # nix-darwin にネイティブ system.defaults.screensaver は無いので CustomUserPreferences。
         "com.apple.screensaver" = {
@@ -258,13 +267,6 @@
           # Chrome のポリシー (拡張 ForceList 等) は modules/chrome-anjin/home.nix の
           # targets.darwin.defaults."com.google.Chrome" に一本化 (二重書きは後勝ちで消し合う)。
 
-          AdLib = {
-            allowApplePersonalizedAdvertising = false;
-          };
-
-          ImageCapture = {
-            disableHotPlug = true; # Prevent Photos from opening automatically when devices are plugged in
-          };
         };
       };
 
