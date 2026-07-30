@@ -234,11 +234,13 @@
           DSDontWriteNetworkStores = true;
           DSDontWriteUSBStores = true;
         };
+        # NOTE(2026-07-30): 元は `.com.apple.universalaccess.reduceMotion` に置かれていた
+        # が dead 宣言だった。nix-darwin ネイティブは無いので CustomUserPreferences で正
+        # ドメインに移設（この移設で初めて「動きを減らす」設定が有効化される）。
+        "com.apple.universalaccess" = {
+          reduceMotion = true;
+        };
         ".com.apple" = {
-          universalaccess = {
-            reduceMotion = true; # 動きを減らす設定を有効化
-          };
-
           # NOTE(2026-07-30): finder ブロックは system.defaults.finder に移設済み。
           # `.com.apple` は実ドメインではないためこの階層に置いても dead になる。
           # ↓ 以下 desktopservices / spaces / WindowManager / screensaver / screencapture
