@@ -34,22 +34,20 @@ let WALLPAPER = CommandLine.arguments.contains("--wallpaper")
 // role='main' を viewport 全面に position:fixed で被せる「構造非依存」戦略で覆い隠す。
 // これで DOM を残したまま視覚的にサイドバーが消え、Google の class ハッシュ変更にも
 // 巻き込まれない。interactive mode ではログイン・ナビ用に UI を温存する。
-// 背景の alpha は BG_OPACITY (config で可変) で決まる。1.0=完全不透明、
-// 0.85=軽く壁紙が透ける、0.5=壁紙かなり見える／文字埋没リスク大。
-func hideChromeCSS() -> String {
-    return """
-    [role='banner'] { display: none !important; }
-    [role='main'] {
-      position: fixed !important;
-      inset: 0 !important;
-      width: 100vw !important;
-      height: 100vh !important;
-      z-index: 999999 !important;
-      background: rgba(0, 0, 0, \(BG_OPACITY)) !important;
-    }
-    html, body { background: transparent !important; overflow: hidden !important; margin: 0 !important; padding: 0 !important; }
-    """
+// クロム消し専用。透過は NSWindow.alphaValue で window 全体に一律適用するので、
+// ここで CSS 側の背景を触る必要は無い（触ると event card や時刻軸が二重に透過して
+// 変な見え方になる）。html/body の overflow だけ抑えてスクロール暴発を防ぐ。
+let HIDE_CHROME_CSS = """
+[role='banner'] { display: none !important; }
+[role='main'] {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 999999 !important;
 }
+html, body { overflow: hidden !important; margin: 0 !important; padding: 0 !important; }
+"""
 
 // ---- 設定（既定値。config で上書き）----
 var ACCOUNT = 0
@@ -205,7 +203,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
               if (document.getElementById('caldash-hide-chrome')) return;
               const s = document.createElement('style');
               s.id = 'caldash-hide-chrome';
-              s.textContent = `\(hideChromeCSS())`;
+              s.textContent = `\(HIDE_CHROME_CSS)`;
               (document.head || document.documentElement).appendChild(s);
             })();
             """
@@ -219,14 +217,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         wv.pageZoom = zoom
         // H2: 認証済み Google セッションに Inspector を残さない（無人常駐では無効）。
         if #available(macOS 13.3, *) { wv.isInspectable = !WALLPAPER }
-        // 透過モード時は WKWebView 自体の背景も透かす（drawsBackground は非公開 KVC だが
-        // 広く安定利用されてる。underPageBackgroundColor は over-scroll 領域のみで根本解決
-        // にならない）。opacity=1.0 なら触らず既定挙動（不透明白/暗）に任せる。
-        if WALLPAPER && BG_OPACITY < 1.0 {
-            wv.setValue(false, forKey: "drawsBackground")
-            wv.wantsLayer = true
-            wv.layer?.backgroundColor = NSColor.clear.cgColor
-        }
         wv.load(URLRequest(url: URL(string: urlStr)!))
         return wv
     }
@@ -279,11 +269,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
     private func makeGrid(screenFrame: NSRect, zoom: CGFloat, weekZoom: CGFloat) -> (GridView, [WKWebView]) {
         let grid = GridView(frame: screenFrame)
         grid.wantsLayer = true
-        // 透過モード時は GridView layer（pane 間 GAP から透ける部分）も透過に。
-        // 不透明モードでは pane 間隙間を黒で埋める既存挙動。
-        grid.layer?.backgroundColor = (WALLPAPER && BG_OPACITY < 1.0)
-            ? NSColor.clear.cgColor
-            : NSColor(white: 0, alpha: BG_OPACITY).cgColor
+        // pane 間 GAP を黒で埋める（透過は window.alphaValue で全体一律にかけるので
+        // ここは触らない）。
+        grid.layer?.backgroundColor = NSColor.black.cgColor
         grid.autoresizingMask = [.width, .height]
         let zooms: [CGFloat] = [zoom, weekZoom, weekZoom, zoom, zoom]  // 今日/今週/来週/今月/来月
         let paneWebs = zip(paneURLs(), zooms).map { makeWeb($0, zoom: $1) }
@@ -305,15 +293,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
             w.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)))
             w.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
             w.ignoresMouseEvents = true
-            // BG_OPACITY <1.0 の透過モードでは isOpaque=false + clear 背景で下（=壁紙）
-            // を通す。opacity=1.0 なら既存の isOpaque=true+black（描画パフォーマンス優先）。
-            if BG_OPACITY < 1.0 {
-                w.isOpaque = false
-                w.backgroundColor = .clear
-            } else {
-                w.isOpaque = true
-                w.backgroundColor = .black
-            }
+            w.backgroundColor = .black
+            // NSWindow.alphaValue で window 全体を一律に半透明化（compositor level）。
+            // これで event card / 時刻軸 / grid line / 文字も含めて uniform に壁紙が透ける。
+            // isOpaque は alpha<1 の時 false にしないと合成が壊れる。opacity=1.0 なら
+            // isOpaque=true で描画パス最適化（AppKit が全画面 opaque 扱いで速い）。
+            w.isOpaque = (BG_OPACITY >= 1.0)
+            w.alphaValue = BG_OPACITY
             w.contentView = grid
             w.setFrame(screen.frame, display: true)
             w.orderFrontRegardless()

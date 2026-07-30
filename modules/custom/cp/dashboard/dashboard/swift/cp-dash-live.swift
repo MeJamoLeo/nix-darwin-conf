@@ -6,9 +6,10 @@
 import AppKit
 import WebKit
 
-// 背景 alpha（config: backgroundOpacity）。1.0=完全不透明、<1.0 で壁紙が透ける。
-// window.isOpaque + backgroundColor + WKWebView.drawsBackground + CSS 注入の
-// 全レイヤーに一貫適用する（どこか一箇所でも opaque だと透過は死ぬ）。
+// 透過度（config: backgroundOpacity）。1.0=完全不透明、<1.0 で window 全体を
+// NSWindow.alphaValue で uniform に半透明化（compositor level）。
+// これで盤面の text / grid / gauge も含めて壁紙が透ける（CSS の背景色だけ触ると
+// 前景要素は不透明のまま浮くので今回の要件を満たさない）。
 var BG_OPACITY: CGFloat = 1.0
 
 struct Config: Codable {
@@ -22,15 +23,6 @@ func loadConfig() {
           let c = try? JSONDecoder().decode(Config.self, from: data) else { return }
     if let v = c.backgroundOpacity { BG_OPACITY = max(0, min(1, CGFloat(v))) }
     print("[cp-dash-live] config: opacity=\(BG_OPACITY)")
-}
-
-// CSS 注入テンプレ。cp-dash の draft-v1.html は --bg=#020404 を body 背景にしている。
-// 透過モード時は rgba(2,4,4,\(BG_OPACITY)) で置き換えて壁紙を通す。opacity=1.0 なら
-// 元 HTML の色をそのまま尊重するので注入不要。
-func transparentBodyCSS() -> String {
-    return """
-    html, body { background: rgba(2, 4, 4, \(BG_OPACITY)) !important; }
-    """
 }
 
 final class LiveLayer: NSObject, NSApplicationDelegate {
@@ -61,16 +53,14 @@ final class LiveLayer: NSObject, NSApplicationDelegate {
             win.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)))
             win.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
             win.ignoresMouseEvents = true
-            // BG_OPACITY <1.0 の透過モードでは isOpaque=false + clear 背景で壁紙を通す。
-            // opaque モードは既存のレターボックス色 (--bg #020404) を維持。
-            if BG_OPACITY < 1.0 {
-                win.isOpaque = false
-                win.backgroundColor = .clear
-            } else {
-                win.isOpaque = true
-                win.backgroundColor = NSColor(srgbRed: 0x02 / 255.0, green: 0x04 / 255.0,
-                                              blue: 0x04 / 255.0, alpha: 1)
-            }
+            // レターボックス色 (--bg #020404) は温存。透過は window.alphaValue で全体一律。
+            win.backgroundColor = NSColor(srgbRed: 0x02 / 255.0, green: 0x04 / 255.0,
+                                          blue: 0x04 / 255.0, alpha: 1)
+            // NSWindow.alphaValue で window 全体を uniform に半透明化（compositor level）。
+            // これで盤面の text / gauge / heatmap も含めて壁紙が透ける。alpha<1 の時
+            // isOpaque=false にしないと合成が壊れる。
+            win.isOpaque = (BG_OPACITY >= 1.0)
+            win.alphaValue = BG_OPACITY
             win.setFrame(screen.frame, display: true)
 
             // 盤面は 16:9 前提でチューニング済み。window(=画面)に対し縦横比 16:9 を保った
@@ -106,30 +96,9 @@ final class LiveLayer: NSObject, NSApplicationDelegate {
     // 新しい WKWebView を作って draft-v1.html を読む。作りたてはキャッシュも
     // 前ページの setInterval タイマーも持たないので、reload 時にこれで作り直せば
     // 必ず disk の最新 draft-data.js を反映できる（下記 pollInject 参照）。
-    // 透過モード（BG_OPACITY<1.0）では config に CSS 注入と drawsBackground=false を
-    // セットして壁紙が透けるようにする。
     private func makeWebView(frame: NSRect) -> WKWebView {
-        let cfg = WKWebViewConfiguration()
-        if BG_OPACITY < 1.0 {
-            let js = """
-            (() => {
-              if (document.getElementById('cpdash-transparent-bg')) return;
-              const s = document.createElement('style');
-              s.id = 'cpdash-transparent-bg';
-              s.textContent = `\(transparentBodyCSS())`;
-              (document.head || document.documentElement).appendChild(s);
-            })();
-            """
-            cfg.userContentController.addUserScript(
-                WKUserScript(source: js, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
-        }
-        let webView = WKWebView(frame: frame, configuration: cfg)
+        let webView = WKWebView(frame: frame)
         webView.autoresizingMask = [.minXMargin, .maxXMargin, .minYMargin, .maxYMargin]
-        if BG_OPACITY < 1.0 {
-            webView.setValue(false, forKey: "drawsBackground")
-            webView.wantsLayer = true
-            webView.layer?.backgroundColor = NSColor.clear.cgColor
-        }
         webView.loadFileURL(htmlURL, allowingReadAccessTo: root)
         return webView
     }
