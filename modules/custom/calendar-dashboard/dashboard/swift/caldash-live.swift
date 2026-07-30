@@ -38,6 +38,9 @@ let WALLPAPER = CommandLine.arguments.contains("--wallpaper")
 // クロム消し専用。透過は NSWindow.alphaValue で window 全体に一律適用するので、
 // ここで CSS 側の背景を触る必要は無い（触ると event card や時刻軸が二重に透過して
 // 変な見え方になる）。html/body の overflow だけ抑えてスクロール暴発を防ぐ。
+// today ハイライト: GCal は today 要素に `.F262Ye` class を付けるので、週/月ビューの
+// columnheader（曜日ヘッダ）と gridcell（events grid の today 列）に薄い青背景。
+// 内側の要素にも .F262Ye は伝播するが role で絞ることで stacking の重色を防ぐ。
 let HIDE_CHROME_CSS = """
 [role='banner'] { display: none !important; }
 [role='main'] {
@@ -48,6 +51,10 @@ let HIDE_CHROME_CSS = """
   z-index: 999999 !important;
 }
 html, body { overflow: hidden !important; margin: 0 !important; padding: 0 !important; }
+[role='columnheader'].F262Ye,
+[role='gridcell'].F262Ye {
+  background-color: rgba(66, 133, 244, 0.15) !important;
+}
 """
 
 // ---- 設定（既定値。config で上書き）----
@@ -56,6 +63,10 @@ var TZ_ID   = "America/Chicago"
 var GAP: CGFloat = 6
 var MONTH_ZOOM: CGFloat = 0.75       // 月ペイン pageZoom（<1 で文字を小さく＝密度↑）
 var WEEK_ZOOM: CGFloat = 0.5         // 週ペイン pageZoom（1日 0-24 時をスクロール無しで収める用）
+// GCal 週ビューの hour gutter CSS 幅（.lqYlwe が JS で固定する 96px、実測）。
+// 中央 pane (今週) はこれを内部で消費するので、幅を +GCAL_WEEK_GUTTER_PX*weekZoom
+// 余分にとって右 pane (来週=gutter 消去済) の 1 日列幅と揃える。
+let GCAL_WEEK_GUTTER_PX: CGFloat = 96
 // 解像度スケール式（referenceWidth が config にあると式モード起動＝main モニタ幅で自動追随）。
 // 例: baseMonthZoom=0.9 referenceWidth=2560 → 2560幅で 0.9・3840幅で ~0.735・5120幅で ~0.636（sqrt ダンパー）。
 // 現画面幅の変化（モニタ挿抜・SetResolution）は didChangeScreenParametersNotification で購読して再計算。
@@ -146,23 +157,27 @@ func isGoogleHost(_ host: String?) -> Bool {
     return owned.contains { h == $0 || h.hasSuffix("." + $0) }
 }
 
-// 3 等幅カラム、左カラムは月を縦スタック。isFlipped=true で左上原点。
-//   col 0 (1/3 幅): 今月 (上) / 来月 (下)、上下 50/50 の GAP 挟み
-//   col 1 (1/3 幅): 今週  (フル高)
-//   col 2 (1/3 幅): 来週  (フル高)
+// 3 カラム、左は月を縦スタック。middleExtraWidth が >0 なら中央 pane がその分広く、
+// 左右 pane は残りを等分する（左 lw + 中央 lw+extra + 右 lw + gap*2 = W）。
+// extra は AppDelegate が「中央 pane の hour gutter を左右 pane と day col 幅で
+// 揃えるためのオフセット」として設定する。isFlipped=true で左上原点。
 final class GridView: NSView {
     var panes: [NSView] = []
+    var middleExtraWidth: CGFloat = 0
     override var isFlipped: Bool { true }
     override func layout() {
         super.layout()
         guard panes.count == 4 else { return }
         let W = bounds.width, H = bounds.height
-        let colW = max(0, (W - 2 * GAP) / 3)
+        let usable = max(0, W - 2 * GAP)
+        let lw = max(0, (usable - middleExtraWidth) / 3)
+        let mw = lw + middleExtraWidth
+        let rw = lw
         let monthH = max(0, (H - GAP) / 2)
-        panes[0].frame = NSRect(x: 0,                       y: 0,             width: colW, height: monthH) // 今月（左上）
-        panes[1].frame = NSRect(x: 0,                       y: monthH + GAP,  width: colW, height: monthH) // 来月（左下）
-        panes[2].frame = NSRect(x: colW + GAP,              y: 0,             width: colW, height: H)      // 今週（中央）
-        panes[3].frame = NSRect(x: 2 * (colW + GAP),        y: 0,             width: colW, height: H)      // 来週（右）
+        panes[0].frame = NSRect(x: 0,                       y: 0,             width: lw, height: monthH) // 今月（左上）
+        panes[1].frame = NSRect(x: 0,                       y: monthH + GAP,  width: lw, height: monthH) // 来月（左下）
+        panes[2].frame = NSRect(x: lw + GAP,                y: 0,             width: mw, height: H)      // 今週（中央、+extra）
+        panes[3].frame = NSRect(x: lw + GAP + mw + GAP,     y: 0,             width: rw, height: H)      // 来週（右）
     }
 }
 
@@ -292,6 +307,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         // ここは触らない）。
         grid.layer?.backgroundColor = NSColor.black.cgColor
         grid.autoresizingMask = [.width, .height]
+        // 中央 pane (今週) の hour gutter 分を余分に幅取って左右と day col 幅を揃える。
+        // pageZoom が掛かるので device px = CSS px * weekZoom。
+        grid.middleExtraWidth = GCAL_WEEK_GUTTER_PX * weekZoom
         let zooms: [CGFloat] = [zoom, zoom, weekZoom, weekZoom]  // 今月/来月/今週/来週
         // 来週 (index 3) は時間ラベル gutter を完全に消去し、day headers も events grid
         // 本体も左端に寄せる。GCal 週ビュー DOM (2026-07-30 時点):
