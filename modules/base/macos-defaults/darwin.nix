@@ -69,6 +69,17 @@
         QuitMenuItem = true; # enable quit menu item
         ShowPathbar = true; # show path bar
         ShowStatusBar = true; # show status bar
+        # デスクトップアイコンの見え方。内蔵は常時映るので邪魔 → 非表示、
+        # 外付け/SD/サーバは差し替えのたびに存在を把握したいので true 継続。
+        # NOTE: 元は CustomUserPreferences.".com.apple".finder に入れられていたが
+        # `.com.apple` は実ドメインではなく（正しくは `com.apple.finder`）、宣言が
+        # dead になっていた。ネイティブサポートの system.defaults.finder に移設。
+        ShowExternalHardDrivesOnDesktop = true;
+        ShowHardDrivesOnDesktop = false;
+        ShowMountedServersOnDesktop = true;
+        ShowRemovableMediaOnDesktop = true;
+        _FXSortFoldersFirst = true;
+        FXDefaultSearchScope = "SCcf"; # 検索は現在のフォルダ内を既定に
       };
 
       # customize trackpad
@@ -196,17 +207,11 @@
             reduceMotion = true; # 動きを減らす設定を有効化
           };
 
-          finder = {
-            ShowExternalHardDrivesOnDesktop = true;
-            # 内蔵ドライブ（起動ボリューム "ils" 含む）は常時映るので邪魔 → 非表示。
-            # 外付け・SD・サーバは差し替えの発生ごとに存在を把握したいので true 継続。
-            ShowHardDrivesOnDesktop = false;
-            ShowMountedServersOnDesktop = true;
-            ShowRemovableMediaOnDesktop = true;
-            _FXSortFoldersFirst = true;
-            # When performing a search, search the current folder by default
-            FXDefaultSearchScope = "SCcf";
-          };
+          # NOTE(2026-07-30): finder ブロックは system.defaults.finder に移設済み。
+          # `.com.apple` は実ドメインではないためこの階層に置いても dead になる。
+          # ↓ 以下 desktopservices / spaces / WindowManager / screensaver / screencapture
+          # 等も同じ理由で dead の可能性が高いが、動作差分が出るため今回は disk 問題の
+          # スコープ外とし別コミットで整理する（TODO）。
 
           desktopservices = {
             # Avoid creating .DS_Store files on network or USB volumes
