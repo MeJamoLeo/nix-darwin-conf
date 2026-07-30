@@ -101,7 +101,7 @@
   ##################################################################################
   outputs = inputs @ {
     self,
-    nixpkgs,
+    nixpkgs-darwin,
     darwin,
     home-manager,
     ...
@@ -161,7 +161,8 @@
     # authorizedKeys に選択する（homeModules.tmux と同じ共有パターン）。
     sshKeys = import ./keys.nix;
 
-    # nix code formatter
-    formatter.${system} = nixpkgs.legacyPackages.${system}.alejandra;
+    # nix code formatter。system 側と同じ nixpkgs-darwin から引く（`nixpkgs` を
+    # 未宣言のまま参照すると registry 解決の indirect input が lock に生えるため）。
+    formatter.${system} = nixpkgs-darwin.legacyPackages.${system}.alejandra;
   };
 }
