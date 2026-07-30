@@ -48,6 +48,20 @@ in
       /bin/launchctl kickstart -k "gui/$(id -u)/$label" 2>/dev/null || true
     '';
 
+  #--- setupLaunchAgents の bootstrap で "I/O error 5" になるのを予防 ---------
+  # home-manager の setupLaunchAgents は plain な bootstrap しか叩かないため、
+  # 既存 job の load 状態が inconsistent（外部で bootout 済み等）だと失敗する。
+  # 症状「I/O error 5」の主因は `launchctl unload -w` 等で agent が
+  # **disabled 状態**に落ちていること（`launchctl print-disabled gui/501` で確認可）。
+  # disabled のままだと bootout は No such process、bootstrap は I/O error 5 で
+  # 両方詰む。ここで明示 enable してから bootout する（両方 || true で idempotent）。
+  home.activation.calDashPreLaunchBootout =
+    lib.hm.dag.entryBefore [ "setupLaunchAgents" ] ''
+      label="org.nix-community.home.com.treo.calendar-dashboard-live"
+      /bin/launchctl enable "gui/$(id -u)/$label" 2>/dev/null || true
+      /bin/launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
+    '';
+
   #--- セットアップ健診（腐らない手順書。初回ログイン手順も表示）------------
   home.activation.calDashDoctor =
     lib.hm.dag.entryAfter [ "calDashRestartLive" ] ''

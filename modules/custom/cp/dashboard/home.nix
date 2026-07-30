@@ -106,6 +106,26 @@ PLIST
       /bin/launchctl kickstart -k "gui/$(id -u)/$label" 2>/dev/null || true
     '';
 
+  #--- setupLaunchAgents の bootstrap で "I/O error 5" になるのを予防 --------
+  # home-manager の setupLaunchAgents は plain な bootstrap しか叩かないため、
+  # 既存 job の load 状態が inconsistent（外部で bootout 済み等）だと失敗する。
+  # cpDashboardTakeover は「実ファイル plist の掃除」専用なので、symlink 化後の
+  # bad-state ケースをここで無条件 bootout してから setupLaunchAgents に渡す。
+  # 主因は `launchctl unload -w` 等で agent が **disabled 状態** に落ちること
+  # （`launchctl print-disabled gui/501` で確認可）。disabled のままだと bootout は
+  # No such process、bootstrap は I/O error 5 で両方詰む。enable してから bootout。
+  home.activation.cpDashboardPreLaunchBootout =
+    lib.hm.dag.entryBefore [ "setupLaunchAgents" ] ''
+      for label in \
+        org.nix-community.home.com.treo.cp-dashboard \
+        org.nix-community.home.com.treo.cp-dashboard-live \
+        org.nix-community.home.com.treo.cp-dashboard-stopwatch \
+      ; do
+        /bin/launchctl enable "gui/$(id -u)/$label" 2>/dev/null || true
+        /bin/launchctl bootout "gui/$(id -u)/$label" 2>/dev/null || true
+      done
+    '';
+
   #--- セットアップ健診（腐らない手順書）------------------------------------
   # switch はターミナル発なので、コンテナ symlink の作成もここで通る（launchd は TCC 拒否）。
   home.activation.cpDashboardDoctor =
