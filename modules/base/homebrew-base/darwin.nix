@@ -104,16 +104,32 @@
 
       # Utilities
       "ghostty" # GUI terminal (nixpkgs は darwin 非対応→cask。設定は modules/ghostty/home.nix)
-      # "cmux" # 引退（Ghostty + herdr へ移行）。nix の管理対象から外す。cleanup="none" のため
-      #        app 本体は自動削除されない → 消すなら手動 `brew uninstall --cask cmux`。戻すならこの行を復活
+      # "cmux" # 引退（Ghostty + herdr へ移行）。tanegashima では 2026-07-30 に
+      #        `brew uninstall --cask cmux` 済み。他機に残っていたら同様に手動削除。
+      #        戻すならこの行を復活
+      # 2026-07-30 棚卸し：nix 未宣言のまま brew に居残っていた gitkraken / slack /
+      # visualvm を削除した（起動履歴：gitkraken 2026-04-21 が最後、slack と visualvm は
+      # 一度も起動なし）。意図的に採用しなかったので宣言は足さない。
       # aerospace は nixpkgs 管理へ移行 (modules/apps/aerospace/home.nix 2026-07-08)。
       # 旧 cask は手動 `brew uninstall --cask aerospace`（quit してから）
       "raycast" # Productivity tool (HotKey: alt/option + space)
-      "stats" # System monitor for the menu bar
-      "gyazo" # Screenshot and sharing tool
+      # "stats" # 引退 2026-07-30。app は手動で Trash 済みなのに cask 宣言だけ残っていた
+      #         ドリフト状態（login item も Trash 内の app を指したまま有効だった）。
+      #         棚卸しで cask ごと削除。戻すならこの行を復活 + `brew install --cask stats`
+      # "gyazo" # 引退 2026-07-30。ほとんど使っていないため。Gyazo.app / Gyazo Menu.app /
+      #         Gyazo Video.app の3本立てで、Gyazo Menu が login item helper
+      #         (com.gyazo.menu.helper) を有効化していた。戻すならこの行を復活 +
+      #         `brew install --cask gyazo`
       "whatsapp" # WhatsApp desktop client
-      "caffeine" # Prevent Mac from sleeping
-      "surfshark" # VPN service
+      # "caffeine" # 引退 2026-07-30。login item 整理で自動起動を切ったので宣言も外す。
+      #            戻すならこの行を復活 + `brew install --cask caffeine`
+      # VPN service。アプリ本体は使うので宣言は残す。2026-07-30 に自動起動だけ停止した：
+      # `launchctl disable gui/501/com.surfshark.vpnclient.macos.direct.launchAgent`
+      # これは launchd の override DB を書くので発火は止まるが、BTM の disposition は
+      # enabled のまま＝System Settings のトグルは ON に見える（表示と実態が2層に分かれる）。
+      # 単一ソースに揃えるなら Surfshark アプリ内の "Launch on startup" を OFF にする。
+      # 戻すのは `launchctl enable gui/501/<同ラベル>`。
+      "surfshark"
       "handy" # Speech to text application
     ];
   };
