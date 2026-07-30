@@ -113,9 +113,13 @@ let
     "conf"
   ];
 
+  # stderr は握り潰す：Zed の Info.plist で未宣言の拡張子（.mk / .dockerfile /
+  # .gitignore / .env / .ini / .cfg / .conf 等）は macOS が動的 UTI (dyn.ah62d...)
+  # に落として LaunchServices が error -50 (paramErr) を返す。動作影響は無いが
+  # switch ログが騒がしくなるので黙らせる。成功した拡張子は正しく紐付いてる。
   dutiSet = bundleId: extensions:
     lib.concatMapStringsSep "\n" (
-      ext: ''$DUTI -s ${bundleId} .${ext} all || true''
+      ext: ''$DUTI -s ${bundleId} .${ext} all 2>/dev/null || true''
     ) extensions;
 in {
   home.packages = [pkgs.duti];
