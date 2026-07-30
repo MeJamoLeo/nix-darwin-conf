@@ -193,20 +193,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
                 effectiveZoom(base: baseW, ref: ref, current: w))
     }
 
-    func makeWeb(_ urlStr: String, zoom: CGFloat) -> WKWebView {
+    func makeWeb(_ urlStr: String, zoom: CGFloat, extraCSS: String = "") -> WKWebView {
         let cfg = WKWebViewConfiguration()
         cfg.websiteDataStore = store
         // M2: 無人常駐では JS の自動 window.open を禁止。ログインは gesture 起点なので interactive では許可。
         cfg.preferences.javaScriptCanOpenWindowsAutomatically = !WALLPAPER
         // wallpaper mode 限定: 盤面だけ残す CSS を毎ロード注入（documentElement 直下なので
-        // SPA の DOM 再構築で剥がれない）。interactive では UI 温存でログイン導線を確保。
+        // SPA の DOM 再構築で剥がれない）。extraCSS で pane 固有ルール（例: 来週の時間軸
+        // オフ）を後付けできる。interactive では UI 温存でログイン導線を確保。
         if WALLPAPER {
+            let css = HIDE_CHROME_CSS + "\n" + extraCSS
             let js = """
             (() => {
               if (document.getElementById('caldash-hide-chrome')) return;
               const s = document.createElement('style');
               s.id = 'caldash-hide-chrome';
-              s.textContent = `\(HIDE_CHROME_CSS)`;
+              s.textContent = `\(css)`;
               (document.head || document.documentElement).appendChild(s);
             })();
             """
@@ -277,7 +279,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         grid.layer?.backgroundColor = NSColor.black.cgColor
         grid.autoresizingMask = [.width, .height]
         let zooms: [CGFloat] = [zoom, zoom, weekZoom, weekZoom]  // 今月/来月/今週/来週
-        let paneWebs = zip(paneURLs(), zooms).map { makeWeb($0, zoom: $1) }
+        // 来週 (index 3) は時間ラベル gutter を非表示（今週 pane と冗長なため）。
+        // .R6TFwe = 縦の hour 列（Texas/Japan の 2 timezone 分）。これだけ hide、
+        // 上部の Texas/Japan ヘッダ帯 (.sS0sZd) は温存して中央 pane と縦位置を揃える
+        // （.sS0sZd も消すと header 帯 100px 分が上に詰まって中央 pane とズレる）。
+        // NOTE: Google の class 名はハッシュで release 毎に変わる可能性あり（fragile）。
+        // 壊れたら DOM 再インスペクトして selector 更新（2026-07-30 時点で確認）。
+        let extraCSSs: [String] = ["", "", "",
+            ".R6TFwe { display: none !important; }"]
+        let urls = paneURLs()
+        let paneWebs = urls.indices.map { i in
+            makeWeb(urls[i], zoom: zooms[i], extraCSS: extraCSSs[i])
+        }
         grid.panes = paneWebs
         paneWebs.forEach { grid.addSubview($0) }
         return (grid, paneWebs)
