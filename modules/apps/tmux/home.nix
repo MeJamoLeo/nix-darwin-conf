@@ -1,4 +1,8 @@
-{ pkgs, lib, ... }:
+{
+  pkgs,
+  lib,
+  ...
+}:
 # tmux 設定（home-manager で宣言的に管理）。
 #
 # 【このファイルの位置づけ】
@@ -22,12 +26,12 @@
     #     その時は fzf 側のキーを Alt-T 等に逃がすこと。
     prefix = "C-t";
 
-    baseIndex = 1;          # window/pane を 1 始まりに（キーボード左から順＝0 より押しやすい）
-    escapeTime = 0;         # ESC 入力の遅延を 0 に（vim の ESC が機敏になる）
-    historyLimit = 100000;  # スクロールバック行数（既定 2000 は少なすぎ）
-    keyMode = "vi";         # copy-mode を vi キーバインドに（nvim ユーザ向け）
-    mouse = true;           # マウスでペイン選択・リサイズ・スクロール可
-    terminal = "tmux-256color";  # truecolor の前提（下の terminal-overrides と対）
+    baseIndex = 1; # window/pane を 1 始まりに（キーボード左から順＝0 より押しやすい）
+    escapeTime = 0; # ESC 入力の遅延を 0 に（vim の ESC が機敏になる）
+    historyLimit = 100000; # スクロールバック行数（既定 2000 は少なすぎ）
+    keyMode = "vi"; # copy-mode を vi キーバインドに（nvim ユーザ向け）
+    mouse = true; # マウスでペイン選択・リサイズ・スクロール可
+    terminal = "tmux-256color"; # truecolor の前提（下の terminal-overrides と対）
 
     # tmux-sensible を config 先頭で自動読み込み。未設定の項目だけ無難な既定を入れる
     # 安全なベース。これが sensible 本体を読むので plugins への併記は不要（二重ロード回避）。
@@ -112,5 +116,5 @@
   };
 
   # Linux(Wayland/sway) では wl-copy 本体が必要。mac は pbcopy が OS 標準なので不要。
-  home.packages = lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.wl-clipboard ];
+  home.packages = lib.optionals pkgs.stdenv.hostPlatform.isLinux [pkgs.wl-clipboard];
 }

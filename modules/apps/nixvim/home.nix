@@ -1,4 +1,8 @@
-{pkgs, config, ...}: let
+{
+  pkgs,
+  config,
+  ...
+}: let
   # CP デバッグ用: debugpy 入り python と、sample-N.in を stdin にして対象ファイルを
   # debugpy 下で実行するランナー（x1nano nixos-cp から移植）。
   pythonWithDebugpy = pkgs.python3.withPackages (ps: [ps.debugpy]);
@@ -167,14 +171,14 @@
     "<Down>" = "cmp.mapping.select_next_item()";
     "<Up>" = "cmp.mapping.select_prev_item()";
     # Tab でスニペット展開/ジャンプ（luasnip）。展開対象が無ければ通常の Tab。
-    "<Tab>" = ''cmp.mapping(function(fallback)
-      local luasnip = require("luasnip")
-      if luasnip.expand_or_jumpable() then luasnip.expand_or_jump() else fallback() end
-    end, {"i", "s"})'';
-    "<S-Tab>" = ''cmp.mapping(function(fallback)
-      local luasnip = require("luasnip")
-      if luasnip.jumpable(-1) then luasnip.jump(-1) else fallback() end
-    end, {"i", "s"})'';
+    "<Tab>" = ''      cmp.mapping(function(fallback)
+            local luasnip = require("luasnip")
+            if luasnip.expand_or_jumpable() then luasnip.expand_or_jump() else fallback() end
+          end, {"i", "s"})'';
+    "<S-Tab>" = ''      cmp.mapping(function(fallback)
+            local luasnip = require("luasnip")
+            if luasnip.jumpable(-1) then luasnip.jump(-1) else fallback() end
+          end, {"i", "s"})'';
   };
 
   # 補完ソース（優先度順）
@@ -312,21 +316,91 @@
       options.desc = "File Browser";
     }
     # DAP（デバッガ・全 leader ベース。x1nano から移植）
-    {action = "<cmd>DapContinue<cr>";        key = "<leader>dc"; mode = "n"; options.desc = "Debug: Continue/start";}
-    {action = "<cmd>DapStepOver<cr>";        key = "<leader>do"; mode = "n"; options.desc = "Debug: Step over";}
-    {action = "<cmd>DapStepInto<cr>";        key = "<leader>di"; mode = "n"; options.desc = "Debug: Step into";}
-    {action = "<cmd>DapStepOut<cr>";         key = "<leader>dO"; mode = "n"; options.desc = "Debug: Step out";}
-    {action = "<cmd>DapToggleBreakpoint<cr>"; key = "<leader>db"; mode = "n"; options.desc = "Debug: Breakpoint";}
-    {action = "<cmd>lua require('dap').set_breakpoint(vim.fn.input('Condition: '))<cr>"; key = "<leader>dB"; mode = "n"; options.desc = "Debug: Conditional breakpoint";}
-    {action = "<cmd>DapToggleRepl<cr>";      key = "<leader>dr"; mode = "n"; options.desc = "Debug: Toggle REPL";}
-    {action = "<cmd>DapTerminate<cr>";       key = "<leader>dx"; mode = "n"; options.desc = "Debug: Terminate";}
-    {action = "<cmd>lua require('dapui').toggle()<cr>"; key = "<leader>du"; mode = "n"; options.desc = "Debug: Toggle UI";}
-    {action = "<cmd>lua require('dap-python').test_method()<cr>"; key = "<leader>dt"; mode = "n"; options.desc = "Debug nearest test (Python)";}
-    {action = "<cmd>lua require('dap-python').debug_selection()<cr>"; key = "<leader>dn"; mode = "v"; options.desc = "Debug selection (Python)";}
-    {action = "<cmd>lua require('dap').run(_G.cp_debug_config())<cr>"; key = "<leader>cd"; mode = "n"; options.desc = "CP debug (stdin = test/sample-N.in)";}
+    {
+      action = "<cmd>DapContinue<cr>";
+      key = "<leader>dc";
+      mode = "n";
+      options.desc = "Debug: Continue/start";
+    }
+    {
+      action = "<cmd>DapStepOver<cr>";
+      key = "<leader>do";
+      mode = "n";
+      options.desc = "Debug: Step over";
+    }
+    {
+      action = "<cmd>DapStepInto<cr>";
+      key = "<leader>di";
+      mode = "n";
+      options.desc = "Debug: Step into";
+    }
+    {
+      action = "<cmd>DapStepOut<cr>";
+      key = "<leader>dO";
+      mode = "n";
+      options.desc = "Debug: Step out";
+    }
+    {
+      action = "<cmd>DapToggleBreakpoint<cr>";
+      key = "<leader>db";
+      mode = "n";
+      options.desc = "Debug: Breakpoint";
+    }
+    {
+      action = "<cmd>lua require('dap').set_breakpoint(vim.fn.input('Condition: '))<cr>";
+      key = "<leader>dB";
+      mode = "n";
+      options.desc = "Debug: Conditional breakpoint";
+    }
+    {
+      action = "<cmd>DapToggleRepl<cr>";
+      key = "<leader>dr";
+      mode = "n";
+      options.desc = "Debug: Toggle REPL";
+    }
+    {
+      action = "<cmd>DapTerminate<cr>";
+      key = "<leader>dx";
+      mode = "n";
+      options.desc = "Debug: Terminate";
+    }
+    {
+      action = "<cmd>lua require('dapui').toggle()<cr>";
+      key = "<leader>du";
+      mode = "n";
+      options.desc = "Debug: Toggle UI";
+    }
+    {
+      action = "<cmd>lua require('dap-python').test_method()<cr>";
+      key = "<leader>dt";
+      mode = "n";
+      options.desc = "Debug nearest test (Python)";
+    }
+    {
+      action = "<cmd>lua require('dap-python').debug_selection()<cr>";
+      key = "<leader>dn";
+      mode = "v";
+      options.desc = "Debug selection (Python)";
+    }
+    {
+      action = "<cmd>lua require('dap').run(_G.cp_debug_config())<cr>";
+      key = "<leader>cd";
+      mode = "n";
+      options.desc = "CP debug (stdin = test/sample-N.in)";
+    }
     # Nabla（LaTeX 数式レンダリング）
-    {action = "<cmd>lua require('nabla').popup()<cr>"; key = "<leader>np"; mode = "n"; options.desc = "Nabla: popup math under cursor";}
-    {action = "<cmd>lua require('nabla').toggle_virt({autogen=true})<cr>"; key = "<leader>nt"; mode = "n"; options.desc = "Nabla: toggle inline math";}
+    {
+      action = "<cmd>lua require('nabla').popup()<cr>";
+      key = "<leader>np";
+      mode = "n";
+      options.desc = "Nabla: popup math under cursor";
+    }
+    {
+      action = "<cmd>lua require('nabla').toggle_virt({autogen=true})<cr>";
+      key = "<leader>nt";
+      mode = "n";
+      options.desc = "Nabla: toggle inline math";
+    }
   ];
 
   # Telescope キーマップ

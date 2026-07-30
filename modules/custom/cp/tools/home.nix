@@ -1,5 +1,4 @@
-{ pkgs, ... }:
-let
+{pkgs, ...}: let
   # oj wrapper — pass through to the real oj; on a successful `oj test` in a
   # problem dir (has .problem_url), drop a marker so the dashboard STOPWATCH
   # arms its fast watch (#36: local test pass predicts an imminent submission).
@@ -22,8 +21,7 @@ let
     esac
     exit "$rc"
   '';
-in
-{
+in {
   # Competitive-programming practice tools, ported from x1nano:~/nixos-cp/tools.
   # Script bodies live in ./scripts/ (writeShellScriptBin adds the bash shebang).
   #

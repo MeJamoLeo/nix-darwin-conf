@@ -12,8 +12,11 @@
 #
 # system 非依存（純粋な module 関数）なので Darwin/NixOS 双方で評価できる
 # ＝flake の homeModules.forge として公開し、x1nano(NixOS) からも import する。
-{ config, lib, ... }:
-let
+{
+  config,
+  lib,
+  ...
+}: let
   # ホーム直下に置く。homeDirectory はホストごと（/Users/treo・/home/treo）に
   # 解決されるのでクロス OS で正しい。
   forgeDir = "${config.home.homeDirectory}/Forge";
@@ -30,9 +33,8 @@ in {
 
     # rebuild 時にディレクトリの存在を保証（txst-setup と同型の書き方）。
     # 空ディレクトリを作るだけ＝冪等・非破壊。移動前に先回りで掘っておける。
-    home.activation.ensureForge =
-      lib.hm.dag.entryAfter [ "writeBoundary" ] ''
-        run mkdir -p ${lib.escapeShellArg config.my.forgeDir}
-      '';
+    home.activation.ensureForge = lib.hm.dag.entryAfter ["writeBoundary"] ''
+      run mkdir -p ${lib.escapeShellArg config.my.forgeDir}
+    '';
   };
 }

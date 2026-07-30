@@ -120,7 +120,8 @@ let
   dutiSet = bundleId: extensions:
     lib.concatMapStringsSep "\n" (
       ext: ''$DUTI -s ${bundleId} .${ext} all 2>/dev/null || true''
-    ) extensions;
+    )
+    extensions;
 in {
   home.packages = [pkgs.duti];
 
@@ -143,36 +144,35 @@ in {
     };
   };
 
-  home.activation.fileDefaultsDuti =
-    lib.hm.dag.entryAfter ["writeBoundary"] ''
-      DUTI="${pkgs.duti}/bin/duti"
-      if [ ! -x "$DUTI" ]; then
-        echo "file-defaults: duti missing at $DUTI; skip"
-        exit 0
-      fi
+  home.activation.fileDefaultsDuti = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    DUTI="${pkgs.duti}/bin/duti"
+    if [ ! -x "$DUTI" ]; then
+      echo "file-defaults: duti missing at $DUTI; skip"
+      exit 0
+    fi
 
-      # --- audio → IINA ---
-      if [ -d "${iinaApp}" ]; then
-        ${dutiSet iinaBundleId audioExtensions}
-        echo "file-defaults: audio → ${iinaBundleId}"
-      else
-        echo "file-defaults: IINA not at ${iinaApp}; skip audio"
-      fi
+    # --- audio → IINA ---
+    if [ -d "${iinaApp}" ]; then
+      ${dutiSet iinaBundleId audioExtensions}
+      echo "file-defaults: audio → ${iinaBundleId}"
+    else
+      echo "file-defaults: IINA not at ${iinaApp}; skip audio"
+    fi
 
-      # --- pdf → Skim ---
-      if [ -d "${skimApp}" ]; then
-        $DUTI -s ${skimBundleId} .pdf all || true
-        echo "file-defaults: pdf → ${skimBundleId}"
-      else
-        echo "file-defaults: Skim not at ${skimApp}; skip pdf"
-      fi
+    # --- pdf → Skim ---
+    if [ -d "${skimApp}" ]; then
+      $DUTI -s ${skimBundleId} .pdf all || true
+      echo "file-defaults: pdf → ${skimBundleId}"
+    else
+      echo "file-defaults: Skim not at ${skimApp}; skip pdf"
+    fi
 
-      # --- code → Zed ---
-      if [ -d "${zedApp}" ]; then
-        ${dutiSet zedBundleId codeExtensions}
-        echo "file-defaults: code → ${zedBundleId}"
-      else
-        echo "file-defaults: Zed not at ${zedApp}; skip code"
-      fi
-    '';
+    # --- code → Zed ---
+    if [ -d "${zedApp}" ]; then
+      ${dutiSet zedBundleId codeExtensions}
+      echo "file-defaults: code → ${zedBundleId}"
+    else
+      echo "file-defaults: Zed not at ${zedApp}; skip code"
+    fi
+  '';
 }

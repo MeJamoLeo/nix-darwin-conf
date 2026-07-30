@@ -1,5 +1,9 @@
-{ config, pkgs, lib, ... }:
 {
+  config,
+  pkgs,
+  lib,
+  ...
+}: {
   # desktop-switcher — デスクトップ壁紙レイヤーを alt+N で切替する tiny dispatcher。
   # 実装は ./bin/desktop-switch（bash 1本）。仕組みは script 冒頭コメントを参照。
   # aerospace 側の binding は modules/apps/aerospace/home.nix、signal handler は

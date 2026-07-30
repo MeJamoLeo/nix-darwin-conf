@@ -104,7 +104,6 @@
         TrackpadThreeFingerDrag = true; # enable three finger drag
       };
 
-
       # customize settings that not supported by nix-darwin directly
       # Incomplete list of macOS `defaults` commands :
       #   https://github.com/yannbertrand/macos-defaults
@@ -304,7 +303,10 @@
       # （modules/handy/home.nix の current_binding = "f18" と対）。
       # hidutil の UserKeyMapping はフラットな同時置換なので CapsLock→Ctrl と連鎖しない。
       userKeyMapping = [
-        { HIDKeyboardModifierMappingSrc = 30064771296; HIDKeyboardModifierMappingDst = 30064771181; }
+        {
+          HIDKeyboardModifierMappingSrc = 30064771296;
+          HIDKeyboardModifierMappingDst = 30064771181;
+        }
       ];
     };
   };

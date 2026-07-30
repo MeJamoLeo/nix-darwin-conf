@@ -44,8 +44,8 @@ in {
       };
     }
     // builtins.listToAttrs (map (name: {
-      name = ".claude/skills/${name}";
-      value.source = skillsDir + "/${name}";
-    })
-    skillNames);
+        name = ".claude/skills/${name}";
+        value.source = skillsDir + "/${name}";
+      })
+      skillNames);
 }
