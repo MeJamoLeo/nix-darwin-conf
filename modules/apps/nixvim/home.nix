@@ -383,6 +383,12 @@
   ];
 in {
   programs.nixvim = {
+    # nixvim 側が pin してる nixpkgs（follows で我々の nixpkgs-darwin に差し替え済み）
+    # を「意図的にこの pkgs を使う」と明示宣言。無いと nixvim 26.11 が eval-time
+    # warning を出す（default が follows で汚染された、と検知される仕様）。
+    # 型は絶対パスなので pkgs そのものではなく pkgs.path を渡す。
+    nixpkgs.source = pkgs.path;
+
     # クリップボード連携（macOS pbcopy）
     clipboard.providers.pbcopy.enable = true;
 
