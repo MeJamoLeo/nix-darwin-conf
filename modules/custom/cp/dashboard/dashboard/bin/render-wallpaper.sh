@@ -61,8 +61,14 @@ done <<EOF
 $DISPLAYS
 EOF
 
-# 画面ごとに貼る（NSWorkspace 直呼び＝TCC 許可不要）
-"$SETWALL" "${TARGETS[@]}"
+# 2026-07-30: macOS 壁紙の差替は disable（透過ダッシュボード運用に移行のため）。
+# 従来は "$SETWALL" "${TARGETS[@]}" で全画面に配布していたが、cp-dash-live を透過
+# rgba(2,4,4,0.85) で表示する現行の運用と両立不能（下敷きが同じ盤面 PNG だと透過が
+# 見えない）。壁紙は user が System Settings → Wallpaper で手動指定する前提。
+# TARGETS の fit-per-display PNG は生成しても未使用だが、CPDashSaver 側から
+# 参照される可能性を残して生成自体は温存する（有害でない）。
+# 再有効化する場合は次行の comment を外すだけ:
+# "$SETWALL" "${TARGETS[@]}"
 
 # スクリーンセーバー / ライブ層は 16:9 基準をそのまま使う（saver は自前 aspect-fit）
 cp "$CANON" "$OUT/wall-main.png"
