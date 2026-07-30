@@ -11,16 +11,13 @@ default:
 #
 ############################################################################
 
-#  TODO Feel free to remove this target if you don't need a proxy to speed up the build process
-darwin-set-proxy:
-
-darwin: darwin-set-proxy # I don't need it so comment out
+darwin:
   nix build .#darwinConfigurations.{{hostname}}.system \
     --extra-experimental-features 'nix-command flakes' --show-trace
 
   sudo ./result/sw/bin/darwin-rebuild switch --flake .#{{hostname}}
 
-darwin-debug: darwin-set-proxy
+darwin-debug:
   nix build .#darwinConfigurations.{{hostname}}.system --show-trace --verbose \
     --extra-experimental-features 'nix-command flakes'
 

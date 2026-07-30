@@ -1,16 +1,6 @@
 {
   description = "Nix for macOS configuration";
 
-  # the nixConfig here only affects the flake itself, not the system configuration!
-  nixConfig = {
-    # Use this to add custom substituters if needed; keeping commented preserves history.
-    # substituters = [
-    #   # Query the mirror of USTC first, and then the official cache.
-    #   "https://mirrors.ustc.edu.cn/nix-channels/store"
-    #   "https://cache.nixos.org"
-    # ];
-  };
-
   inputs = {
     nixpkgs-darwin.url = "github:nixos/nixpkgs/nixpkgs-unstable";
 
