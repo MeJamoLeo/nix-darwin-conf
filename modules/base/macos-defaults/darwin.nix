@@ -262,25 +262,18 @@
         "com.apple.universalaccess" = {
           reduceMotion = true;
         };
-        ".com.apple" = {
-          # NOTE(2026-07-30): finder ブロックは system.defaults.finder に移設済み。
-          # `.com.apple` は実ドメインではないためこの階層に置いても dead になる。
-          # ↓ 以下 desktopservices / spaces / WindowManager / screensaver / screencapture
-          # 等も同じ理由で dead の可能性が高いが、動作差分が出るため今回は disk 問題の
-          # スコープ外とし別コミットで整理する（TODO）。
+        # NOTE(2026-07-30): 元々ここに ".com.apple" というブロックがあったが、それは
+        # 実ドメイン名ではなく（.com.apple/finder のような入れ子 plist に書かれるだけで
+        # 各アプリは自分のドメインしか読まない）、配下の全宣言が dead だった。
+        # finder/desktopservices/spaces/WindowManager/screensaver/screencapture/
+        # AdLib/ImageCapture/universalaccess を全て正ドメインに移設済み (#32)。
 
+        # メモ: ブラウザ別のダウンロード先仕分けは一度宣言して撤回した (2026-07-04)。
+        # 「どのブラウザで落としたか」は検索時に思い出さない軸で、整理は
+        # 検索・新着順・再取得で代替する方針。仕分けは screenshots のみ。
 
-
-
-
-          # メモ: ブラウザ別のダウンロード先仕分けは一度宣言して撤回した (2026-07-04)。
-          # 「どのブラウザで落としたか」は検索時に思い出さない軸で、整理は
-          # 検索・新着順・再取得で代替する方針。仕分けは screenshots のみ。
-
-          # Chrome のポリシー (拡張 ForceList 等) は modules/chrome-anjin/home.nix の
-          # targets.darwin.defaults."com.google.Chrome" に一本化 (二重書きは後勝ちで消し合う)。
-
-        };
+        # Chrome のポリシー (拡張 ForceList 等) は modules/chrome-anjin/home.nix の
+        # targets.darwin.defaults."com.google.Chrome" に一本化 (二重書きは後勝ちで消し合う)。
       };
 
       loginwindow = {
