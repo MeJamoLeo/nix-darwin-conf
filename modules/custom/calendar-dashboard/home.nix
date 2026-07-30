@@ -33,8 +33,21 @@ in
         cp -R "$src/$d" "$dst/$d"
         chmod -R u+w "$dst/$d"
       done
-      # config はユーザーが比率を編集するので初回のみ配置（既存を上書きしない）
-      [ -f "$dst/caldash-config.json" ] || cp -f "$src/caldash-config.json" "$dst/caldash-config.json"
+      # config は ~/.config/caldash/config.json（XDG 準拠）に配置。
+      # 旧 $dst/caldash-config.json が残っていれば新パスに mv（一度きり）、
+      # 既に新パスに何かあれば触らない（user 変更を尊重）。
+      cfg="$HOME/.config/caldash/config.json"
+      mkdir -p "$(dirname "$cfg")"
+      if [ ! -f "$cfg" ]; then
+        if [ -f "$dst/caldash-config.json" ]; then
+          mv "$dst/caldash-config.json" "$cfg"
+        else
+          cp -f "$src/caldash-config.json" "$cfg"
+        fi
+        chmod u+w "$cfg"   # nix store の read-only を継承させない（user が編集可能に）
+      fi
+      # 旧パスに残骸が残っていれば削除（新パスがあれば安全）
+      [ -f "$cfg" ] && rm -f "$dst/caldash-config.json"
 
       # 機体の swiftc(CLT/Xcode) でビルド。nix の SDKROOT 汚染で stdlib を見失うため env -i 隔離。
       # CLT 不在なら switch 全体は殺さず警告のみ（cp/dashboard と同じ流儀）。

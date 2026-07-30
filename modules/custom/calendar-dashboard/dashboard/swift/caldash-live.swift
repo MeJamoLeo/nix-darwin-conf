@@ -73,10 +73,19 @@ struct Config: Codable {
     var account: Int?; var tz: String?
     var backgroundOpacity: Double?
 }
+// 設定ファイル: 既定 ~/.config/caldash/config.json (XDG_CONFIG_HOME 準拠、
+// 環境変数 XDG_CONFIG_HOME が空でなければそちらを尊重)。CALDASH_CONFIG 環境変数で
+// 個別 override 可能。旧 ~/calendar-dashboard/caldash-config.json は home-manager
+// activation が起動前に新パスへ mv 済み。
+func defaultConfigPath() -> String {
+    let env = ProcessInfo.processInfo.environment
+    let xdg = (env["XDG_CONFIG_HOME"].flatMap { $0.isEmpty ? nil : $0 })
+        ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config").path
+    return "\(xdg)/caldash/config.json"
+}
 func loadConfig() {
-    let path = ProcessInfo.processInfo.environment["CALDASH_CONFIG"]
-        ?? FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("calendar-dashboard/caldash-config.json").path
+    let path = ProcessInfo.processInfo.environment["CALDASH_CONFIG"] ?? defaultConfigPath()
+    print("[caldash] config file: \(path)")
     guard let data = FileManager.default.contents(atPath: path),
           let c = try? JSONDecoder().decode(Config.self, from: data) else { return }
     if let v = c.gap { GAP = CGFloat(v) }

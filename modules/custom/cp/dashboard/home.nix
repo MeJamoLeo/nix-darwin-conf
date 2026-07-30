@@ -45,8 +45,20 @@ in
       done
       cp -f "$src/watchlist.json" "$dst/watchlist.json"
       chmod u+w "$dst/watchlist.json"
-      # cp-dash-config.json はユーザーが透過度等を編集するので初回のみ配置（既存を上書きしない）
-      [ -f "$dst/cp-dash-config.json" ] || cp -f "$src/cp-dash-config.json" "$dst/cp-dash-config.json"
+      # config は ~/.config/cp-dashboard/config.json（XDG 準拠）に配置。
+      # 旧 $dst/cp-dash-config.json が残っていれば新パスに mv（一度きり）、
+      # 既に新パスに何かあれば触らない（user 変更を尊重）。
+      cfg="$HOME/.config/cp-dashboard/config.json"
+      mkdir -p "$(dirname "$cfg")"
+      if [ ! -f "$cfg" ]; then
+        if [ -f "$dst/cp-dash-config.json" ]; then
+          mv "$dst/cp-dash-config.json" "$cfg"
+        else
+          cp -f "$src/cp-dash-config.json" "$cfg"
+        fi
+        chmod u+w "$cfg"   # nix store の read-only を継承させない（user が編集可能に）
+      fi
+      [ -f "$cfg" ] && rm -f "$dst/cp-dash-config.json"
 
       # Swift 3本を機体の swiftc(CLT/Xcode) でビルド。CLT 不在なら switch 全体は殺さず警告のみ。
       # 注: nix activation の環境変数 (SDKROOT 等が nix 側を向く) をそのまま渡すと

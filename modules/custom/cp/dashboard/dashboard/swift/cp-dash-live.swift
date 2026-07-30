@@ -15,10 +15,18 @@ var BG_OPACITY: CGFloat = 1.0
 struct Config: Codable {
     var backgroundOpacity: Double?
 }
+// 設定ファイル: 既定 ~/.config/cp-dashboard/config.json (XDG_CONFIG_HOME 準拠)。
+// CPDASH_CONFIG 環境変数で override 可能。旧 ~/cp-dashboard/cp-dash-config.json は
+// home-manager activation が起動前に新パスへ mv 済み。
+func defaultConfigPath() -> String {
+    let env = ProcessInfo.processInfo.environment
+    let xdg = (env["XDG_CONFIG_HOME"].flatMap { $0.isEmpty ? nil : $0 })
+        ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".config").path
+    return "\(xdg)/cp-dashboard/config.json"
+}
 func loadConfig() {
-    let root = FileManager.default.homeDirectoryForCurrentUser
-        .appendingPathComponent("cp-dashboard")
-    let path = root.appendingPathComponent("cp-dash-config.json").path
+    let path = ProcessInfo.processInfo.environment["CPDASH_CONFIG"] ?? defaultConfigPath()
+    print("[cp-dash-live] config file: \(path)")
     guard let data = FileManager.default.contents(atPath: path),
           let c = try? JSONDecoder().decode(Config.self, from: data) else { return }
     if let v = c.backgroundOpacity { BG_OPACITY = max(0, min(1, CGFloat(v))) }
