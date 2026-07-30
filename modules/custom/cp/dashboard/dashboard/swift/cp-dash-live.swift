@@ -6,6 +6,33 @@
 import AppKit
 import WebKit
 
+// 背景 alpha（config: backgroundOpacity）。1.0=完全不透明、<1.0 で壁紙が透ける。
+// window.isOpaque + backgroundColor + WKWebView.drawsBackground + CSS 注入の
+// 全レイヤーに一貫適用する（どこか一箇所でも opaque だと透過は死ぬ）。
+var BG_OPACITY: CGFloat = 1.0
+
+struct Config: Codable {
+    var backgroundOpacity: Double?
+}
+func loadConfig() {
+    let root = FileManager.default.homeDirectoryForCurrentUser
+        .appendingPathComponent("cp-dashboard")
+    let path = root.appendingPathComponent("cp-dash-config.json").path
+    guard let data = FileManager.default.contents(atPath: path),
+          let c = try? JSONDecoder().decode(Config.self, from: data) else { return }
+    if let v = c.backgroundOpacity { BG_OPACITY = max(0, min(1, CGFloat(v))) }
+    print("[cp-dash-live] config: opacity=\(BG_OPACITY)")
+}
+
+// CSS 注入テンプレ。cp-dash の draft-v1.html は --bg=#020404 を body 背景にしている。
+// 透過モード時は rgba(2,4,4,\(BG_OPACITY)) で置き換えて壁紙を通す。opacity=1.0 なら
+// 元 HTML の色をそのまま尊重するので注入不要。
+func transparentBodyCSS() -> String {
+    return """
+    html, body { background: rgba(2, 4, 4, \(BG_OPACITY)) !important; }
+    """
+}
+
 final class LiveLayer: NSObject, NSApplicationDelegate {
     private var windows: [NSWindow] = []
     private var webViews: [WKWebView] = []
@@ -34,10 +61,16 @@ final class LiveLayer: NSObject, NSApplicationDelegate {
             win.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)))
             win.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
             win.ignoresMouseEvents = true
-            win.isOpaque = true
-            // 盤面背景色 (--bg #020404) でレターボックス。壁紙 fit と同じ見た目に。
-            win.backgroundColor = NSColor(srgbRed: 0x02 / 255.0, green: 0x04 / 255.0,
-                                          blue: 0x04 / 255.0, alpha: 1)
+            // BG_OPACITY <1.0 の透過モードでは isOpaque=false + clear 背景で壁紙を通す。
+            // opaque モードは既存のレターボックス色 (--bg #020404) を維持。
+            if BG_OPACITY < 1.0 {
+                win.isOpaque = false
+                win.backgroundColor = .clear
+            } else {
+                win.isOpaque = true
+                win.backgroundColor = NSColor(srgbRed: 0x02 / 255.0, green: 0x04 / 255.0,
+                                              blue: 0x04 / 255.0, alpha: 1)
+            }
             win.setFrame(screen.frame, display: true)
 
             // 盤面は 16:9 前提でチューニング済み。window(=画面)に対し縦横比 16:9 を保った
@@ -73,9 +106,30 @@ final class LiveLayer: NSObject, NSApplicationDelegate {
     // 新しい WKWebView を作って draft-v1.html を読む。作りたてはキャッシュも
     // 前ページの setInterval タイマーも持たないので、reload 時にこれで作り直せば
     // 必ず disk の最新 draft-data.js を反映できる（下記 pollInject 参照）。
+    // 透過モード（BG_OPACITY<1.0）では config に CSS 注入と drawsBackground=false を
+    // セットして壁紙が透けるようにする。
     private func makeWebView(frame: NSRect) -> WKWebView {
-        let webView = WKWebView(frame: frame)
+        let cfg = WKWebViewConfiguration()
+        if BG_OPACITY < 1.0 {
+            let js = """
+            (() => {
+              if (document.getElementById('cpdash-transparent-bg')) return;
+              const s = document.createElement('style');
+              s.id = 'cpdash-transparent-bg';
+              s.textContent = `\(transparentBodyCSS())`;
+              (document.head || document.documentElement).appendChild(s);
+            })();
+            """
+            cfg.userContentController.addUserScript(
+                WKUserScript(source: js, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+        }
+        let webView = WKWebView(frame: frame, configuration: cfg)
         webView.autoresizingMask = [.minXMargin, .maxXMargin, .minYMargin, .maxYMargin]
+        if BG_OPACITY < 1.0 {
+            webView.setValue(false, forKey: "drawsBackground")
+            webView.wantsLayer = true
+            webView.layer?.backgroundColor = NSColor.clear.cgColor
+        }
         webView.loadFileURL(htmlURL, allowingReadAccessTo: root)
         return webView
     }
@@ -164,6 +218,7 @@ final class LiveLayer: NSObject, NSApplicationDelegate {
 }
 
 setvbuf(stdout, nil, _IONBF, 0)
+loadConfig()
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 let delegate = LiveLayer()

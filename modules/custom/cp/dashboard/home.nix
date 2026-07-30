@@ -45,6 +45,8 @@ in
       done
       cp -f "$src/watchlist.json" "$dst/watchlist.json"
       chmod u+w "$dst/watchlist.json"
+      # cp-dash-config.json はユーザーが透過度等を編集するので初回のみ配置（既存を上書きしない）
+      [ -f "$dst/cp-dash-config.json" ] || cp -f "$src/cp-dash-config.json" "$dst/cp-dash-config.json"
 
       # Swift 3本を機体の swiftc(CLT/Xcode) でビルド。CLT 不在なら switch 全体は殺さず警告のみ。
       # 注: nix activation の環境変数 (SDKROOT 等が nix 側を向く) をそのまま渡すと

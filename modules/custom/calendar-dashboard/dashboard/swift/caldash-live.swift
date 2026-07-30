@@ -34,18 +34,22 @@ let WALLPAPER = CommandLine.arguments.contains("--wallpaper")
 // role='main' を viewport 全面に position:fixed で被せる「構造非依存」戦略で覆い隠す。
 // これで DOM を残したまま視覚的にサイドバーが消え、Google の class ハッシュ変更にも
 // 巻き込まれない。interactive mode ではログイン・ナビ用に UI を温存する。
-let HIDE_CHROME_CSS = """
-[role='banner'] { display: none !important; }
-[role='main'] {
-  position: fixed !important;
-  inset: 0 !important;
-  width: 100vw !important;
-  height: 100vh !important;
-  z-index: 999999 !important;
-  background: #000 !important;
+// 背景の alpha は BG_OPACITY (config で可変) で決まる。1.0=完全不透明、
+// 0.85=軽く壁紙が透ける、0.5=壁紙かなり見える／文字埋没リスク大。
+func hideChromeCSS() -> String {
+    return """
+    [role='banner'] { display: none !important; }
+    [role='main'] {
+      position: fixed !important;
+      inset: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      z-index: 999999 !important;
+      background: rgba(0, 0, 0, \(BG_OPACITY)) !important;
+    }
+    html, body { background: transparent !important; overflow: hidden !important; margin: 0 !important; padding: 0 !important; }
+    """
 }
-html, body { overflow: hidden !important; margin: 0 !important; padding: 0 !important; }
-"""
 
 // ---- 設定（既定値。config で上書き）----
 var ACCOUNT = 0
@@ -62,12 +66,17 @@ var WEEK_ZOOM: CGFloat = 0.5         // 今週/来週だけ更に圧縮（1日 0
 var BASE_ZOOM: CGFloat? = nil
 var BASE_WEEK_ZOOM: CGFloat? = nil
 var REFERENCE_WIDTH: CGFloat? = nil
+// 背景 alpha（config: backgroundOpacity）。1.0=完全不透明、<1.0 で壁紙が透ける。
+// window.isOpaque + backgroundColor + GridView.layer + WKWebView.drawsBackground +
+// CSS 注入の全レイヤーに一貫適用する（どこか一箇所でも opaque だと透過は死ぬ）。
+var BG_OPACITY: CGFloat = 1.0
 
 struct Config: Codable {
     var todayWidth: Double?; var rightCols: [Double]?; var rightRows: [Double]?
     var gap: Double?; var zoom: Double?; var weekZoom: Double?
     var baseZoom: Double?; var baseWeekZoom: Double?; var referenceWidth: Double?
     var account: Int?; var tz: String?
+    var backgroundOpacity: Double?
 }
 func loadConfig() {
     let path = ProcessInfo.processInfo.environment["CALDASH_CONFIG"]
@@ -86,7 +95,8 @@ func loadConfig() {
     if let v = c.referenceWidth { REFERENCE_WIDTH = CGFloat(v) }
     if let v = c.account { ACCOUNT = v }
     if let v = c.tz { TZ_ID = v }
-    print("[caldash] config: todayW=\(TODAY_W) rcols=\(RCOLS) rrows=\(RROWS) gap=\(GAP) zoom=\(ZOOM) weekZoom=\(WEEK_ZOOM) u/\(ACCOUNT) \(TZ_ID)")
+    if let v = c.backgroundOpacity { BG_OPACITY = max(0, min(1, CGFloat(v))) }
+    print("[caldash] config: todayW=\(TODAY_W) rcols=\(RCOLS) rrows=\(RROWS) gap=\(GAP) zoom=\(ZOOM) weekZoom=\(WEEK_ZOOM) u/\(ACCOUNT) \(TZ_ID) opacity=\(BG_OPACITY)")
     if let ref = REFERENCE_WIDTH {
         print("[caldash] formula: baseZoom=\(BASE_ZOOM ?? ZOOM) baseWeekZoom=\(BASE_WEEK_ZOOM ?? WEEK_ZOOM) referenceWidth=\(ref)")
     }
@@ -195,7 +205,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
               if (document.getElementById('caldash-hide-chrome')) return;
               const s = document.createElement('style');
               s.id = 'caldash-hide-chrome';
-              s.textContent = `\(HIDE_CHROME_CSS)`;
+              s.textContent = `\(hideChromeCSS())`;
               (document.head || document.documentElement).appendChild(s);
             })();
             """
@@ -209,6 +219,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         wv.pageZoom = zoom
         // H2: 認証済み Google セッションに Inspector を残さない（無人常駐では無効）。
         if #available(macOS 13.3, *) { wv.isInspectable = !WALLPAPER }
+        // 透過モード時は WKWebView 自体の背景も透かす（drawsBackground は非公開 KVC だが
+        // 広く安定利用されてる。underPageBackgroundColor は over-scroll 領域のみで根本解決
+        // にならない）。opacity=1.0 なら触らず既定挙動（不透明白/暗）に任せる。
+        if WALLPAPER && BG_OPACITY < 1.0 {
+            wv.setValue(false, forKey: "drawsBackground")
+            wv.wantsLayer = true
+            wv.layer?.backgroundColor = NSColor.clear.cgColor
+        }
         wv.load(URLRequest(url: URL(string: urlStr)!))
         return wv
     }
@@ -261,7 +279,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
     private func makeGrid(screenFrame: NSRect, zoom: CGFloat, weekZoom: CGFloat) -> (GridView, [WKWebView]) {
         let grid = GridView(frame: screenFrame)
         grid.wantsLayer = true
-        grid.layer?.backgroundColor = NSColor.black.cgColor
+        // 透過モード時は GridView layer（pane 間 GAP から透ける部分）も透過に。
+        // 不透明モードでは pane 間隙間を黒で埋める既存挙動。
+        grid.layer?.backgroundColor = (WALLPAPER && BG_OPACITY < 1.0)
+            ? NSColor.clear.cgColor
+            : NSColor(white: 0, alpha: BG_OPACITY).cgColor
         grid.autoresizingMask = [.width, .height]
         let zooms: [CGFloat] = [zoom, weekZoom, weekZoom, zoom, zoom]  // 今日/今週/来週/今月/来月
         let paneWebs = zip(paneURLs(), zooms).map { makeWeb($0, zoom: $1) }
@@ -283,8 +305,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
             w.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)))
             w.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
             w.ignoresMouseEvents = true
-            w.isOpaque = true
-            w.backgroundColor = .black
+            // BG_OPACITY <1.0 の透過モードでは isOpaque=false + clear 背景で下（=壁紙）
+            // を通す。opacity=1.0 なら既存の isOpaque=true+black（描画パフォーマンス優先）。
+            if BG_OPACITY < 1.0 {
+                w.isOpaque = false
+                w.backgroundColor = .clear
+            } else {
+                w.isOpaque = true
+                w.backgroundColor = .black
+            }
             w.contentView = grid
             w.setFrame(screen.frame, display: true)
             w.orderFrontRegardless()
