@@ -151,7 +151,7 @@ tutor-cp を読む。
 
 ## 素材（materials/）について
 
-素材が必要なら `~/Box/lesserDeepToutor/materials/` を Read で参照する（大きい PDF は
+素材が必要なら `$FORGE/lesserDeepToutor/materials/`（= `~/Forge/…`）を Read で参照する（大きい PDF は
 `pages` 指定）。引用は `[素材名:ページ]` 形式。素材が無くても自身の知識と WebSearch で
 対応する。
 

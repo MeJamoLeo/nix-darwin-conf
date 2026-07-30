@@ -593,7 +593,8 @@ in {
 
   # CP スニペット: ~/cp/snippets を repo の modules/custom/cp/snippets への out-of-store symlink に。
   # repo の python.lua を編集 → nvim 再起動で即反映（再ビルド不要。x1nano の方式を踏襲）。
+  # 親ディレクトリは modules/base/forge が公開する my.forgeDir（= ~/Forge）を単一源にする。
   home.file."cp/snippets".source =
     config.lib.file.mkOutOfStoreSymlink
-    "${config.home.homeDirectory}/Box/nix-darwin-conf/modules/custom/cp/snippets";
+    "${config.my.forgeDir}/nix-darwin-conf/modules/custom/cp/snippets";
 }
