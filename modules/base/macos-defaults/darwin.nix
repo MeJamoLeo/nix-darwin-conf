@@ -203,6 +203,13 @@
           # Add a context menu item for showing the Web Inspector in web views
           WebKitDeveloperExtras = true;
         };
+        # NOTE(2026-07-30): 元は `.com.apple.screensaver` に置かれていたが dead 宣言だった。
+        # nix-darwin にネイティブ system.defaults.screensaver は無いので CustomUserPreferences。
+        "com.apple.screensaver" = {
+          # Require password immediately after sleep or screen saver begins
+          askForPassword = 1;
+          askForPasswordDelay = 0;
+        };
         # NOTE(2026-07-30): 元は `.com.apple.desktopservices` に置かれていたが
         # `.com.apple` は実ドメインではないため dead 宣言だった。CustomUserPreferences
         # の正しいドメイン `com.apple.desktopservices` に移設して有効化。
@@ -235,11 +242,6 @@
             StandardHideWidgets = 1;
           };
 
-          screensaver = {
-            # Require password immediately after sleep or screen saver begins
-            askForPassword = 1;
-            askForPasswordDelay = 0;
-          };
 
           screencapture = {
             location = "~/Downloads/screenshots"; # スクショは Downloads/screenshots へ集約
