@@ -11,11 +11,11 @@ final class LiveLayer: NSObject, NSApplicationDelegate {
     private var webViews: [WKWebView] = []
     private var lastMTime = Date.distantPast
 
-    // desktop-switch からの show/hide 信号ハンドラ。retain 必須。
+    // desktop-switch からの信号ハンドラ。SIGUSR1 で ~/.local/state/desktop-switch/cmd
+    // を読んで per-screen dispatch。retain 必須。
     // 生の signal(2) は async-signal-safe な API しか呼べず NSWindow は不可なので
     // DispatchSource で main queue に配信して安全にウィンドウ操作する。
-    private var showSource: DispatchSourceSignal?
-    private var hideSource: DispatchSourceSignal?
+    private var switchSource: DispatchSourceSignal?
 
     private let root = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("cp-dashboard")
@@ -58,21 +58,15 @@ final class LiveLayer: NSObject, NSApplicationDelegate {
         Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.pollInject()
         }
-        // desktop-switch: SIGUSR1=show（全モニタの window を orderFrontRegardless）
-        // / SIGUSR2=hide（全 window を orderOut）。生 signal(2) は default で終了なので
-        // 事前に SIG_IGN で無効化してから DispatchSource で main queue 配信する。
-        signal(SIGUSR1, SIG_IGN); signal(SIGUSR2, SIG_IGN)
-        showSource = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)
-        hideSource = DispatchSource.makeSignalSource(signal: SIGUSR2, queue: .main)
-        showSource?.setEventHandler { [weak self] in
-            self?.windows.forEach { $0.orderFrontRegardless() }
-            print("[cp-dash-live] SIGUSR1 → show \(self?.windows.count ?? 0) window(s)")
-        }
-        hideSource?.setEventHandler { [weak self] in
-            self?.windows.forEach { $0.orderOut(nil) }
-            print("[cp-dash-live] SIGUSR2 → hide \(self?.windows.count ?? 0) window(s)")
-        }
-        showSource?.resume(); hideSource?.resume()
+        // desktop-switch: SIGUSR1 で ~/.local/state/desktop-switch/cmd を読み、該当
+        // screen だけ show/hide する。生 signal(2) は default で終了なので事前に
+        // SIG_IGN で無効化してから DispatchSource で main queue 配信する。
+        signal(SIGUSR1, SIG_IGN)
+        switchSource = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)
+        switchSource?.setEventHandler { [weak self] in self?.handleSwitchCommand() }
+        switchSource?.resume()
+        // 再起動（kickstart 経由 --reload）でも表示状態を保つため state を読んで復元。
+        applyPersistedState()
         print("[cp-dash-live] up: \(windows.count) screen(s), watching \(injectURL.path)")
     }
 
@@ -94,6 +88,57 @@ final class LiveLayer: NSObject, NSApplicationDelegate {
         return [injectURL, draftDataURL].compactMap {
             (try? FileManager.default.attributesOfItem(atPath: $0.path))?[.modificationDate] as? Date
         }.max() ?? .distantPast
+    }
+
+    // 与えた monitor-name に一致する NSScreen を持つ window の index を返す。
+    // aerospace の monitor-name（例 "Mi TV" / "Built-in Display"）と NSScreen.localizedName
+    // が同一なので照合可能。同名複数モニタは順に返す。
+    private func windowIndices(matching name: String) -> [Int] {
+        return windows.enumerated().compactMap { (i, w) in
+            (w.screen?.localizedName == name) ? i : nil
+        }
+    }
+
+    // 起動時に state file を読んで per-screen 表示状態を復元。書式: 各行
+    // "<monitor-name>=<layer>"。layer が "cp" の screen は show、それ以外（caldash/
+    // wallpaper）は hide。未記載 screen は show のまま（初回起動）。reload 後の状態保持のため必須。
+    private func applyPersistedState() {
+        let path = ("\(NSHomeDirectory())/.local/state/desktop-switch/state" as NSString).expandingTildeInPath
+        guard let raw = try? String(contentsOfFile: path, encoding: .utf8) else { return }
+        for line in raw.split(separator: "\n") {
+            let parts = line.split(separator: "=", maxSplits: 1)
+            guard parts.count == 2 else { continue }
+            let name = String(parts[0]), layer = String(parts[1])
+            for idx in windowIndices(matching: name) {
+                if layer == "cp" { windows[idx].orderFrontRegardless() }
+                else             { windows[idx].orderOut(nil) }
+            }
+        }
+        print("[cp-dash-live] state restored from \(path)")
+    }
+
+    // desktop-switch IPC: SIGUSR1 で ~/.local/state/desktop-switch/cmd を読み dispatch。
+    // 書式は1行 "layer=<name>;screen=<monitor-name|all>"。layer=="cp" なら該当 window を
+    // show、それ以外（caldash/wallpaper）なら hide。screen=all は全 window に一括適用。
+    private func handleSwitchCommand() {
+        let path = ("\(NSHomeDirectory())/.local/state/desktop-switch/cmd" as NSString).expandingTildeInPath
+        guard let raw = try? String(contentsOfFile: path, encoding: .utf8) else { return }
+        let line = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        var layer = "", screenSpec = ""
+        for kv in line.split(separator: ";") {
+            let parts = kv.split(separator: "=", maxSplits: 1)
+            guard parts.count == 2 else { continue }
+            let key = String(parts[0]), val = String(parts[1])
+            if key == "layer" { layer = val }
+            if key == "screen" { screenSpec = val }
+        }
+        let iShouldShow = (layer == "cp")
+        let targets: [Int] = (screenSpec == "all") ? Array(windows.indices) : windowIndices(matching: screenSpec)
+        for idx in targets {
+            if iShouldShow { windows[idx].orderFrontRegardless() }
+            else           { windows[idx].orderOut(nil) }
+        }
+        print("[cp-dash-live] cmd layer=\(layer) screen=\(screenSpec) → \(iShouldShow ? "show" : "hide") \(targets.count) window(s)")
     }
 
     private func pollInject() {

@@ -156,20 +156,18 @@ final class GridView: NSView {
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDelegate {
-    var window: NSWindow!
-    var grid: GridView!
-    var webs: [WKWebView] = []
+    // wallpaper mode: 各 NSScreen に 1 window ずつ描画（cp-dash と同型）。
+    // interactive mode: windows.count == 1（中央窓 1 本のみ）。
+    // 3 配列は screen index で揃える（webs[i] は screen i の 5 pane）。
+    var windows: [NSWindow] = []
+    var grids: [GridView] = []
+    var webs: [[WKWebView]] = []
     let store = WKWebsiteDataStore.default()   // ログイン共有＆永続（実測済み）
 
-    // 式モード時の現行 zoom（画面変化時に再計算＝式が無ければ config の静的値のまま不変）
-    var currentZoom: CGFloat = 0.75
-    var currentWeekZoom: CGFloat = 0.5
-
-    // desktop-switch からの show/hide 信号ハンドラ（wallpaper mode 限定）。retain 必須。
-    // 生の signal(2) ハンドラは async-signal-safe な API しか呼べず NSWindow は使えないので
+    // desktop-switch からの信号ハンドラ（wallpaper mode 限定）。retain 必須。
+    // 生の signal(2) は async-signal-safe な API しか呼べず NSWindow 不可なので
     // DispatchSource で main queue に配信して安全にウィンドウ操作する。
-    var showSource: DispatchSourceSignal?
-    var hideSource: DispatchSourceSignal?
+    var switchSource: DispatchSourceSignal?
 
     // 式モードか（REFERENCE_WIDTH 指定時のみ）
     var formulaMode: Bool { REFERENCE_WIDTH != nil }
@@ -216,66 +214,85 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
     }
 
     func applicationDidFinishLaunching(_ note: Notification) {
-        grid = GridView(frame: .zero)
-        grid.wantsLayer = true
-        grid.layer?.backgroundColor = NSColor.black.cgColor
-        grid.autoresizingMask = [.width, .height]
-        let initialScreen = NSScreen.main ?? NSScreen.screens[0]
-        (currentZoom, currentWeekZoom) = computeEffectiveZooms(for: initialScreen)
-        let zooms: [CGFloat] = [currentZoom, currentWeekZoom, currentWeekZoom, currentZoom, currentZoom]  // 今日/今週/来週/今月/来月
-        webs = zip(paneURLs(), zooms).map { makeWeb($0, zoom: $1) }
-        grid.panes = webs
-        webs.forEach { grid.addSubview($0) }
-        if formulaMode {
-            print("[caldash] effective zoom on width=\(initialScreen.frame.width): \(currentZoom)/\(currentWeekZoom)")
-        }
-
         if WALLPAPER {
-            let screen = initialScreen
-            window = NSWindow(contentRect: screen.frame, styleMask: .borderless,
-                              backing: .buffered, defer: false)
-            window.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)))
-            window.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
-            window.ignoresMouseEvents = true
-            window.isOpaque = true
-            window.backgroundColor = .black
-            window.contentView = grid
-            window.setFrame(screen.frame, display: true)
-            window.orderFrontRegardless()
-            print("[caldash] wallpaper mode on \(screen.frame.size)")
-            // 解像度/main モニタの変化を購読して window と zoom を追随（モニタ挿抜・SetResolution 対応）。
+            setupWallpaperWindows()
+            // 解像度/モニタ挿抜/main 切替を購読。screen 数の変化なら全再構築、
+            // 数同じ（解像度変更のみ）なら zoom + frame を追随。
             NotificationCenter.default.addObserver(
                 forName: NSApplication.didChangeScreenParametersNotification,
                 object: nil, queue: .main
             ) { [weak self] _ in
-                self?.reapplyForCurrentScreen()
+                self?.reapplyForCurrentScreens()
             }
-            // desktop-switch: SIGUSR1=show / SIGUSR2=hide。生 signal(2) は default で
-            // 「終了」なので事前に SIG_IGN で無効化してから DispatchSource で main queue 配信。
-            signal(SIGUSR1, SIG_IGN); signal(SIGUSR2, SIG_IGN)
-            showSource = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)
-            hideSource = DispatchSource.makeSignalSource(signal: SIGUSR2, queue: .main)
-            showSource?.setEventHandler { [weak self] in
-                self?.window?.orderFrontRegardless()
-                print("[caldash] SIGUSR1 → show")
-            }
-            hideSource?.setEventHandler { [weak self] in
-                self?.window?.orderOut(nil)
-                print("[caldash] SIGUSR2 → hide")
-            }
-            showSource?.resume(); hideSource?.resume()
+            // desktop-switch IPC: SIGUSR1 で ~/.local/state/desktop-switch/cmd を読み、
+            // 該当 screen だけ show/hide する（引数を渡せない signal の穴埋め）。
+            // 生 signal(2) は default で終了なので事前に SIG_IGN で無効化してから
+            // DispatchSource で main queue に配信して NSWindow を安全に操作。
+            signal(SIGUSR1, SIG_IGN)
+            switchSource = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)
+            switchSource?.setEventHandler { [weak self] in self?.handleSwitchCommand() }
+            switchSource?.resume()
+            // launchctl kickstart 経由の再起動でも表示状態を保つため、起動時に state を
+            // 読んで各 window の visibility を復元。state 無い（初回）なら全 screen 見せる。
+            applyPersistedState()
         } else {
-            let frame = NSRect(x: 0, y: 0, width: 1800, height: 1050)
-            window = NSWindow(contentRect: frame,
-                              styleMask: [.titled, .closable, .resizable, .miniaturizable],
-                              backing: .buffered, defer: false)
-            window.title = "caldash — 今日/今週/来週/今月/来月（--wallpaper で常在面化）"
-            window.contentView = grid
-            window.center()
-            window.makeKeyAndOrderFront(nil)
+            // Interactive: 中央 1 窓に 5 pane grid。login/デバッグ用。
+            let initialScreen = NSScreen.main ?? NSScreen.screens[0]
+            let (z, wz) = computeEffectiveZooms(for: initialScreen)
+            let (grid, paneWebs) = makeGrid(screenFrame: NSRect(x: 0, y: 0, width: 1800, height: 1050),
+                                            zoom: z, weekZoom: wz)
+            let w = NSWindow(contentRect: grid.frame,
+                             styleMask: [.titled, .closable, .resizable, .miniaturizable],
+                             backing: .buffered, defer: false)
+            w.title = "caldash — 今日/今週/来週/今月/来月（--wallpaper で常在面化）"
+            w.contentView = grid
+            w.center()
+            w.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
+            windows = [w]
+            grids = [grid]
+            webs = [paneWebs]
         }
         scheduleDailyReanchor()
+    }
+
+    // GridView + 5 WKWebView を組み立てて (grid, webs) を返す。呼び出し側で
+    // self.grids/self.webs に append（screen index を揃えるため）。
+    private func makeGrid(screenFrame: NSRect, zoom: CGFloat, weekZoom: CGFloat) -> (GridView, [WKWebView]) {
+        let grid = GridView(frame: screenFrame)
+        grid.wantsLayer = true
+        grid.layer?.backgroundColor = NSColor.black.cgColor
+        grid.autoresizingMask = [.width, .height]
+        let zooms: [CGFloat] = [zoom, weekZoom, weekZoom, zoom, zoom]  // 今日/今週/来週/今月/来月
+        let paneWebs = zip(paneURLs(), zooms).map { makeWeb($0, zoom: $1) }
+        grid.panes = paneWebs
+        paneWebs.forEach { grid.addSubview($0) }
+        return (grid, paneWebs)
+    }
+
+    // wallpaper mode: NSScreen.screens をループして各 screen に 1 window ずつ生成。
+    // 呼び出し前に windows/grids/webs をクリアしておくこと（reapplyForCurrentScreens
+    // の全再構築パスで再利用される）。
+    private func setupWallpaperWindows() {
+        for (i, screen) in NSScreen.screens.enumerated() {
+            let (zoom, weekZoom) = computeEffectiveZooms(for: screen)
+            let (grid, paneWebs) = makeGrid(screenFrame: NSRect(origin: .zero, size: screen.frame.size),
+                                            zoom: zoom, weekZoom: weekZoom)
+            let w = NSWindow(contentRect: screen.frame, styleMask: .borderless,
+                             backing: .buffered, defer: false)
+            w.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)))
+            w.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+            w.ignoresMouseEvents = true
+            w.isOpaque = true
+            w.backgroundColor = .black
+            w.contentView = grid
+            w.setFrame(screen.frame, display: true)
+            w.orderFrontRegardless()
+            windows.append(w)
+            grids.append(grid)
+            webs.append(paneWebs)
+            print("[caldash] wallpaper screen[\(i)] \(screen.frame.size) zoom=\(zoom)/\(weekZoom)")
+        }
     }
 
     // 日次アンカー更新：ローカル 00:01 に全面を再ロード。DST でずれないよう Calendar で厳密算出。
@@ -292,33 +309,89 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
     }
     func reanchor() {
         let urls = paneURLs()   // 来週/来月 URL は当日基準で再計算される
-        for (i, wv) in webs.enumerated() where i < urls.count {
-            if let u = URL(string: urls[i]) { wv.load(URLRequest(url: u)) }
+        for screenWebs in webs {
+            for (i, wv) in screenWebs.enumerated() where i < urls.count {
+                if let u = URL(string: urls[i]) { wv.load(URLRequest(url: u)) }
+            }
         }
-        print("[caldash] re-anchored")
+        print("[caldash] re-anchored across \(webs.count) screen(s)")
     }
 
-    // 画面変化（モニタ挿抜・main 切替・解像度変更）で window と zoom を追随。
-    // wallpaper mode 専用：現状は main 1画面のみ描画（副モニタは対象外＝C1 スコープ）。
-    func reapplyForCurrentScreen() {
+    // 画面変化（モニタ挿抜・main 切替・解像度変更）に追随。screen 数が変わったら
+    // 全 window を tear down して setupWallpaperWindows() で作り直し、同じなら
+    // 各 window の frame と zoom を更新するだけ。interactive mode では no-op。
+    func reapplyForCurrentScreens() {
         guard WALLPAPER else { return }
-        let screen = NSScreen.main ?? NSScreen.screens[0]
-        let oldFrame = window.frame
-        if oldFrame != screen.frame {
-            window.setFrame(screen.frame, display: true)
+        let screens = NSScreen.screens
+        if screens.count != windows.count {
+            print("[caldash] screen count \(windows.count) → \(screens.count), rebuilding")
+            for w in windows { w.orderOut(nil); w.close() }
+            windows.removeAll(); grids.removeAll(); webs.removeAll()
+            setupWallpaperWindows()
+            return
         }
-        let (newZ, newWZ) = computeEffectiveZooms(for: screen)
-        if formulaMode && (newZ != currentZoom || newWZ != currentWeekZoom) {
-            currentZoom = newZ
-            currentWeekZoom = newWZ
-            let zooms: [CGFloat] = [newZ, newWZ, newWZ, newZ, newZ]
-            for (i, wv) in webs.enumerated() where i < zooms.count {
-                wv.pageZoom = zooms[i]
+        for (i, w) in windows.enumerated() {
+            guard let screen = w.screen ?? (i < screens.count ? screens[i] : nil) else { continue }
+            if w.frame != screen.frame { w.setFrame(screen.frame, display: true) }
+            guard formulaMode, i < webs.count else { continue }
+            let (nz, nwz) = computeEffectiveZooms(for: screen)
+            let zooms: [CGFloat] = [nz, nwz, nwz, nz, nz]
+            for (j, wv) in webs[i].enumerated() where j < zooms.count {
+                if wv.pageZoom != zooms[j] { wv.pageZoom = zooms[j] }
             }
-            print("[caldash] screen changed: width=\(screen.frame.width) → zoom=\(newZ)/\(newWZ)")
-        } else if oldFrame != screen.frame {
-            print("[caldash] screen frame changed: \(oldFrame.size) → \(screen.frame.size)")
         }
+    }
+
+    // 与えた monitor-name に一致する NSScreen を持つ window の index を返す。
+    // aerospace の monitor-name（例 "Mi TV" / "Built-in Display"）と NSScreen.localizedName
+    // が同一なので照合可能。同名複数モニタは順に返す。
+    private func windowIndices(matching name: String) -> [Int] {
+        return windows.enumerated().compactMap { (i, w) in
+            (w.screen?.localizedName == name) ? i : nil
+        }
+    }
+
+    // 起動時に ~/.local/state/desktop-switch/state を読んで per-screen 表示状態を復元。
+    // 書式: 各行 "<monitor-name>=<layer>"（layer=caldash/cp/wallpaper）。未記載の screen
+    // は show で残す（初回起動 or 部分状態の互換）。reload（kickstart）後の状態保持のため必須。
+    private func applyPersistedState() {
+        let path = ("\(NSHomeDirectory())/.local/state/desktop-switch/state" as NSString).expandingTildeInPath
+        guard let raw = try? String(contentsOfFile: path, encoding: .utf8) else { return }
+        for line in raw.split(separator: "\n") {
+            let parts = line.split(separator: "=", maxSplits: 1)
+            guard parts.count == 2 else { continue }
+            let name = String(parts[0]), layer = String(parts[1])
+            for idx in windowIndices(matching: name) {
+                if layer == "caldash" { windows[idx].orderFrontRegardless() }
+                else                  { windows[idx].orderOut(nil) }
+            }
+        }
+        print("[caldash] state restored from \(path)")
+    }
+
+    // desktop-switch IPC: SIGUSR1 で ~/.local/state/desktop-switch/cmd を読んで dispatch。
+    // 書式は1行、"layer=<name>;screen=<monitor-name|all>"。layer が "caldash" なら該当
+    // window を show、それ以外（cp/wallpaper）なら hide。screen=all は全 window に一括適用。
+    // command file 不在 or parse 失敗は黙って noop（信号バタつきで壊さない）。
+    private func handleSwitchCommand() {
+        let path = ("\(NSHomeDirectory())/.local/state/desktop-switch/cmd" as NSString).expandingTildeInPath
+        guard let raw = try? String(contentsOfFile: path, encoding: .utf8) else { return }
+        let line = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        var layer = "", screenSpec = ""
+        for kv in line.split(separator: ";") {
+            let parts = kv.split(separator: "=", maxSplits: 1)
+            guard parts.count == 2 else { continue }
+            let key = String(parts[0]), val = String(parts[1])
+            if key == "layer" { layer = val }
+            if key == "screen" { screenSpec = val }
+        }
+        let iShouldShow = (layer == "caldash")
+        let targets: [Int] = (screenSpec == "all") ? Array(windows.indices) : windowIndices(matching: screenSpec)
+        for idx in targets {
+            if iShouldShow { windows[idx].orderFrontRegardless() }
+            else           { windows[idx].orderOut(nil) }
+        }
+        print("[caldash] cmd layer=\(layer) screen=\(screenSpec) → \(iShouldShow ? "show" : "hide") \(targets.count) window(s)")
     }
 
     // M1: ポップアップ/新規窓を同 view に流す（サインイン用）。無人常駐では Google 一族のみ許可。

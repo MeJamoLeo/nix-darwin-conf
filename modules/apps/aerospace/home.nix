@@ -100,18 +100,21 @@ in {
       alt-period = "resize smart +50"
 
       # Desktop-level dashboard switcher（両者 .desktopWindow レベルの opaque 全画面 window）。
-      # 両 agent は常時 keepalive 起動、SIGUSR1=show / SIGUSR2=hide を受けて即座に切替。
-      # 実装は modules/custom/desktop-switcher/。
-      #   alt-0       壁紙 = 両 dashboard を隠して macOS 壁紙を露出
-      #   alt-1       caldash 見せ、cp 隠す
-      #   alt-2       cp 見せ、caldash 隠す
-      #   alt-shift-1 caldash --reload（kickstart 込みで再起動）
-      #   alt-shift-2 cp --reload
+      # 両 agent は常時 keepalive 起動、SIGUSR1 で ~/.local/state/desktop-switch/cmd を
+      # 読んで per-screen dispatch。実装は modules/custom/desktop-switcher/。
+      #   alt-0       壁紙（active モニタのみ）
+      #   alt-shift-0 壁紙（全モニタ）
+      #   alt-1       caldash（active モニタのみ）
+      #   alt-2       cp（active モニタのみ）
+      #   alt-shift-1 caldash reload（kickstart、表示状態は state file で保持）
+      #   alt-shift-2 cp reload
+      # active モニタは aerospace list-monitors --focused から script が取得。
       alt-0       = "exec-and-forget ${config.home.homeDirectory}/bin/desktop-switch wallpaper"
+      alt-shift-0 = "exec-and-forget ${config.home.homeDirectory}/bin/desktop-switch wallpaper --all"
       alt-1       = "exec-and-forget ${config.home.homeDirectory}/bin/desktop-switch caldash"
       alt-2       = "exec-and-forget ${config.home.homeDirectory}/bin/desktop-switch cp"
-      alt-shift-1 = "exec-and-forget ${config.home.homeDirectory}/bin/desktop-switch caldash --reload"
-      alt-shift-2 = "exec-and-forget ${config.home.homeDirectory}/bin/desktop-switch cp --reload"
+      alt-shift-1 = "exec-and-forget ${config.home.homeDirectory}/bin/desktop-switch reload caldash"
+      alt-shift-2 = "exec-and-forget ${config.home.homeDirectory}/bin/desktop-switch reload cp"
 
       # Right Top Row, Layout switching
       alt-y = "flatten-workspace-tree"
