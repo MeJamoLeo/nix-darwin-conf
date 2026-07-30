@@ -7,6 +7,7 @@ macOS (aarch64-darwin) configuration using nix-darwin, home-manager, and nixvim.
 ```
 flake.nix            入力宣言＋配線＋外部公開 output のみ
 keys.nix             デバイス公開鍵台帳（◆ sshKeys として外部公開）
+Justfile             操作の入口（just darwin / fmt / gc …。引数なしの just で一覧）
 hosts/<name>.nix     機体 = 1台1ファイル。profile を import し、機体固有差分だけ書く
 profiles/<role>.nix  役割 = トピックの束（システム層＋ユーザー層の配線）
 modules/<kind>/<topic>/  1 関心事 = 1 ディレクトリ。<kind> は種別バケツ：
@@ -14,8 +15,8 @@ modules/<kind>/<topic>/  1 関心事 = 1 ディレクトリ。<kind> は種別�
                                 基盤・ユーザー・SSH・作業ディレクトリ規約）。機体の前提そのもの
                        apps   … 既製品の設定値（ghostty・git・tmux・nixvim…）。
                                 価値の中心は外部プロダクト、こちらは設定を書くだけ
-                       custom … 自作システム（cp・chrome-anjin・network-block）。
-                                価値の中心は自分のコード
+                       custom … 自作システム（cp・chrome-anjin・network-block・
+                                calendar-dashboard…）。価値の中心は自分のコード
                        domain … 生活ドメイン（latex・school/txst）。“何であるか”より
                                 “なぜあるか”で分類したいもの
                      ファイル名が適用層を宣言する：
@@ -72,7 +73,11 @@ flowchart LR
 
 ## Commands
 
+ホスト名は `scutil --get LocalHostName` から自動検出される（別機体向けにビルドするなら
+`just hostname=ogasawara darwin`）。
+
 ```bash
+just               # List all recipes
 just darwin        # Build and deploy configuration
 just darwin-debug  # Deploy with verbose output
 just fmt           # Format all .nix files
@@ -80,6 +85,7 @@ just up            # Update all flake inputs
 just upp <input>   # Update specific flake input
 just clean         # Remove generations older than 7 days
 just gc            # Garbage collect unused nix store entries
+just gcroot        # List auto gc roots in the nix store
 just history       # View system profile generations
 just repl          # Open Nix REPL
 ```

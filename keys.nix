@@ -6,7 +6,8 @@
 #   - 秘密鍵(.pub なし)は絶対にここへ入れない
 #
 # 消費側:
-#   - ogasawara: modules/remote-access.nix が import して authorizedKeys に選択
+#   - mac 3台: modules/base/remote-access/darwin.nix が import して authorizedKeys に選択
+#     (profile 経由で全機に入る。どの鍵を入れるかは同ファイルで名前列挙)
 #   - NixOS(x1nano): この flake の outputs.sshKeys 経由で参照(homeModules.tmux と同型)
 #
 # 純粋なデータなので darwin module にせずトップレベルに置く(どの OS からも import 可)。
