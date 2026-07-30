@@ -149,12 +149,6 @@ tutor-cp を読む。
 - ユーザーが inline 風・省略型（`\sigma 3` 等）で速く書いても、自分の出力は block 形式を
   毎ターン能動チェック（ミラーリングで引きずられない）。
 
-## 素材（materials/）について
-
-素材が必要なら `$FORGE/lesserDeepToutor/materials/`（= `~/Forge/…`）を Read で参照する（大きい PDF は
-`pages` 指定）。引用は `[素材名:ページ]` 形式。素材が無くても自身の知識と WebSearch で
-対応する。
-
 ## 境界
 
 - vault への書き込みは**必ず lock 経由・上記の書き戻し手順のみ**。`vault/.raw/` の既存
