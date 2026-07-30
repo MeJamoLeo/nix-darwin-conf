@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# desktop-switch — デスクトップ壁紙レイヤーを alt+N で切替する tiny dispatcher。
+#   layer: wallpaper（両 dashboard を隠して macOS 壁紙を露出） / caldash / cp
+#   --reload: 対象 dashboard を launchctl kickstart で再起動（データ更新込み）
+#
+# 動作原理:
+#   各 dashboard は SIGUSR1=show / SIGUSR2=hide を受けて window.orderFrontRegardless /
+#   orderOut を実行する（binary 側で DispatchSource で main-thread 安全にハンドル）。
+#   PID は launchctl の実行状態から取得（pgrep より launchd の label で確実に一意）。
+#
+# 呼び出し例（aerospace binding から）:
+#   desktop-switch wallpaper         # 両方隠す
+#   desktop-switch caldash           # caldash 見せ、cp 隠す
+#   desktop-switch cp --reload       # cp を再起動して見せ、caldash 隠す
+
+set -euo pipefail
+
+readonly LABEL_CALDASH="org.nix-community.home.com.treo.calendar-dashboard-live"
+readonly LABEL_CP="org.nix-community.home.com.treo.cp-dashboard-live"
+readonly STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/desktop-switch"
+readonly STATE_FILE="$STATE_DIR/current"
+
+layer="${1:-}"
+reload=0
+if [[ "${2:-}" == "--reload" ]]; then reload=1; fi
+
+case "$layer" in
+  wallpaper|caldash|cp) ;;
+  *) echo "usage: desktop-switch {wallpaper|caldash|cp} [--reload]" >&2; exit 2 ;;
+esac
+
+# label → PID（起動してない場合は空文字）
+pid_of() {
+  local label="$1"
+  /bin/launchctl list "$label" 2>/dev/null | awk '/"PID"/ {gsub(/[";,]/,""); print $NF}'
+}
+
+# label に SIGUSR1(show) or SIGUSR2(hide) を送る。PID 取れなければ黙って no-op。
+send() {
+  local label="$1" sig="$2" pid
+  pid="$(pid_of "$label")"
+  [[ -n "$pid" ]] && /bin/kill -"$sig" "$pid" 2>/dev/null || true
+}
+
+# --reload: 対象を kickstart（KeepAlive で自動復活、新 PID に signal 送る前に少し待つ）
+reload_label() {
+  local label="$1"
+  /bin/launchctl kickstart -k "gui/$(id -u)/$label" >/dev/null 2>&1 || true
+  # 起動完了と signal handler の設置を待つ。max 3s。
+  for _ in $(seq 1 30); do
+    [[ -n "$(pid_of "$label")" ]] && sleep 0.3 && return 0
+    sleep 0.1
+  done
+}
+
+# ターゲット別に show/hide を配線
+case "$layer" in
+  wallpaper)
+    send "$LABEL_CALDASH" USR2
+    send "$LABEL_CP"      USR2
+    ;;
+  caldash)
+    [[ "$reload" == 1 ]] && reload_label "$LABEL_CALDASH"
+    send "$LABEL_CALDASH" USR1
+    send "$LABEL_CP"      USR2
+    ;;
+  cp)
+    [[ "$reload" == 1 ]] && reload_label "$LABEL_CP"
+    send "$LABEL_CP"      USR1
+    send "$LABEL_CALDASH" USR2
+    ;;
+esac
+
+# state 永続化（aerospace mode indicator や外部ツールから参照可能に）
+mkdir -p "$STATE_DIR"
+echo "$layer" > "$STATE_FILE"

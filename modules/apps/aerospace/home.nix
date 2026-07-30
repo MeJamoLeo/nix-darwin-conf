@@ -99,11 +99,19 @@ in {
       alt-comma = "resize smart -50"
       alt-period = "resize smart +50"
 
-      # Desktop-level dashboard focus（両者 .desktopWindow レベルの opaque 全画面 window で z-order は
-      # "最後に生成された window が上"。kickstart -k で対象 agent を再起動＝新 window を最上位に敷く。
-      # 両 agent は常時 keepalive 起動を前提（bootout 中は kickstart が no-op に近い状態）。
-      alt-shift-1 = "exec-and-forget /bin/launchctl kickstart -k gui/$(id -u)/org.nix-community.home.com.treo.calendar-dashboard-live"
-      alt-shift-2 = "exec-and-forget /bin/launchctl kickstart -k gui/$(id -u)/org.nix-community.home.com.treo.cp-dashboard-live"
+      # Desktop-level dashboard switcher（両者 .desktopWindow レベルの opaque 全画面 window）。
+      # 両 agent は常時 keepalive 起動、SIGUSR1=show / SIGUSR2=hide を受けて即座に切替。
+      # 実装は modules/custom/desktop-switcher/。
+      #   alt-0       壁紙 = 両 dashboard を隠して macOS 壁紙を露出
+      #   alt-1       caldash 見せ、cp 隠す
+      #   alt-2       cp 見せ、caldash 隠す
+      #   alt-shift-1 caldash --reload（kickstart 込みで再起動）
+      #   alt-shift-2 cp --reload
+      alt-0       = "exec-and-forget ${config.home.homeDirectory}/bin/desktop-switch wallpaper"
+      alt-1       = "exec-and-forget ${config.home.homeDirectory}/bin/desktop-switch caldash"
+      alt-2       = "exec-and-forget ${config.home.homeDirectory}/bin/desktop-switch cp"
+      alt-shift-1 = "exec-and-forget ${config.home.homeDirectory}/bin/desktop-switch caldash --reload"
+      alt-shift-2 = "exec-and-forget ${config.home.homeDirectory}/bin/desktop-switch cp --reload"
 
       # Right Top Row, Layout switching
       alt-y = "flatten-workspace-tree"

@@ -4,6 +4,12 @@ let
   root = "${home}/calendar-dashboard";   # runtime working dir（mutable: out/ bin/ config）
 in
 {
+  # desktop-switcher は caldash と cp/dashboard の両方に依存する切替器。caldash 単独では
+  # 意味が無く、caldash が居なければ tiny script も要らない。関心事の物理的近接を優先して
+  # profile を経由せず caldash から import する（profile の未コミット diff との
+  # 衝突も避けられる）。詳細: modules/custom/desktop-switcher/home.nix 冒頭。
+  imports = [ ../desktop-switcher/home.nix ];
+
   # カレンダー・ダッシュボード常在アプリ（本体 Google カレンダー×4面をアイコン裏に敷く自作 Swift）。
   # 本体アプリを WKWebView×4 で"最上位"ロード（iframe でないので X-Frame-Options 回避）＝
   # ダーク・Day ビュー・比率自由・4面同時、を全部満たす唯一の道。設計・経緯は

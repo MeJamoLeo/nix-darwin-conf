@@ -11,6 +11,12 @@ final class LiveLayer: NSObject, NSApplicationDelegate {
     private var webViews: [WKWebView] = []
     private var lastMTime = Date.distantPast
 
+    // desktop-switch からの show/hide 信号ハンドラ。retain 必須。
+    // 生の signal(2) は async-signal-safe な API しか呼べず NSWindow は不可なので
+    // DispatchSource で main queue に配信して安全にウィンドウ操作する。
+    private var showSource: DispatchSourceSignal?
+    private var hideSource: DispatchSourceSignal?
+
     private let root = FileManager.default.homeDirectoryForCurrentUser
         .appendingPathComponent("cp-dashboard")
     private var htmlURL: URL { root.appendingPathComponent("web/draft-v1.html") }
@@ -52,6 +58,21 @@ final class LiveLayer: NSObject, NSApplicationDelegate {
         Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
             self?.pollInject()
         }
+        // desktop-switch: SIGUSR1=show（全モニタの window を orderFrontRegardless）
+        // / SIGUSR2=hide（全 window を orderOut）。生 signal(2) は default で終了なので
+        // 事前に SIG_IGN で無効化してから DispatchSource で main queue 配信する。
+        signal(SIGUSR1, SIG_IGN); signal(SIGUSR2, SIG_IGN)
+        showSource = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)
+        hideSource = DispatchSource.makeSignalSource(signal: SIGUSR2, queue: .main)
+        showSource?.setEventHandler { [weak self] in
+            self?.windows.forEach { $0.orderFrontRegardless() }
+            print("[cp-dash-live] SIGUSR1 → show \(self?.windows.count ?? 0) window(s)")
+        }
+        hideSource?.setEventHandler { [weak self] in
+            self?.windows.forEach { $0.orderOut(nil) }
+            print("[cp-dash-live] SIGUSR2 → hide \(self?.windows.count ?? 0) window(s)")
+        }
+        showSource?.resume(); hideSource?.resume()
         print("[cp-dash-live] up: \(windows.count) screen(s), watching \(injectURL.path)")
     }
 

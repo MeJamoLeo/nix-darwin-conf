@@ -165,6 +165,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
     var currentZoom: CGFloat = 0.75
     var currentWeekZoom: CGFloat = 0.5
 
+    // desktop-switch からの show/hide 信号ハンドラ（wallpaper mode 限定）。retain 必須。
+    // 生の signal(2) ハンドラは async-signal-safe な API しか呼べず NSWindow は使えないので
+    // DispatchSource で main queue に配信して安全にウィンドウ操作する。
+    var showSource: DispatchSourceSignal?
+    var hideSource: DispatchSourceSignal?
+
     // 式モードか（REFERENCE_WIDTH 指定時のみ）
     var formulaMode: Bool { REFERENCE_WIDTH != nil }
 
@@ -244,6 +250,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
             ) { [weak self] _ in
                 self?.reapplyForCurrentScreen()
             }
+            // desktop-switch: SIGUSR1=show / SIGUSR2=hide。生 signal(2) は default で
+            // 「終了」なので事前に SIG_IGN で無効化してから DispatchSource で main queue 配信。
+            signal(SIGUSR1, SIG_IGN); signal(SIGUSR2, SIG_IGN)
+            showSource = DispatchSource.makeSignalSource(signal: SIGUSR1, queue: .main)
+            hideSource = DispatchSource.makeSignalSource(signal: SIGUSR2, queue: .main)
+            showSource?.setEventHandler { [weak self] in
+                self?.window?.orderFrontRegardless()
+                print("[caldash] SIGUSR1 → show")
+            }
+            hideSource?.setEventHandler { [weak self] in
+                self?.window?.orderOut(nil)
+                print("[caldash] SIGUSR2 → hide")
+            }
+            showSource?.resume(); hideSource?.resume()
         } else {
             let frame = NSRect(x: 0, y: 0, width: 1800, height: 1050)
             window = NSWindow(contentRect: frame,
@@ -320,7 +340,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
     func webView(_ w: WKWebView, didFailProvisionalNavigation n: WKNavigation!, withError e: Error) {
         print("[caldash] FAIL: \(e.localizedDescription)")
     }
-    func applicationShouldTerminateAfterLastWindowClosed(_ s: NSApplication) -> Bool { true }
+    // desktop-switch の SIGUSR2 で window を orderOut するとここが呼ばれて終了→launchd 再起動
+    // ループに入るため、wallpaper mode では false を返して常駐継続。interactive では終了して OK。
+    func applicationShouldTerminateAfterLastWindowClosed(_ s: NSApplication) -> Bool { !WALLPAPER }
 }
 
 setvbuf(stdout, nil, _IONBF, 0)
