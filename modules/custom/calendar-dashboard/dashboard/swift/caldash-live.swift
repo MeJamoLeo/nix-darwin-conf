@@ -203,13 +203,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         // オフ）を後付けできる。interactive では UI 温存でログイン導線を確保。
         if WALLPAPER {
             let css = HIDE_CHROME_CSS + "\n" + extraCSS
+            // MutationObserver で document.head を監視、style 要素が消えたら即再注入。
+            // 日次 reanchor での URL 再読込では atDocumentEnd で毎回再発火するので、
+            // ここで確保するのは「同一ページ内で Google が SPA 的に head を弄っても
+            // CSS を失わない」保険。observer が万一漏らしても setInterval で数秒後に復旧。
             let js = """
             (() => {
-              if (document.getElementById('caldash-hide-chrome')) return;
-              const s = document.createElement('style');
-              s.id = 'caldash-hide-chrome';
-              s.textContent = `\(css)`;
-              (document.head || document.documentElement).appendChild(s);
+              const CSS = `\(css)`;
+              const inject = () => {
+                if (document.getElementById('caldash-hide-chrome')) return;
+                const s = document.createElement('style');
+                s.id = 'caldash-hide-chrome';
+                s.textContent = CSS;
+                (document.head || document.documentElement).appendChild(s);
+              };
+              inject();
+              // head の childList 変化を監視。head 自体が置換されたら subtree で拾えないので
+              // documentElement を root にして childList を見る（head/body 置換にも耐える）。
+              new MutationObserver(inject).observe(document.documentElement, { childList: true, subtree: false });
+              new MutationObserver(inject).observe(document.head || document.documentElement, { childList: true });
+              // 保険: 3 秒毎に生存チェック（observer が漏らしても最大 3 秒で復旧）。
+              setInterval(inject, 3000);
             })();
             """
             let script = WKUserScript(source: js, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
@@ -279,14 +293,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         grid.layer?.backgroundColor = NSColor.black.cgColor
         grid.autoresizingMask = [.width, .height]
         let zooms: [CGFloat] = [zoom, zoom, weekZoom, weekZoom]  // 今月/来月/今週/来週
-        // 来週 (index 3) は時間ラベル gutter を非表示（今週 pane と冗長なため）。
-        // .R6TFwe = 縦の hour 列（Texas/Japan の 2 timezone 分）。これだけ hide、
-        // 上部の Texas/Japan ヘッダ帯 (.sS0sZd) は温存して中央 pane と縦位置を揃える
-        // （.sS0sZd も消すと header 帯 100px 分が上に詰まって中央 pane とズレる）。
+        // 来週 (index 3) は時間ラベル gutter を完全に消去し、day headers も events grid
+        // 本体も左端に寄せる。GCal 週ビュー DOM (2026-07-30 時点):
+        //   .UqLcs  = 上部 Texas/Japan チップコンテナ（.sS0sZd + .kL3bhb 内包）
+        //   .FDbe8b = day headers / all-day 行の左端 spacer（時間 gutter 幅を予約）
+        //   .EDDeke = events grid 行の左端 spacer
+        //   .lqYlwe = hour 列コンテナ（.R6TFwe 内包）。JS が 96px 固定 width を設定するので
+        //             R6TFwe だけ hide しても 96px 残る → 親ごと display:none で潰す。
+        //             .lqYlwe と .mDPmMe（events grid）は .uEzZIb の flex sibling なので
+        //             .lqYlwe を消せば .mDPmMe が全幅（96px 分左へ）に広がる。
         // NOTE: Google の class 名はハッシュで release 毎に変わる可能性あり（fragile）。
-        // 壊れたら DOM 再インスペクトして selector 更新（2026-07-30 時点で確認）。
+        //       壊れたら wallpaper mode で isInspectable=true にして再インスペクト。
         let extraCSSs: [String] = ["", "", "",
-            ".R6TFwe { display: none !important; }"]
+            ".lqYlwe, .UqLcs, .FDbe8b, .EDDeke { display: none !important; }"]
         let urls = paneURLs()
         let paneWebs = urls.indices.map { i in
             makeWeb(urls[i], zoom: zooms[i], extraCSS: extraCSSs[i])
