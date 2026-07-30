@@ -1,6 +1,6 @@
 {
   "gap": 6,
-  "baseMonthZoom": 1.0,
+  "baseMonthZoom": 0.9,
   "baseWeekZoom": 1.0,
   "referenceWidth": 2560,
   "account": 0,
