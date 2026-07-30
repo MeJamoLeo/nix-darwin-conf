@@ -10,8 +10,8 @@ keys.nix             デバイス公開鍵台帳（◆ sshKeys として外部�
 hosts/<name>.nix     機体 = 1台1ファイル。profile を import し、機体固有差分だけ書く
 profiles/<role>.nix  役割 = トピックの束（システム層＋ユーザー層の配線）
 modules/<kind>/<topic>/  1 関心事 = 1 ディレクトリ。<kind> は種別バケツ：
-                       base   … この機体の土台インフラ（nix 本体・macOS 既定・
-                                homebrew 基盤・ユーザー・SSH）。機体の前提そのもの
+                       base   … この機体の土台インフラ（nix 本体・macOS 既定・homebrew
+                                基盤・ユーザー・SSH・作業ディレクトリ規約）。機体の前提そのもの
                        apps   … 既製品の設定値（ghostty・git・tmux・nixvim…）。
                                 価値の中心は外部プロダクト、こちらは設定を書くだけ
                        custom … 自作システム（cp・chrome-anjin・network-block）。
@@ -41,12 +41,13 @@ graph TD
     tanegashima --> profile
     dejima --> profile
 
-    profile --> base["modules/base/<br/>nix-core / macos-defaults /<br/>homebrew-base / host-users / remote-access"]
-    profile --> apps["modules/apps/<br/>shell / core-packages / git / tmux / nixvim /<br/>starship / ghostty / zed / herdr / claude /<br/>aerospace / handy"]
-    profile --> custom["modules/custom/<br/>cp/tools / cp/dashboard / cp/snippets /<br/>chrome-anjin / network-block"]
+    profile --> base["modules/base/<br/>nix-core / macos-defaults / homebrew-base /<br/>host-users / remote-access / forge"]
+    profile --> apps["modules/apps/<br/>shell / core-packages / git / tmux / nixvim /<br/>starship / ghostty / zed / herdr / claude /<br/>aerospace / handy / file-defaults"]
+    profile --> custom["modules/custom/<br/>cp/tools / cp/dashboard / chrome-anjin /<br/>network-block / calendar-dashboard<br/>(→ desktop-switcher を連れてくる)"]
     profile --> domain["modules/domain/<br/>latex / school/txst"]
 
     flake -. "◆ homeModules.tmux<br/>(nixos-cp が消費)" .-> tmux["modules/apps/tmux/home.nix"]
+    flake -. "◆ homeModules.forge<br/>(x1nano が消費)" .-> forge["modules/base/forge/home.nix"]
     flake -. "◆ sshKeys<br/>(x1nano が消費)" .-> keys["keys.nix"]
 ```
 

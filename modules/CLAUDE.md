@@ -9,9 +9,9 @@
 
 | kind | 一言でいうと | 判定の軸 | 住人の例 |
 |---|---|---|---|
-| **base** | この機体の土台インフラ | これが無いと「私の mac」が成立しない前提そのものか | nix-core / macos-defaults / homebrew-base / host-users / remote-access |
-| **apps** | 既製品の設定値 | 価値の中心が**外部プロダクト**で、ここは設定を書くだけか | shell / core-packages / git / tmux / nixvim / starship / ghostty / zed / herdr / claude / aerospace / handy |
-| **custom** | 自作システム | 価値の中心が**自分のコード**か（設定ではなく実装がある） | cp / chrome-anjin / network-block |
+| **base** | この機体の土台インフラ | これが無いと「私の mac」が成立しない前提そのものか | nix-core / macos-defaults / homebrew-base / host-users / remote-access / forge |
+| **apps** | 既製品の設定値 | 価値の中心が**外部プロダクト**で、ここは設定を書くだけか | shell / core-packages / git / tmux / nixvim / starship / ghostty / zed / herdr / claude / aerospace / handy / file-defaults |
+| **custom** | 自作システム | 価値の中心が**自分のコード**か（設定ではなく実装がある） | cp / chrome-anjin / network-block / calendar-dashboard / desktop-switcher |
 | **domain** | 生活ドメイン | 「何であるか」より「**なぜあるか**（どの生活領域のためか）」で括りたいか | latex / school/txst |
 
 ## 決定手順（上から順に、最初に当たったものを採る）
@@ -66,7 +66,9 @@
 
 - `flake.nix` の `homeModules.tmux = import ./modules/apps/tmux/home.nix;`（◆ nixos-cp が消費。
   **output 名は変えない**、import パスだけ追従）。
+- `flake.nix` の `homeModules.forge = import ./modules/base/forge/home.nix;`（◆ x1nano が消費。
+  同上）。
 - `modules/apps/nixvim/home.nix` の out-of-store symlink 先 `.../modules/custom/cp/snippets`
-  （絶対パス。cp を動かしたらここも直す）。
+  （`my.forgeDir` 起点の絶対パス。cp を動かしたらここも直す）。
 - `modules/base/remote-access/darwin.nix` の `import ../../../keys.nix`（バケツで1階層深いので
   `../` が3つ。トピックの階層が変わったら数え直す）。
