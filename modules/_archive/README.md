@@ -14,3 +14,10 @@
   次の学期が無事始まったら削除してよい。新学期は modules/courses/<code>/ を足すだけ。
 - **wezterm/** — Ghostty + herdr へ移行（2026-07）に伴い退役 2026-07-16。
   Ghostty 運用が安定したら削除してよい。
+- **neru/** — 常用しなかったため退役 2026-07-29。
+  復帰手順：`git mv modules/_archive/neru modules/apps/neru` → profile の
+  `home-manager.users.<name>.imports` に `../modules/apps/neru/home.nix` と
+  `neru.homeManagerModules.default` を戻し、関数引数に `neru,` を戻す。
+  flake input `neru` と overlay `inputs.neru.overlays.default` は残してあるので
+  再導入時に追加で触る必要はない。config には `"Cmd+Shift+C" = "__disabled__"` を
+  焼き込んであるので、デフォルトの Cmd+Shift+C（recursive_grid）に占領されない。

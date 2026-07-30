@@ -15,6 +15,7 @@
       "Cmd+Shift+Space" = "hints"
       "Cmd+Shift+G" = "grid"
       "Cmd+Shift+S" = "scroll"
+      "Cmd+Shift+C" = "__disabled__"
 
       [hints]
       enabled = true

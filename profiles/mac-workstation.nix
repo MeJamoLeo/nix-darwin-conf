@@ -1,7 +1,6 @@
 {
   username,
   nixvim,
-  neru,
   ...
 }: {
   ##########################################################################
@@ -47,7 +46,6 @@
       ../modules/apps/claude/home.nix
       ../modules/apps/aerospace/home.nix
       ../modules/apps/handy/home.nix
-      ../modules/apps/neru/home.nix
       ../modules/apps/file-defaults/home.nix # IINA/Skim/Zed 関連付け + noTunes
 
       # custom — 自作システム
@@ -60,7 +58,6 @@
       ../modules/domain/school/txst/home.nix
       # 外部 flake 供給の HM モジュール
       ((nixvim.homeModules or nixvim.homeManagerModules).nixvim)
-      neru.homeManagerModules.default
     ];
 
     home = {

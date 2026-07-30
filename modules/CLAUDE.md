@@ -10,7 +10,7 @@
 | kind | 一言でいうと | 判定の軸 | 住人の例 |
 |---|---|---|---|
 | **base** | この機体の土台インフラ | これが無いと「私の mac」が成立しない前提そのものか | nix-core / macos-defaults / homebrew-base / host-users / remote-access |
-| **apps** | 既製品の設定値 | 価値の中心が**外部プロダクト**で、ここは設定を書くだけか | shell / core-packages / git / tmux / nixvim / starship / ghostty / zed / herdr / claude / aerospace / handy / neru |
+| **apps** | 既製品の設定値 | 価値の中心が**外部プロダクト**で、ここは設定を書くだけか | shell / core-packages / git / tmux / nixvim / starship / ghostty / zed / herdr / claude / aerospace / handy |
 | **custom** | 自作システム | 価値の中心が**自分のコード**か（設定ではなく実装がある） | cp / chrome-anjin / network-block |
 | **domain** | 生活ドメイン | 「何であるか」より「**なぜあるか**（どの生活領域のためか）」で括りたいか | latex / school/txst |
 

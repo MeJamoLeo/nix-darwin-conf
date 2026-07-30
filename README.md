@@ -42,7 +42,7 @@ graph TD
     dejima --> profile
 
     profile --> base["modules/base/<br/>nix-core / macos-defaults /<br/>homebrew-base / host-users / remote-access"]
-    profile --> apps["modules/apps/<br/>shell / core-packages / git / tmux / nixvim /<br/>starship / ghostty / zed / herdr / claude /<br/>aerospace / handy / neru"]
+    profile --> apps["modules/apps/<br/>shell / core-packages / git / tmux / nixvim /<br/>starship / ghostty / zed / herdr / claude /<br/>aerospace / handy"]
     profile --> custom["modules/custom/<br/>cp/tools / cp/dashboard / cp/snippets /<br/>chrome-anjin / network-block"]
     profile --> domain["modules/domain/<br/>latex / school/txst"]
 
