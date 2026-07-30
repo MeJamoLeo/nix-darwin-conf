@@ -48,7 +48,10 @@ final class LiveLayer: NSObject, NSApplicationDelegate {
             return
         }
         for screen in NSScreen.screens {
-            let win = NSWindow(contentRect: screen.frame, styleMask: .borderless,
+            // visibleFrame は menu bar と dock を除外。壁紙 level でも透過越しに menu bar
+            // 下に潜り込むとメニュー文字が読みにくくなる（透過運用で顕在化）。
+            let area = screen.visibleFrame
+            let win = NSWindow(contentRect: area, styleMask: .borderless,
                                backing: .buffered, defer: false)
             win.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)))
             win.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
@@ -61,7 +64,7 @@ final class LiveLayer: NSObject, NSApplicationDelegate {
             // isOpaque=false にしないと合成が壊れる。
             win.isOpaque = (BG_OPACITY >= 1.0)
             win.alphaValue = BG_OPACITY
-            win.setFrame(screen.frame, display: true)
+            win.setFrame(area, display: true)
 
             // 盤面は 16:9 前提でチューニング済み。window(=画面)に対し縦横比 16:9 を保った
             // 最大矩形を中央に置き、余りは window 背景色で埋める（比率が違っても崩れない）。

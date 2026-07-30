@@ -285,10 +285,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
     // の全再構築パスで再利用される）。
     private func setupWallpaperWindows() {
         for (i, screen) in NSScreen.screens.enumerated() {
+            // visibleFrame は menu bar と dock を除外した領域。壁紙 level の window でも
+            // menu bar の下に潜り込むと透過越しに calendar が menu bar に混じって
+            // メニュー文字が読みにくくなる（透過運用で顕在化）。ここで避ける。
+            let area = screen.visibleFrame
             let (zoom, weekZoom) = computeEffectiveZooms(for: screen)
-            let (grid, paneWebs) = makeGrid(screenFrame: NSRect(origin: .zero, size: screen.frame.size),
+            let (grid, paneWebs) = makeGrid(screenFrame: NSRect(origin: .zero, size: area.size),
                                             zoom: zoom, weekZoom: weekZoom)
-            let w = NSWindow(contentRect: screen.frame, styleMask: .borderless,
+            let w = NSWindow(contentRect: area, styleMask: .borderless,
                              backing: .buffered, defer: false)
             w.level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.desktopWindow)))
             w.collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
@@ -301,12 +305,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
             w.isOpaque = (BG_OPACITY >= 1.0)
             w.alphaValue = BG_OPACITY
             w.contentView = grid
-            w.setFrame(screen.frame, display: true)
+            w.setFrame(area, display: true)
             w.orderFrontRegardless()
             windows.append(w)
             grids.append(grid)
             webs.append(paneWebs)
-            print("[caldash] wallpaper screen[\(i)] \(screen.frame.size) zoom=\(zoom)/\(weekZoom)")
+            print("[caldash] wallpaper screen[\(i)] visible=\(area.size) zoom=\(zoom)/\(weekZoom)")
         }
     }
 
@@ -347,7 +351,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         }
         for (i, w) in windows.enumerated() {
             guard let screen = w.screen ?? (i < screens.count ? screens[i] : nil) else { continue }
-            if w.frame != screen.frame { w.setFrame(screen.frame, display: true) }
+            let area = screen.visibleFrame
+            if w.frame != area { w.setFrame(area, display: true) }
             guard formulaMode, i < webs.count else { continue }
             let (nz, nwz) = computeEffectiveZooms(for: screen)
             let zooms: [CGFloat] = [nz, nwz, nwz, nz, nz]
