@@ -68,7 +68,8 @@ gc:
 [group('nix')]
 fmt:
   # format the nix files in this repo
-  nix fmt
+  # パス省略だと alejandra が stdin を読みに行って失敗するので `.` を明示する
+  nix fmt .
 
 # Show all the auto gc roots in the nix store
 [group('nix')]
