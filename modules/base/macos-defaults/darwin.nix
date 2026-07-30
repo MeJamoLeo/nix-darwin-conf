@@ -82,6 +82,12 @@
         FXDefaultSearchScope = "SCcf"; # 検索は現在のフォルダ内を既定に
       };
 
+      # NOTE(2026-07-30): 元は `.com.apple.spaces` に置かれていたが dead 宣言だった。
+      # nix-darwin ネイティブ system.defaults.spaces に移設。
+      spaces = {
+        spans-displays = false; # ディスプレイごとに別 Space（logout 要）
+      };
+
       # customize trackpad
       trackpad = {
         Clicking = true; # enable tap to click
@@ -230,9 +236,6 @@
           # 等も同じ理由で dead の可能性が高いが、動作差分が出るため今回は disk 問題の
           # スコープ外とし別コミットで整理する（TODO）。
 
-          spaces = {
-            "spans-displays" = 0; # Display have seperate spaces
-          };
 
           WindowManager = {
             EnableStandardClickToShowDesktop = 0; # Click wallpaper to reveal desktop
