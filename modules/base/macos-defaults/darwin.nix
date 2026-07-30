@@ -88,6 +88,15 @@
         spans-displays = false; # ディスプレイごとに別 Space（logout 要）
       };
 
+      # NOTE(2026-07-30): 元は `.com.apple.screencapture` に置かれていたが dead 宣言。
+      # nix-darwin ネイティブ system.defaults.screencapture に移設。
+      # 副作用: スクショ保存先が ~/Desktop → ~/Downloads/screenshots に変化。
+      # 保存先ディレクトリは home-manager が `.keep` で確保済み。
+      screencapture = {
+        location = "~/Downloads/screenshots";
+        type = "png";
+      };
+
       # customize trackpad
       trackpad = {
         Clicking = true; # enable tap to click
@@ -263,10 +272,6 @@
 
 
 
-          screencapture = {
-            location = "~/Downloads/screenshots"; # スクショは Downloads/screenshots へ集約
-            type = "png";
-          };
 
           # メモ: ブラウザ別のダウンロード先仕分けは一度宣言して撤回した (2026-07-04)。
           # 「どのブラウザで落としたか」は検索時に思い出さない軸で、整理は
