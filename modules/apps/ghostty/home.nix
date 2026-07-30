@@ -21,18 +21,15 @@
       # （0.1 等の小数は invalid value を実機確認済み。旧名 background-blur-radius は廃止）
       background-blur = 0;
       macos-titlebar-style = "hidden";
-      # カーソルシェーダ（sahaj-b/ghostty-cursor-shaders・MIT）。custom-shader は
-      # 繰り返し可能キー = リストで複数指定でき、store の絶対パスを取れる（相対だと
-      # config ディレクトリ基準になり ~/.config/ghostty/shaders への実体配置が要る）。
-      # trail 系（warp/sweep/tail）から1つ＋任意で boom 系を足す運用。差し替えは下の
-      # ファイル名を変えるだけ。全一覧: cursor_warp / cursor_sweep / cursor_tail /
-      # sonic_boom_cursor / ripple_cursor / rectangle_boom_cursor / ripple_rectangle_cursor。
-      custom-shader = [
-        "${ghostty-cursor-shaders}/cursor_warp.glsl"
-      ];
-      # unfocus 時に line カーソルのエフェクトが凍るのを防ぐ（always は非フォーカス中も
-      # 描画継続＝GPU/バッテリーを食う。凍結が気にならなければこの行を消す）。
-      custom-shader-animation = "always";
+      # カーソルシェーダは無効化（背景透過は残したいので opacity 0.9 は死守、shader を切る）。
+      # 実測：cursor_warp.glsl + custom-shader-animation の合わせ技で WindowServer が
+      # 21%＋常時貼り付きだった（Ghostty プロセス kill で -21ポイント）。opacity 経由の
+      # 背景合成コストが caldash --wallpaper と組み合わさって重かった説濃厚。
+      # cursor エフェクトが恋しくなったら custom-shader を1本だけ足して測定し直す。
+      # 全一覧: cursor_warp / cursor_sweep / cursor_tail /
+      # sonic_boom_cursor / ripple_cursor / rectangle_boom_cursor / ripple_rectangle_cursor
+      # （sahaj-b/ghostty-cursor-shaders・MIT）。
+      custom-shader = [];
       keybind = [
         "super+d=new_split:right"
         "super+shift+d=new_split:down"
