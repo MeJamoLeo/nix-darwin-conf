@@ -49,7 +49,14 @@
       # Browsers
       "google-chrome" # Web browser
       "brave-browser" # Privacy-focused web browser
-      "zen" # Firefox-based privacy browser (install Vimium-FF manually from addons.mozilla.org)
+      # Firefox 系だが brew 版＝署名済み .app なので policies.json を置けず、拡張を宣言的に
+      # 入れられない（Zen は macOS の Managed Preferences も読まない: zen-browser/desktop#12363）。
+      # nix に固定する道はあるが日常ブラウザの自動更新が死ぬので採らない（2026-08-03 判断）。
+      # 新端末では AMO から手で入れる:
+      #   uBlock Origin / Vimium / Video Speed Controller / Unhook / Tampermonkey /
+      #   Obsidian Web Clipper
+      # ⚠ 広告ブロッカーは uBO に固定。AdGuard と併用するとフィルタが二重適用される。
+      "zen"
 
       # Development
       "visual-studio-code" # Code editor
