@@ -24,6 +24,7 @@
     ../modules/base/host-users/darwin.nix
     ../modules/base/remote-access/darwin.nix
     ../modules/custom/network-block/darwin.nix
+    ../modules/custom/youtube-gate/darwin.nix
     ../modules/domain/latex/darwin.nix
     ../modules/domain/school/txst/darwin.nix
   ];
@@ -50,6 +51,7 @@
 
       # custom — 自作システム
       ../modules/custom/chrome-anjin/home.nix
+      ../modules/custom/youtube-gate/home.nix
       ../modules/custom/cp/tools/home.nix
       ../modules/custom/cp/dashboard/home.nix
       ../modules/custom/calendar-dashboard/home.nix

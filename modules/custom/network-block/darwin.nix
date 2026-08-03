@@ -9,12 +9,8 @@
 let
   # Domains routed to 0.0.0.0 / :: via /etc/hosts.
   blockedDomains = [
-    # 一時解除中（yt-dlp でレシピ動画の字幕取得のため）— 済んだら戻す
-    # "youtube.com"
-    # "www.youtube.com"
-    # "m.youtube.com"
-    # "youtu.be"
-    # "music.youtube.com"
+    # YouTube は custom/youtube-gate（システム全体プロキシ）へ移管。ここには戻さない
+    #   — hosts は全プロセスに効くため yt-dlp まで巻き添えで死ぬ。
     "luna.amazon.com"
   ];
 
