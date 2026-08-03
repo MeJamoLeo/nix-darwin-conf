@@ -16,12 +16,12 @@
       font-size = 13;
       # theme 未指定 = Ghostty デフォルト配色。戻すなら例: theme = "Catppuccin Latte"
       # （組み込み一覧は `ghostty +list-themes`）
-      background-opacity = 0.9;
+      background-opacity = 0.75;
       # blur はオフ（0 = 無効を明示）。有効化するなら 1 以上の整数
       # （0.1 等の小数は invalid value を実機確認済み。旧名 background-blur-radius は廃止）
       background-blur = 0;
       macos-titlebar-style = "hidden";
-      # カーソルシェーダは無効化（背景透過は残したいので opacity 0.9 は死守、shader を切る）。
+      # カーソルシェーダは無効化（背景透過は残したいので background-opacity は死守、shader を切る）。
       # 実測：cursor_warp.glsl + custom-shader-animation の合わせ技で WindowServer が
       # 21%＋常時貼り付きだった（Ghostty プロセス kill で -21ポイント）。opacity 経由の
       # 背景合成コストが caldash --wallpaper と組み合わさって重かった説濃厚。
