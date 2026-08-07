@@ -56,6 +56,16 @@ in {
         # GUI 側の値は既に true だったが nix 未宣言のドリフトだったのでここに固定する
         # （autostart_enabled は Handy 自身が書き換えるので宣言しない＝ログイン常駐は GUI 側の意思に従う）。
         start_hidden = true;
+        # 値は表示名 "Whisper Turbo" ではなく registry の id。GUI で選んだ結果が入るキーなので
+        # 宣言しないと端末ごとにドリフトする。
+        # 日英を selected_language="auto" で使い分ける前提で turbo に固定する。
+        # cohere-int8 は不採用（2026-08-03 実測）：Handy の accuracy_score は 0.90 で最高だが
+        # あれも Open ASR Leaderboard = 英語専用の指標。日本語発話を auto 判定が英語と誤認して
+        # 英語の定型句を幻覚する事故が 5件中2件で発生した（"Just say no使い勝手も調べて" 等）。
+        # 日本語特化の独立ベンチでも言語明示で CER 0.297 vs turbo 0.184 と負ける。
+        # モデル実体は Handy が実行時に落とす。sha256 は upstream registry にあるので fetchurl 化も
+        # 可能だが、store と Application Support で二重持ちになるので宣言しない＝実体は GUI 側の管理。
+        selected_model = "turbo";
         bindings = {
           transcribe = {
             id = "transcribe";
