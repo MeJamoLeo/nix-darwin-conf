@@ -1,8 +1,11 @@
 {
   lib,
   pkgs,
+  hunk,
   ...
 }: let
+  hunkPkg = hunk.packages.${pkgs.stdenv.hostPlatform.system}.hunk;
+
   # Self-authored Claude Code skills live in ./skills/<name>/.
   # Drop a new skill directory there and it is symlinked into
   # ~/.claude/skills/<name> automatically — no need to list it here.
@@ -42,6 +45,10 @@ in {
         executable = true;
         force = true; # rebuild 前に手動配置した同名ファイルを上書きしてよい
       };
+
+      # hunk 同梱の review skill（`hunk skill path` の中身）。自作 skill と違い
+      # パッケージから直接 link し、バイナリと skill のバージョンを常に一致させる
+      ".claude/skills/hunk-review".source = "${hunkPkg}/skills/hunk-review";
     }
     // builtins.listToAttrs (map (name: {
         name = ".claude/skills/${name}";
