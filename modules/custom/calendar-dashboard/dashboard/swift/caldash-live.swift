@@ -57,6 +57,20 @@ html, body { overflow: hidden !important; margin: 0 !important; padding: 0 !impo
 }
 """
 
+// 週ペイン限定: イベントブロックの文字だけ縮小して1イベントあたりの情報量を上げる
+// （pane zoom と違いグリッドの高さは変えないので、週ペインの下に黒帯が出ない）。
+// data-eventid はイベント要素の安定属性。実効サイズは週ペインの pageZoom が掛かるので、
+// config の weekZoom（式モードなら baseWeekZoom）に応じて見え方が変わる。
+// 月ペインには当てない: 月ビューのチップは GCal の JS がフォント計測込みで絶対配置する
+// ため、CSS でフォントだけ縮めると複数日バーと通常チップの文字が重なる（2026-08-07
+// スクショ実測）。週ビューは時間ベース配置なので安全。
+let WEEK_EVENT_FONT_CSS = """
+[data-eventid], [data-eventid] span {
+  font-size: 10px !important;
+  line-height: 1.2 !important;
+}
+"""
+
 // ---- 設定（既定値。config で上書き）----
 var ACCOUNT = 0
 var TZ_ID   = "America/Chicago"
@@ -136,18 +150,171 @@ func nextWeekYMD() -> (Int, Int, Int) {
     let c = cal().dateComponents([.year, .month, .day], from: d)
     return (c.year!, c.month!, c.day!)
 }
+func thisMonthYM() -> (Int, Int) {
+    let c = cal().dateComponents([.year, .month], from: Date())
+    return (c.year!, c.month!)
+}
 // 4 pane（GridView.layout の panes[0..3] と順序を揃える）:
 //   [0] 今月 (左上) / [1] 来月 (左下) / [2] 今週 (中央) / [3] 来週 (右)
+// 今月も明示日付 URL にする（素の /month と同じ表示。境界週デデュープ JS が
+// URL から対象月を読むため必須。日次 reanchor で当日基準に再計算される）。
 func paneURLs() -> [String] {
     let base = "https://calendar.google.com/calendar/u/\(ACCOUNT)/r"
+    let (ty, tm) = thisMonthYM()
     let (ny, nm) = nextMonthYM()
     let (wy, wm, wd) = nextWeekYMD()
     return [
-        "\(base)/month",                   // 今月
+        "\(base)/month/\(ty)/\(tm)/1",     // 今月
         "\(base)/month/\(ny)/\(nm)/1",     // 来月
         "\(base)/week",                    // 今週
         "\(base)/week/\(wy)/\(wm)/\(wd)"   // 来週
     ]
+}
+
+// 月ペインの pane 固有 JS（wallpaper 専用）。2つの仕事をする：
+//
+// ①境界週デデュープ。GCal 月ビューは常に完全週で描画するため、月境界が週の途中だと
+//   境界週（例: 8/31–9/6）が今月ペイン最下段と来月ペイン最上段の両方に出る。
+//   **週行数が多い方のペイン**から境界週を隠し、両ペインの行数（＝1週の縦幅）を
+//   揃える（同数のときは来月側を隠す＝今月を完全に保つ）。月初が週初めの月は
+//   重複自体が無いので何もしない。
+// ②today 強調。GCal の today marker class（.F262Ye）は週ビューの gridcell にしか
+//   付かない（月ビューの today セルには付かない。2026-08-07 スクショ実測）ため、
+//   CSS では当てられず、日付演算で today セルを特定して塗る。月ビューの gridcell は
+//   イベント欄のみで日付数字の帯をカバーしない（同日実測）ので、行に背面オーバーレイ
+//   （行の全高 × セルの列幅）を敷いて週ビューの today 列と同色 rgba(66,133,244,.15) で
+//   塗る＝週/月でトーンが揃う。デデュープで today の週が今月ペインから隠れている日は、
+//   来月ペイン側の境界週（行0）で同じ強調が光る。
+//
+// 週開始曜日・行数は DOM と Date から自己推論するので config（週開始設定）に
+// 非依存・毎月自動適応。Swift から渡すのはペインの役割（current/next）だけ。
+// class ハッシュに依存せず role（row/gridcell）だけで当てる。日番号は h2 の
+// 「N日」表記（日本語 locale の月初セル「9月1日」）を優先し、無ければ末尾の数値。
+func monthPaneJS(role: String) -> String {
+    return #"""
+    (() => {
+      const ROLE = '\#(role)';   // 'current' | 'next'
+
+      //---- DOM 読み取り -------------------------------------------------
+
+      // セルの日番号。「N日」（日本語 locale の月初セル）優先、無ければ末尾の数値
+      const dayNum = c => {
+        if (!c) return NaN;
+        const t = (c.querySelector('h2') || c).textContent || '';
+        const jp = t.match(/(\d+)日/);
+        if (jp) return +jp[1];
+        const all = t.match(/\d+/g);
+        return all ? +all[all.length - 1] : NaN;
+      };
+
+      // URL からペインの対象月を読む（/month/YYYY/M/D。paneURLs が明示日付で組む前提）
+      const paneMonth = () => {
+        const m = location.pathname.match(/\/month\/(\d+)\/(\d+)/);
+        return m ? { y: +m[1], mon: +m[2] } : null;
+      };
+
+      // 月グリッドの週行を収集。親要素ごとにグループ化し最大グループを本体とみなす
+      // （ビュー遷移アニメで旧ビューの grid が DOM に残る場合への防御）。
+      const weekRows = () => {
+        const cells = [...document.querySelectorAll("[role='main'] [role='gridcell']")];
+        const groups = new Map();
+        for (const c of cells) {
+          const r = c.closest("[role='row']");
+          if (!r || !r.parentElement) continue;
+          if (!groups.has(r.parentElement)) groups.set(r.parentElement, new Set());
+          groups.get(r.parentElement).add(r);
+        }
+        let rows = [];
+        for (const g of groups.values()) {
+          const arr = [...g].filter(r => r.getBoundingClientRect().width > 0 || r.style.display === 'none');
+          if (arr.length > rows.length) rows = arr;
+        }
+        return rows.length >= 4 ? rows : null;
+      };
+
+      //---- 暦の演算 -----------------------------------------------------
+      // 全材料を ctx にまとめる。組み立てられなければ null（→その回は no-op）。
+      // ctx = { rows, cy, cm, ny, nm, dup, offsetOf, rowsOf }
+      //   cy/cm = ペアの「今月」・ny/nm = ペアの「来月」（自ペインの role から復元）
+      const buildContext = () => {
+        const pane = paneMonth();
+        const rows = pane && weekRows();
+        if (!rows) return null;
+        // 2行目の先頭セルは必ず当月内（day 2..8）→ そこから列0の曜日を逆算
+        const k = dayNum(rows[1].querySelector("[role='gridcell']"));
+        if (!k || isNaN(k)) return null;
+        const col0Dow = new Date(pane.y, pane.mon - 1, k).getDay();
+        const daysIn = (yy, mm) => new Date(yy, mm, 0).getDate();
+        const offsetOf = (yy, mm) => ((new Date(yy, mm - 1, 1).getDay() - col0Dow) + 7) % 7;
+        const rowsOf = (yy, mm) => Math.ceil((offsetOf(yy, mm) + daysIn(yy, mm)) / 7);
+        let cy = pane.y, cm = pane.mon;
+        if (ROLE === 'next') { cm--; if (cm < 1) { cm = 12; cy--; } }
+        let ny = cy, nm = cm + 1; if (nm > 12) { nm = 1; ny++; }
+        const dup = offsetOf(ny, nm) !== 0;   // 月初＝週初なら境界週の重複なし
+        return { rows, cy, cm, ny, nm, dup, offsetOf, rowsOf };
+      };
+
+      //---- ① 境界週デデュープ（多い方が隠す・同数は来月側）--------------
+      const dedupeBoundaryWeek = ({ rows, cy, cm, ny, nm, dup, rowsOf }) => {
+        if (!dup) return;
+        const curHides = rowsOf(cy, cm) > rowsOf(ny, nm);
+        if (curHides !== (ROLE === 'current')) return;
+        const target = ROLE === 'current' ? rows[rows.length - 1] : rows[0];
+        // 隠す前の実測サニティチェック: 境界週は当月外の日番号を含むはず
+        const nums = [...target.querySelectorAll("[role='gridcell']")].map(dayNum);
+        const looksBoundary = ROLE === 'current' ? nums.some(n => n <= 7) : nums.some(n => n >= 8);
+        if (looksBoundary && target.style.display !== 'none') target.style.display = 'none';
+      };
+
+      //---- ② today 強調（行全高×列幅の背面オーバーレイ）------------------
+      const highlightToday = ({ rows, cy, cm, dup, offsetOf, rowsOf }) => {
+        const now = new Date();
+        if (now.getFullYear() !== cy || now.getMonth() + 1 !== cm) return;  // today は常にペアの「今月」側
+        const pos = offsetOf(cy, cm) + now.getDate() - 1;
+        const tRow = Math.floor(pos / 7), tCol = pos % 7;
+        let cellRow = null;
+        if (ROLE === 'current') {
+          cellRow = rows[tRow];                        // 境界行が隠れていれば下の可視チェックで弾く
+        } else if (dup && tRow === rowsOf(cy, cm) - 1) {
+          cellRow = rows[0];                           // 来月ペインの行0＝境界週に today がいる
+        }
+        if (!cellRow || cellRow.style.display === 'none') return;
+        const cell = cellRow.querySelectorAll("[role='gridcell']")[tCol];
+        if (!cell || dayNum(cell) !== now.getDate()) return;   // 位置演算と実測がズレたら塗らない
+        // gridcell はイベント欄のみ（日付数字の帯を含まない）ので、行の全高に
+        // 背面オーバーレイを敷く。行の先頭子として挿入し、GCal 側のセル・チップが
+        // どれも positioned（同じ stacking 層で DOM 順に描画される）なのを利用して
+        // 背面に置く＝週ビューの today 列と同じ見え方。position 依存を避けようと
+        // z-index:-1 を付けると、行自身の背景の裏に回って**塗りが見えなくなる**
+        // （2026-08-07 実測）。見え方が壊れたらここを疑う。
+        let ov = cellRow.querySelector(':scope > .caldash-today-ov');
+        if (!ov) {
+          ov = document.createElement('div');
+          ov.className = 'caldash-today-ov';
+          ov.style.position = 'absolute';
+          ov.style.top = '0';
+          ov.style.height = '100%';
+          ov.style.pointerEvents = 'none';
+          ov.style.backgroundColor = 'rgba(66, 133, 244, 0.15)';
+          if (getComputedStyle(cellRow).position === 'static') cellRow.style.position = 'relative';
+          cellRow.insertBefore(ov, cellRow.firstChild);
+        }
+        const rr = cellRow.getBoundingClientRect(), cr = cell.getBoundingClientRect();
+        ov.style.left = (cr.left - rr.left) + 'px';
+        ov.style.width = cr.width + 'px';
+      };
+
+      //---- 実行ループ ---------------------------------------------------
+      const apply = () => {
+        const ctx = buildContext();
+        if (!ctx) return;
+        dedupeBoundaryWeek(ctx);
+        highlightToday(ctx);
+      };
+      apply();
+      setInterval(apply, 3000);   // SPA の DOM 再構築に追随（冪等・再適用）
+    })();
+    """#
 }
 
 // Google 一族のホストか（M1: 無人常駐で認証 view を外部 URL に飛ばさせない allowlist）
@@ -208,7 +375,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
                 effectiveZoom(base: baseW, ref: ref, current: w))
     }
 
-    func makeWeb(_ urlStr: String, zoom: CGFloat, extraCSS: String = "") -> WKWebView {
+    func makeWeb(_ urlStr: String, zoom: CGFloat, extraCSS: String = "", extraJS: String = "") -> WKWebView {
         let cfg = WKWebViewConfiguration()
         cfg.websiteDataStore = store
         // M2: 無人常駐では JS の自動 window.open を禁止。ログインは gesture 起点なので interactive では許可。
@@ -243,6 +410,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
             """
             let script = WKUserScript(source: js, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
             cfg.userContentController.addUserScript(script)
+            // pane 固有の JS（例: 月ペインの境界週デデュープ）。CSS と同じく wallpaper 限定。
+            if !extraJS.isEmpty {
+                cfg.userContentController.addUserScript(
+                    WKUserScript(source: extraJS, injectionTime: .atDocumentEnd, forMainFrameOnly: true))
+            }
         }
         let wv = WKWebView(frame: .zero, configuration: cfg)
         wv.customUserAgent = SAFARI_UA
@@ -322,11 +494,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         //             .lqYlwe を消せば .mDPmMe が全幅（96px 分左へ）に広がる。
         // NOTE: Google の class 名はハッシュで release 毎に変わる可能性あり（fragile）。
         //       壊れたら wallpaper mode で isInspectable=true にして再インスペクト。
-        let extraCSSs: [String] = ["", "", "",
-            ".lqYlwe, .UqLcs, .FDbe8b, .EDDeke { display: none !important; }"]
+        // 来月ペインは曜日ヘッダー行（MON TUE …）を隠す。縦スタックで今月ペインの
+        // ヘッダーと重複するため。:has() で columnheader を含む行だけ落とす
+        // （macOS 13+/Safari 15.4+ の WebKit で利用可。today 強調は CSS では当てられず
+        // JS 側 = monthPaneJS ②参照）。
+        let nextMonthCSS = "[role='row']:has([role='columnheader']) { display: none !important; }"
+        let extraCSSs: [String] = ["", nextMonthCSS, WEEK_EVENT_FONT_CSS,
+            WEEK_EVENT_FONT_CSS + "\n.lqYlwe, .UqLcs, .FDbe8b, .EDDeke { display: none !important; }"]
+        // 月ペイン2枚に境界週デデュープ＋today 強調 JS（monthPaneJS 冒頭コメント参照）。
+        let extraJSs: [String] = [monthPaneJS(role: "current"), monthPaneJS(role: "next"), "", ""]
         let urls = paneURLs()
         let paneWebs = urls.indices.map { i in
-            makeWeb(urls[i], zoom: zooms[i], extraCSS: extraCSSs[i])
+            makeWeb(urls[i], zoom: zooms[i], extraCSS: extraCSSs[i], extraJS: extraJSs[i])
         }
         grid.panes = paneWebs
         paneWebs.forEach { grid.addSubview($0) }
