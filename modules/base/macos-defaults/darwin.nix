@@ -255,12 +255,11 @@
           DSDontWriteNetworkStores = true;
           DSDontWriteUSBStores = true;
         };
-        # NOTE(2026-07-30): 元は `.com.apple.universalaccess.reduceMotion` に置かれていた
-        # が dead 宣言だった。nix-darwin ネイティブは無いので CustomUserPreferences で正
-        # ドメインに移設（この移設で初めて「動きを減らす」設定が有効化される）。
-        "com.apple.universalaccess" = {
-          reduceMotion = true;
-        };
+        # NOTE(2026-08-07): `com.apple.universalaccess.reduceMotion` は 2026-07-30 に
+        # 正ドメインへ移設したが、universalaccess は TCC 保護ドメインで、ターミナルに
+        # Full Disk Access が無いと `defaults write` が失敗し darwin-rebuild ごと落ちる。
+        # FDA をターミナルへ渡してまで管理する価値は無いと判断し、宣言を撤去。
+        # 「動きを減らす」が欲しければシステム設定 → アクセシビリティで手動設定する。
         # NOTE(2026-07-30): 元々ここに ".com.apple" というブロックがあったが、それは
         # 実ドメイン名ではなく（.com.apple/finder のような入れ子 plist に書かれるだけで
         # 各アプリは自分のドメインしか読まない）、配下の全宣言が dead だった。
