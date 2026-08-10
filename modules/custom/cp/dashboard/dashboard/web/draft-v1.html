@@ -71,8 +71,8 @@ const LAYOUT = [
   {id:'stopwatch',  x:9, y:3, w:13,h:8},
   {id:'player',     x:22,y:3, w:13,h:8},
   {id:'difflog',    x:35,y:3, w:13,h:8},
-  {id:'novitopics', x:9, y:11,w:23,h:16},
-  {id:'streakfull', x:32,y:11,w:16,h:16},
+  {id:'novitopics', x:9, y:11,w:26,h:16},
+  {id:'streakfull', x:35,y:11,w:13,h:16},
 ];
 
 const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
@@ -516,28 +516,136 @@ R.streakfull = () => {
     <span class="xs d">28d · AC <span class="gy">●</span><span class="br">●</span><span class="g">●</span><span class="c">●</span> by diff · <span class="r">◦</span> WA · 1st AC ${D.hud.first_ac_today || '—'}</span>`;
 };
 
+/* NOVISTEPS 学習順12族（novisteps.js の NOVI_TOPIC_GROUPS と同一データを複製。
+   このファイルは novisteps.js を読み込まないため、この inline レンダラー用に
+   自己完結させる。族を変えたら両方に反映すること。） */
+const NOVI_TOPIC_GROUPS = [
+  { name: '1. 線形構造', slugs: [
+    'bucket', 'map', 'set', 'stack', 'queue', 'run-length-encoding',
+  ] },
+  { name: '2. 全探索', slugs: [
+    'recursive-function', 'recursive-brute-force-search',
+    'bitmask-brute-force-search', 'next-permutation-search',
+    'number-theory-search',
+  ] },
+  { name: '3. 数学基礎', slugs: [
+    'prime-divisor-factorization', 'eatosthenes',
+  ] },
+  { name: '4. 累積和', slugs: [
+    'prefix-sum-fast-range-sums',
+  ] },
+  { name: '5. 貪欲法', slugs: [
+    'greedy', 'greedy-leave-better-elements', 'greedy-no-worsening-exchange',
+    'greedy-find-good-evaluation', 'greedy-lexicographical-minimum',
+  ] },
+  { name: '6. グラフ基礎', slugs: [
+    'preparation-for-graph', 'dfs', 'bfs', 'union-find',
+  ] },
+  { name: '7. 順序構造', slugs: [
+    'ordered-set', 'priority-queue', 'priority-queue-greedy-speedup',
+    'priority-queue-kth-smallest', 'priority-queue-find-next-pair',
+  ] },
+  { name: '8. 型テク', slugs: [
+    'stack-parenthesis', 'tech-fix-center-of-three', 'average-to-zerosum',
+    'doubling', 'lis', 'monotonic-stack', 'interval-set',
+    'potentialized-union-find', '45-degrees-rotation',
+  ] },
+  { name: '9. 包除原理', slugs: [
+    'exclusion-principle-2sets', 'exclusion-principle',
+    'exclusion-principle-many-sets', 'exclusion-principle-divisors',
+    'exclusion-principle-power-of-2', 'exclusion-principle-dp',
+  ] },
+  { name: '10. 高度構造・DP', slugs: [
+    'digit-dp', 'segment-tree', 'binary-indexed-tree', 'trie',
+    'rerooting-dp', 'stack-dp-speedup', 'normal-slope-trick',
+  ] },
+  { name: '11. グラフ発展', slugs: [
+    'biconnected-components', 'two-edge-connected-component',
+    'dag-path-cover', 'matrix-tree-theorem',
+  ] },
+  { name: '12. フロー', slugs: [
+    'flow', 'flow-maxflow-mincut', 'flow-bipartite-matching',
+    'flow-bipartite-stable-set-etc', 'flow-residual-graph',
+    'min-cost-flow', 'flow-submodular-optimization', 'b-flow',
+    'maxflow-speedup-via-mincut', 'min-cost-flow-speedup',
+    'flow-min-cost-tension',
+  ] },
+];
+const NOVI_SLUG_TO_GROUP = {};
+const NOVI_SLUG_TO_GROUP_IDX = {};
+NOVI_TOPIC_GROUPS.forEach((g, gi) => g.slugs.forEach(s => {
+  NOVI_SLUG_TO_GROUP[s] = g.name;
+  NOVI_SLUG_TO_GROUP_IDX[s] = gi;
+}));
+const NOVI_OTHER_GROUP = 'その他';
+const NOVI_OTHER_IDX = NOVI_TOPIC_GROUPS.length;
+
 /* NOVISTEPS: 固定列 TOPIC×GRADE（列=級・セル内に d/t・塗り=消化率） */
 R.novitopics = () => {
   const t = D.novi.totals, done = t.ac + t.ed, total = done + t.wa + t.ns;
+  // 学習順12族でグルーピングして並べ替え（族内は元の並び=消化率降順を保つ。安定ソート）
+  const topics = D.novi.topics.slice().sort((a, b) => {
+    const ai = a.slug in NOVI_SLUG_TO_GROUP_IDX ? NOVI_SLUG_TO_GROUP_IDX[a.slug] : NOVI_OTHER_IDX;
+    const bi = b.slug in NOVI_SLUG_TO_GROUP_IDX ? NOVI_SLUG_TO_GROUP_IDX[b.slug] : NOVI_OTHER_IDX;
+    return ai - bi;
+  });
+  const groupOf = tp => NOVI_SLUG_TO_GROUP[tp.slug] || NOVI_OTHER_GROUP;
   const gset = new Set();
-  D.novi.topics.forEach(tp => tp.grades.forEach(g => gset.add(g[0])));
+  topics.forEach(tp => tp.grades.forEach(g => gset.add(g[0])));
   const gcols = [...gset].sort((a, b) => b - a);            // Q大(易) → Q小(難)
   const gi = Object.fromEntries(gcols.map((g, i) => [g, i]));
   const NC = gcols.length;
-  const half = Math.ceil(D.novi.topics.length / 2);
+  const half = Math.ceil(topics.length / 2);
+  // gen-draft-data.py の gnum() と同じ規約: g>0 は級 Q、g<0 は段 D（D1〜D7 が Q1 より難）。
+  // 2026-08-10 バグ修正: 以前は無条件で `Q${g}` と表示していたため D グレードが
+  // 負数のまま「Q-3」等と出ていた（データ側は既に修正済みでも表示側も直す必要があった）。
+  const gradeLabel = g => g > 0 ? 'Q' + g : 'D' + (-g);
+  // NoviSteps 公式1グレード=1色（一次ソース: NoviSteps 本体 src/app.css の
+  // --color-atcoder-*、2026-08-10 修正。旧版は AtCoder 色帯の推定写像で誤りだった。境界列
+  // の2色 gradient も全廃＝各グレードは離散1色に決め切る）。gnum の符号規約は gradeLabel
+  // と同じ（+Q / -D）。Q2・D2・D6 はダーク背景で暗すぎるため、色相・彩度を保ったまま
+  // 明度だけ上げている（目視調整。元の公式色は各行のコメントに残す）。
+  const GRADE_BAND_HEX = {
+    7: '#dddceb', 6: '#e8e7dc',
+    5: '#dda0dd', 4: '#da70d6', 3: '#9370db',
+    2: '#ffc71a', // 公式 #7f6000 を明度アップ（暗すぎて視認不可だったため）
+    1: '#01fb02',
+    '-1': '#72c6ef',
+    '-2': '#3358ff', // 公式 #002eff を明度アップ
+    '-3': '#ffff02', '-4': '#ff9900', '-5': '#ff1000',
+    '-6': '#c46a3b', // 公式 #432414（ブロンズ）を明度アップ
+  };
+  const hex2rgba = (hex, a) => {
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+  };
+  const BAND_ALPHA = 0.08; // セル可読性を落とさない範囲で目視調整（6〜10%目安）
+  const bandOverlayCss = g => {
+    const hex = GRADE_BAND_HEX[g];
+    return hex ? hex2rgba(hex, BAND_ALPHA) : 'transparent';
+  };
+  const bandTextStyle = g => {
+    const hex = GRADE_BAND_HEX[g];
+    return hex ? `color:${hex}` : '';
+  };
   // 行高・フォントは drawMeasured() が列の実高÷行数から算出し CSS 変数で流し込む
   // （--nc-ch=セル高 / --nc-fs=フォント）。トピック数がいくつでも実測でフィットして切れない。
   // 下のフォールバック値は初回描画（drawMeasured 実行前）用。
   const gridStyle = `display:grid;grid-template-columns:6.4vw repeat(${NC},1fr) 3vw;gap:.1vh .16vw;align-items:center;font-size:var(--nc-fs,.95vh)`;
   const head = `<div style="${gridStyle};color:var(--faint)">
-    <span></span>${gcols.map(g => `<span style="text-align:center">Q${g}</span>`).join('')}<span></span></div>`;
+    <span></span>${gcols.map(g => `<span style="text-align:center;${bandTextStyle(g)}">${gradeLabel(g)}</span>`).join('')}<span></span></div>`;
+  // 列位置が揃う背景オーバーレイ（薄い AtCoder 色帯）。position:absolute なので行の
+  // flex レイアウト・drawMeasured の行数カウントに影響しない（.nc-overlay として除外済み）。
+  // 親コンテナの isolation:isolate + このオーバーレイの z-index:-1 で常に行の後ろに固定。
+  const bandOverlay = `<div class="nc-overlay" style="position:absolute;inset:0;display:grid;grid-template-columns:6.4vw repeat(${NC},1fr) 3vw;pointer-events:none;z-index:-1">
+    <span></span>${gcols.map(g => `<span style="background:${bandOverlayCss(g)}"></span>`).join('')}<span></span></div>`;
   const row = tp => {
     const cells = tp.grades.map(([gn, a, e2, w, tt]) => {
       const pa = (100 * a / tt).toFixed(1), pe = (100 * (a + e2) / tt).toFixed(1), pw = (100 * (a + e2 + w) / tt).toFixed(1);
       const bg = `linear-gradient(to right,#2a8c3f 0% ${pa}%,#c08a1e ${pa}% ${pe}%,#c8493f ${pe}% ${pw}%,#161e2c ${pw}%)`;
       const dn = a + e2;
       const tc = dn === 0 && w === 0 ? '#42506a' : '#e8f0f4';
-      return `<span title="Q${gn}: self ${a} · editorial ${e2} · trying ${w} · new ${tt - dn - w}"
+      return `<span title="${gradeLabel(gn)}: self ${a} · editorial ${e2} · trying ${w} · new ${tt - dn - w}"
         style="grid-column:${gi[gn] + 2};height:var(--nc-ch,1.5vh);border-radius:.2vh;background:${bg};
         display:flex;align-items:center;justify-content:center;font-size:.85em;color:${tc};text-shadow:0 0 3px rgba(0,0,0,.85)">${dn}/${tt}</span>`;
     }).join('');
@@ -546,14 +654,27 @@ R.novitopics = () => {
       ${cells}
       <span style="grid-column:${NC + 2};font-size:.85em;text-align:right;color:var(--dim)">${tp.done}/${tp.total}</span></div>`;
   };
-  const colHTML = list => head + list.map(row).join('');
-  return `<span class="tag">NOVISTEPS <span style="letter-spacing:.05vw;color:var(--faint)">${esc(D.novi.user || '')} · ${D.novi.topics.length} topics</span></span>
+  // 族の先頭に小さい区切りヘッダを挿す（.nc-group は drawMeasured が行高計算から除外する）
+  // flex-shrink:0 必須: 親は space-around の flex column で、行数が多いと flex-shrink が
+  // かかる。無指定だと overflow:hidden の関係で自動最小高が0になり、テキストごと潰れて
+  // 見えなくなる（実測で確認済み）。ヘッダは常に自然サイズを保つ＝潰れるのは行の方。
+  const groupHeader = name => `<div class="nc-group d" style="font-size:.85vh;flex-shrink:0;border-top:1px solid var(--line);margin-top:.15vh;padding-top:.2vh;letter-spacing:.04em;white-space:nowrap;overflow:hidden">${esc(name)}</div>`;
+  const colHTML = list => {
+    let out = head, lastGroup = null;
+    for (const tp of list) {
+      const g = groupOf(tp);
+      if (g !== lastGroup) { out += groupHeader(g); lastGroup = g; }
+      out += row(tp);
+    }
+    return out;
+  };
+  return `<span class="tag">NOVISTEPS <span style="letter-spacing:.05vw;color:var(--faint)">${esc(D.novi.user || '')} · ${topics.length} topics</span></span>
     <div class="xs"><b class="g">${t.ac}</b><span class="d">/</span><b class="a">${t.ed}</b><span class="d">/</span><b class="r">${t.wa}</b>
       <span class="d">· ${done}/${total} · </span><b class="c">${t.ns}</b><span class="d"> left</span>
       <span style="float:right"><span class="g">■</span><span class="d"> self </span><span class="a">■</span><span class="d"> editorial </span><span class="r">■</span><span class="d"> trying</span></span></div>
     <div class="fill" style="display:grid;grid-template-columns:1fr 1fr;gap:0 1.4vw;align-content:stretch;overflow:hidden">
-      <div data-nc="0" style="display:flex;flex-direction:column;gap:.1vh;justify-content:space-around;min-height:0;overflow:hidden">${colHTML(D.novi.topics.slice(0, half))}</div>
-      <div data-nc="1" style="display:flex;flex-direction:column;gap:.1vh;justify-content:space-around;min-height:0;overflow:hidden">${colHTML(D.novi.topics.slice(half))}</div>
+      <div data-nc="0" style="position:relative;isolation:isolate;display:flex;flex-direction:column;gap:.1vh;justify-content:space-around;min-height:0;overflow:hidden">${bandOverlay}${colHTML(topics.slice(0, half))}</div>
+      <div data-nc="1" style="position:relative;isolation:isolate;display:flex;flex-direction:column;gap:.1vh;justify-content:space-around;min-height:0;overflow:hidden">${bandOverlay}${colHTML(topics.slice(half))}</div>
     </div>`;
 };
 
@@ -561,9 +682,17 @@ function drawMeasured(){
   /* NOVISTEPS: 列の実高 ÷ 行数 でセル高・フォントを算出して流し込む＝トピック数が
      いくつでも実測でフィット（切れない）。resize でも再フィット。0.9 は行間ぶんの余裕。 */
   document.querySelectorAll('[data-nc]').forEach(col => {
-    const n = col.children.length;                         // header + topic 行
+    // 族区切りヘッダ(.nc-group)は行より背が低い固定要素なので、実測して先に引いてから
+    // 残りの高さを topic 行数（+ 級ヘッダ1行）で割る＝ヘッダが増えても行の詰まり方が変わらない。
+    // .nc-overlay（列の色帯背景）は position:absolute で行のフローに参加しないので、
+    // 子カウント・高さ計算のどちらからも除外する（居ないものとして扱う）。
+    const groupHeaders = col.querySelectorAll('.nc-group');
+    const overlays = col.querySelectorAll('.nc-overlay');
+    const n = col.children.length - groupHeaders.length - overlays.length;   // 級ヘッダ + topic 行
     if(!n || !col.clientHeight) return;
-    const per = col.clientHeight / n;                      // 1行あたりの実 px（列高÷行数）
+    let ghH = 0;
+    groupHeaders.forEach(el => ghH += el.offsetHeight);
+    const per = Math.max(1, col.clientHeight - ghH) / n;   // 1行あたりの実 px（列高÷行数）
     col.style.setProperty('--nc-ch', (per * 0.9).toFixed(1) + 'px');   // セル高＝行の9割（残りは行間+切れ防止）
     col.style.setProperty('--nc-fs', Math.max(7, Math.min(per * 0.56, 14)).toFixed(1) + 'px');
   });

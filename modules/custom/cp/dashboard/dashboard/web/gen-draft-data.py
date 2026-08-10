@@ -82,10 +82,14 @@ def solve_baseline():
         })
 
     def gkey(g):
+        # gnum() と同じ Q=正/D=負 の規約（2026-08-10）。solve_times に D グレードの記録は
+        # 現時点で無い（cache 確認済み）ため今は無害だが、直せば将来 D が記録されても
+        # Q1 と衝突しない。
         try:
-            return int(g[1:])
+            n = int(g[1:])
         except Exception:
             return 99
+        return -n if g[:1] == "D" else n
 
     out.sort(key=lambda r: gkey(r["g"]))
     return {"grades": out, "n_total": total}
@@ -303,7 +307,7 @@ def main():
     ORDER = {"ac": 0, "ac_with_editorial": 1, "wa": 2, "ns": 3}
     tot = {"ac": 0, "ed": 0, "wa": 0, "ns": 0}
     topics = []
-    for wb in (novi.get("workbooks") or {}).values():
+    for slug, wb in (novi.get("workbooks") or {}).items():
         tasks = wb.get("tasks", [])
         if not tasks:
             continue
@@ -314,11 +318,17 @@ def main():
             tot[k] += 1
 
         def gnum(t):
+            # NoviSteps は 級 Q11(最易)→Q1 の上に 段 D1→D7(最難) が乗る体系（Q1 より D1 の方
+            # が難しい）。Q は正の数・D は負の数にして、この関数の下流で使う「大きいほど易」
+            # という数値比較が Q/D をまたいでも成り立つようにする（2026-08-10 バグ修正：
+            # 以前は先頭1文字を捨てて int(g[1:]) するだけだったため D1〜D3 が Q1〜Q3 に
+            # 数値衝突して合流していた）。
             g = t.get("grade") or "Q9"
             try:
-                return int(g[1:])
+                n = int(g[1:])
             except Exception:
                 return 9
+            return -n if g[:1] == "D" else n
 
         by_grade = {}
         for t in tasks:
@@ -331,11 +341,12 @@ def main():
                 e["e"] += 1
             elif t["status"] == "wa":
                 e["w"] += 1
-        # 級セル: Q大(易)→Q小(難)。 [gradeNum, 自力AC, 解説AC, 挑戦中, total]
+        # 級セル: Q大(易)→Q小(難)→D小(難)→D大(最難)。[gradeNum, 自力AC, 解説AC, 挑戦中, total]
         grades = [[gn, v["a"], v["e"], v["w"], v["t"]] for gn, v in sorted(by_grade.items(), reverse=True)]
         done = c["ac"] + c["ed"]
         topics.append(
             {
+                "slug": slug,
                 "title": wb.get("title", "?")[:10],
                 "grades": grades,
                 "done": done,

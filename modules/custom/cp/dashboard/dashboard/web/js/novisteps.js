@@ -1,30 +1,78 @@
-const NOVI_TOPIC_ORDER = [
-	// データ構造
-	'bucket', 'set', 'map', 'interval-set', 'potentialized-union-find',
-	'binary-indexed-tree', 'stack', 'queue', 'doubling',
-	// 探索・シミュレーション・実装
-	'recursive-function', 'bitmask-brute-force-search',
-	'next-permutation-search', 'recursive-brute-force-search',
-	// 動的計画法
-	'digit-dp', 'lis',
-	// グラフ
-	'preparation-for-graph', 'dfs', 'bfs',
-	'flow-bipartite-matching', 'flow-bipartite-stable-set-etc',
-	'flow-connectivity-pathpacking', 'dag-path-cover',
-	// 木
-	'rerooting-dp',
-	// 文字列
-	'trie',
-	// 数学（整数論）
-	'number-theory-search', 'prime-divisor-factorization', 'eatosthenes',
-	// 数え上げ・確率・期待値
-	'exclusion-principle',
-	// 最適化
-	'greedy', 'greedy-find-good-evaluation', 'greedy-no-worsening-exchange',
-	'greedy-leave-better-elements', 'greedy-lexicographical-minimum',
-	// その他
-	'tech-fix-center-of-three', '45-degrees-rotation',
+const NOVI_TOPIC_GROUPS = [
+	// 1. 線形データ構造の基本（数える・引く・積む）
+	{ name: '1. 線形構造', slugs: [
+		'bucket', 'map', 'set', 'stack', 'queue', 'run-length-encoding',
+	] },
+	// 2. 全探索（すべての土台。再帰→ビット→順列→候補の絞り込み）
+	{ name: '2. 全探索', slugs: [
+		'recursive-function', 'recursive-brute-force-search',
+		'bitmask-brute-force-search', 'next-permutation-search',
+		'number-theory-search',
+	] },
+	// 3. 数学基礎（整数論）
+	{ name: '3. 数学基礎', slugs: [
+		'prime-divisor-factorization', 'eatosthenes',
+	] },
+	// 4. 累積和（「毎回数え直さない」の第一歩）
+	{ name: '4. 累積和', slugs: [
+		'prefix-sum-fast-range-sums',
+	] },
+	// 5. 貪欲法（基本→交換論法の各型）
+	{ name: '5. 貪欲法', slugs: [
+		'greedy', 'greedy-leave-better-elements', 'greedy-no-worsening-exchange',
+		'greedy-find-good-evaluation', 'greedy-lexicographical-minimum',
+	] },
+	// 6. グラフ基礎（再帰の使い道。基礎→DFS→BFS→連結管理）
+	{ name: '6. グラフ基礎', slugs: [
+		'preparation-for-graph', 'dfs', 'bfs', 'union-find',
+	] },
+	// 7. 順序を保つデータ構造（log 構造。set 上位→heap 族）
+	{ name: '7. 順序構造', slugs: [
+		'ordered-set', 'priority-queue', 'priority-queue-greedy-speedup',
+		'priority-queue-kth-smallest', 'priority-queue-find-next-pair',
+	] },
+	// 8. 型テクニック（小さい発想の型）
+	{ name: '8. 型テク', slugs: [
+		'stack-parenthesis', 'tech-fix-center-of-three', 'average-to-zerosum',
+		'doubling', 'lis', 'monotonic-stack', 'interval-set',
+		'potentialized-union-find', '45-degrees-rotation',
+	] },
+	// 9. 数え上げ（包除原理ファミリー：2集合→一般→応用）
+	{ name: '9. 包除原理', slugs: [
+		'exclusion-principle-2sets', 'exclusion-principle',
+		'exclusion-principle-many-sets', 'exclusion-principle-divisors',
+		'exclusion-principle-power-of-2', 'exclusion-principle-dp',
+	] },
+	// 10. 高度データ構造・DP発展
+	{ name: '10. 高度構造・DP', slugs: [
+		'digit-dp', 'segment-tree', 'binary-indexed-tree', 'trie',
+		'rerooting-dp', 'stack-dp-speedup', 'normal-slope-trick',
+	] },
+	// 11. グラフ発展
+	{ name: '11. グラフ発展', slugs: [
+		'biconnected-components', 'two-edge-connected-component',
+		'dag-path-cover', 'matrix-tree-theorem',
+	] },
+	// 12. フロー（最後の大陸：基本→最大流→マッチング→費用→高速化）
+	{ name: '12. フロー', slugs: [
+		'flow', 'flow-maxflow-mincut', 'flow-bipartite-matching',
+		'flow-bipartite-stable-set-etc', 'flow-residual-graph',
+		'min-cost-flow', 'flow-submodular-optimization', 'b-flow',
+		'maxflow-speedup-via-mincut', 'min-cost-flow-speedup',
+		'flow-min-cost-tension',
+	] },
 ];
+
+// Flat learning-order list, derived from the groups above (kept for orderIdx
+// lookups and as the back-compat surface other code may rely on).
+const NOVI_TOPIC_ORDER = NOVI_TOPIC_GROUPS.flatMap(g => g.slugs);
+
+// slug -> group name, for rendering the visual group separators below.
+const NOVI_SLUG_TO_GROUP = {};
+for (const g of NOVI_TOPIC_GROUPS) {
+	for (const s of g.slugs) NOVI_SLUG_TO_GROUP[s] = g.name;
+}
+const NOVI_OTHER_GROUP = 'その他';
 
 function renderNoviSteps(novi) {
 	const expired = !!window.__NOVI_COOKIE_EXPIRED;
@@ -35,7 +83,11 @@ function renderNoviSteps(novi) {
 		return '<div class="panel-inner" style="padding:24px 8px 6px">'+banner
 			+'<div style="color:var(--dim);font-size:var(--fs-sm)">no data</div></div>';
 	}
-	const GRADES = ['Q7','Q6','Q5','Q4','Q3','Q2','Q1'];
+	// NoviSteps は 級 Q11(最易)→Q1 の上に 段 D1→D7(最難) が乗る体系（Q1 より D1 の方が難しい）。
+	// 2026-08-10 バグ修正: 以前は GRADES が Q1〜Q7 のみだったため、D グレードのタスクは
+	// `if (!cells[t.grade]) continue;` で全カウントから黙って落ちていた（Q への誤合流では
+	// なく丸ごと欠落。gen-draft-data.py 側の gnum() 数値衝突バグとは別の失敗モード）。
+	const GRADES = ['Q7','Q6','Q5','Q4','Q3','Q2','Q1','D1','D2','D3','D4','D5','D6','D7'];
 	const COL = {
 		ac:'var(--green)',
 		ac_with_editorial:'var(--amber)',
@@ -68,9 +120,9 @@ function renderNoviSteps(novi) {
 			totalAcEd += cells[g].ac_with_editorial;
 			totalWa += cells[g].wa;
 		}
-		rows.push({slug, title: wb.title, cells, done, total});
+		rows.push({slug, title: wb.title, cells, done, total, group: NOVI_SLUG_TO_GROUP[slug] || NOVI_OTHER_GROUP});
 	}
-	// Sort by NoviSteps website display order (category-grouped)
+	// Sort by learning order (dependency-based; see vault [[Novisteps]] 2026-08-10)
 	const orderIdx = (s) => {
 		const i = NOVI_TOPIC_ORDER.indexOf(s);
 		return i === -1 ? 999 : i;
@@ -98,13 +150,19 @@ function renderNoviSteps(novi) {
 	h += '</div>';
 
 	// Body: split rows into 2 columns
-	const colGrid = '90px repeat(7,1fr) 48px';
+	const colGrid = '90px repeat('+GRADES.length+',1fr) 48px';
 	const headerHTML =
 		'<div style="display:grid;grid-template-columns:'+colGrid+';gap:2px;font-size:var(--fs-2xs);color:var(--muted);padding:0 4px">'
 		+'<div></div>'
 		+ GRADES.map(g=>'<div style="text-align:center;letter-spacing:.05em">'+g+'</div>').join('')
 		+'<div style="text-align:right">total</div>'
 		+'</div>';
+
+	// Small, single-line separator marking the start of a topic group (12族).
+	// Kept minimal on purpose — this panel is density-first.
+	const renderGroupHeader = (name) =>
+		'<div style="font-size:var(--fs-2xs);color:var(--dim);letter-spacing:.04em;padding:2px 4px 1px;margin-top:3px;border-top:0.5px solid var(--border);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'
+		+escHtml(name)+'</div>';
 
 	const renderRow = (r) => {
 		const isFullDone = r.done === r.total;
@@ -143,7 +201,14 @@ function renderNoviSteps(novi) {
 	for (const col of [left, right]) {
 		h += '<div style="display:flex;flex-direction:column;min-height:0;overflow:hidden">';
 		h += headerHTML;
-		for (const r of col) h += renderRow(r);
+		let lastGroup = null;
+		for (const r of col) {
+			if (r.group !== lastGroup) {
+				h += renderGroupHeader(r.group);
+				lastGroup = r.group;
+			}
+			h += renderRow(r);
+		}
 		h += '</div>';
 	}
 	h += '</div>';
