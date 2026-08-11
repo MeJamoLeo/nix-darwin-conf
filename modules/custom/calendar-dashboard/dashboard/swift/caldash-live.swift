@@ -63,9 +63,30 @@ html, body { overflow: hidden !important; margin: 0 !important; padding: 0 !impo
 // config の weekZoom（式モードなら baseWeekZoom）に応じて見え方が変わる。
 // 月ペインには当てない: 月ビューのチップは GCal の JS がフォント計測込みで絶対配置する
 // ため、CSS でフォントだけ縮めると複数日バーと通常チップの文字が重なる（2026-08-07
-// スクショ実測）。週ビューは時間ベース配置なので安全。
+// スクショ実測）。
+//
+// ⚠ チップ要素そのものの font-size は絶対に触らない（2026-08-10 DOM probe で確定）。
+// 週ビューも「時間ベース配置だから安全」ではない。安全なのは時間帯チップだけで、
+// 上端の**終日行**は月ビューと同じ相対配置：
+//   終日チップ  inline style = `left: 0%; width: 14.29%; top: 0em / 1em / 2em …`
+//   時間帯チップ inline style = `top: 287px; height: 46px; …`（px 絶対＝font 非依存）
+// 終日側の `top: Nem` は **チップ自身の font-size を 1 行の高さとして使う** 設計で、
+// 素の状態は 1em = 24px = チップ高 24px＝隙間なくぴったり積み上がる（probe 実測）。
+// ここで `[data-eventid] { font-size:10px }` を当てると stride だけ 10px に潰れ、
+// チップ高は padding 由来で 24px 残るため、終日が 2 件以上ある日は 1 件につき 14px
+// ずつ重なって読めなくなる（2026-08-10 に MON 3 件で顕在化）。
+// 対策: 本体は触らず**子孫を全部**縮める。span 限定では足りない（丈の高いチップは
+// タイトル/時刻/場所を div で多行レンダリングするため 2026-08-10 の第1版が取り逃し、
+// Bobcat Bounty 等だけ文字が 1.7 倍のまま残った＝スクショ実測）。GCal は子要素に
+// 明示 font-size を置くので、本体に当てた継承頼みでも子孫直指しでも結果は同じ。
+// 時間帯チップ側は本体にも当て直す（px 絶対配置なので font-size 非依存＝安全。
+// 直接テキストノードを持つ場合の取り逃しを塞ぐ。`.mDPmMe` = 時間帯 events grid）。
 let WEEK_EVENT_FONT_CSS = """
-[data-eventid], [data-eventid] span {
+[data-eventid] * {
+  font-size: 10px !important;
+  line-height: 1.2 !important;
+}
+.mDPmMe [data-eventid] {
   font-size: 10px !important;
   line-height: 1.2 !important;
 }
