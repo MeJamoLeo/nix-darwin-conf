@@ -70,6 +70,26 @@
       inputs.bun2nix.inputs.systems.follows = "systems";
     };
 
+    # hermes-agent: Nous Research の自律エージェント（永続メモリ＋自律スキル作成・MIT）。
+    #   公式 flake は aarch64-darwin をビルド対象に含むが、出しているモジュールは
+    #   nixosModules.default だけ。outputs を実測で列挙して確認済み（apps / checks /
+    #   devShells / formatter / legacyPackages / nixosConfigurations / nixosModules /
+    #   overlays / packages ＝ darwinModules も homeModules も存在しない）。公式 docs の
+    #   getting-started/nix-setup も NixOS モジュールしか扱わず darwin の記述が無い。
+    #   よって darwin 側の配線は modules/apps/hermes/home.nix が自前で持つ。
+    #
+    #   ★ nixpkgs を follows しないのは意図的。この flake は uv2nix + pyproject-nix で
+    #   Python 依存を解決していて（自前 nixpkgs は nixos-unstable ピン）、nixpkgs を
+    #   差し替えるとホイールのビルドが壊れやすい。nixpkgs-stable を独立させているのと
+    #   同じ理由＝「follows を張らないこと自体が目的」。代償は flake.lock に nixpkgs が
+    #   もう1本増える eval コスト。
+    #
+    #   ★ 公開バイナリキャッシュは無い（flake に nixConfig 無し）。実測で
+    #   packages.aarch64-darwin.default は 1191 derivation のローカルビルド＋
+    #   1.5GiB DL / 6.3GiB 展開。この重さのため profile ではなく
+    #   hosts/ogasawara.nix にだけ配線している（理由はそのファイル）。
+    hermes-agent.url = "github:NousResearch/hermes-agent";
+
     # ghostty-cursor-shaders: Ghostty 用の GLSL カーソルシェーダ集（trail / boom）。
     #   パッケージではなく素の .glsl ファイル群なので flake = false でソースツリーとして取り込み、
     #   modules/apps/ghostty/home.nix が custom-shader に store 絶対パスで参照する
