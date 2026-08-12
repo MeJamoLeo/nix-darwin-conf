@@ -23,7 +23,8 @@ claude-obsidian の vault：`/Users/treo/Forge/claude-obsidian`。
 
 ## モデル規律（トークン/レートリミット）
 
-- 原則：**判断＝Fable/Opus、作業＝Sonnet、機械作業＝Haiku**。反復ループ・fan-out・web 大量取得は本体で回さず、Agent tool / Workflow の `agent()` に `model: "sonnet"` を明示して委譲する（**無指定は本体モデル継承**）。エスカレーションは opus のみ・単発。Fable を委譲先に使わない。
+- 原則：**判断＝Fable/Opus、作業＝Sonnet、機械作業＝Haiku**。反復ループ・fan-out・web 大量取得は本体で回さず、Agent tool / Workflow の `agent()` に `model: "sonnet"` を明示して委譲する（**無指定は本体モデル継承**）。作業系のエスカレーションは opus のみ・単発。
+- **Fable は「判断の単発委譲」でだけ使う。** メインセッションのモデルには据えず、`/advisor`（設計判断のセカンドオピニオン）経由で **1論点1体・並列禁止・実装させない**。それ以外の fan-out / 作業ループに Fable を委譲先として使わない（`~/.claude/settings.json` の `permissions.ask` に `Agent(model:fable)` を置いて、偶発的な増殖にゲートを掛けてある）。
 - 用途別の対応表と詳細は claude-obsidian の CLAUDE.md「モデル規律」が正史。
 
 ## 設定・知識の置き場所ポリシー
