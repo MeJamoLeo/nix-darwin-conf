@@ -38,12 +38,19 @@ def load(name, default=None):
 
 
 def meta_age_min(name, now):
+    # fetch_stats.write_cache が書く *.meta.json は fetched_at を **float epoch** で持つ
+    # （json.dumps({"fetched_at": time.time()})）。ここで fromisoformat を当てると float に対して
+    # TypeError → except → None になり、FEEDS の kenkoooo / rating は常に "?" のまま
+    # 一度も機能していなかった（2026-08-13 修正）。ISO 文字列を書く経路（手書き・旧版）も残せるよう
+    # 両方受ける。この値の意味は「最後にキャッシュを書いた時刻からの経過」＝新着があったときだけ
+    # 書き直されるので、実質「最後に新しい提出が入ってきてからの時間」を測る計器になる。
     m = load(name)
     if not m or "fetched_at" not in m:
         return None
+    fa = m["fetched_at"]
     try:
-        t = datetime.fromisoformat(m["fetched_at"])
-        return int((now - t.timestamp()) / 60)
+        t = float(fa) if isinstance(fa, (int, float)) else datetime.fromisoformat(fa).timestamp()
+        return int((now - t) / 60)
     except Exception:
         return None
 
