@@ -290,12 +290,31 @@ def main():
         d += timedelta(days=1)
 
     # ---- freshness ----
-    novi_age = None
-    if novi.get("fetched_at"):
+    # novisteps は 1 サイクル 1 workbook ずつしか取らない（fetch_novisteps.py --one）。
+    # トップレベル fetched_at は 1 個更新しただけでも now に書き換わるので、これを鮮度に
+    # 使うと盤面が常に「0m」と嘘をつく（実際は最古トピックが 65 個 x 30 分 = 約32時間 stale。
+    # 48h 閾値の警告が構造上一度も発火しない状態だった）。表全体の鮮度＝**最も古い
+    # workbook** で測る（2026-08-13 修正）。
+    # 注：index に現れたが未取得の workbook は cache に entry ごと存在しないため、この最古値は
+    # 新トピック追加直後の 1 サイクル（≤30分）だけ実態より若く出る。次サイクルで最優先取得される。
+    def novi_epoch(s):
+        # ISO 文字列の辞書順比較は DST 跨ぎ（-05:00/-06:00 混在）で狂うので epoch に直して比べる。
         try:
-            novi_age = int((now - datetime.fromisoformat(novi["fetched_at"]).timestamp()) / 60)
+            return datetime.fromisoformat(s).timestamp()
         except Exception:
-            pass
+            return None
+
+    stamps = []
+    for w in (novi.get("workbooks") or {}).values():
+        e = novi_epoch(w.get("fetched_at")) if isinstance(w, dict) else None
+        if e is not None:
+            stamps.append(e)
+    if not stamps:
+        # workbook がまだ 1 つも無い（初回・cookie 失効直後）はトップレベルで代用する。
+        e = novi_epoch(novi.get("fetched_at"))
+        if e is not None:
+            stamps.append(e)
+    novi_age = int((now - min(stamps)) / 60) if stamps else None
     fresh = {
         "kenkoooo_min": meta_age_min(f"submissions_{USER}.meta.json", now),
         "rating_min": meta_age_min(f"ratings_{USER}.meta.json", now),
