@@ -122,8 +122,37 @@ def main():
         d = m.get("difficulty")
         return max(0, int(d)) if isinstance(d, (int, float)) else None
 
+    # ---- 仮点灯（provisional AC）----
+    # kenkoooo の旧コンテスト再クロールは数時間かかる（2026-08-13 実測：AC から3時間経っても未反映。
+    # 同時刻の全体クロールは3.2分遅れ＝サービスは健全で、遅いのは旧コンテストだけ）。一方
+    # ストップウォッチは初AC を60秒以内に検知して solve_times.jsonl に (task_id, ac_epoch) を追記
+    # 済みなので、**追加のネットワークも認証も無しで**先に盤面へ流せる。design-spec の
+    # 「反応の速さはローカル検知で稼ぎ、正確さは外部データで裏取る＝二段階点灯」の未実装部分。
+    #
+    # SEED は混ぜない（x1nano 由来の過去記録＝到着待ちのデータではない）。dedupe は
+    # (problem_id, epoch) の完全一致でよい——どちらの経路も値は AtCoder 公式の提出 epoch。
+    #
+    # 流す先は**有無の指標だけ**（streak / first_ac_today / カレンダーの日ドット / 週の AC 数）。
+    # 分布の指標（DIFFICULTY 散布・HOURS・提出時刻 scatter）には流さない：solve_times.jsonl は
+    # WA を記録しないので、数時間だけ「WA が1個も無い綺麗すぎる図」が出て確定塗り後に形が変わり、
+    # 「変化したパネルが光る」原則を誤発火させるため。
+    known_ac = {(s["problem_id"], s["epoch_second"]) for s in acs}
+    prov_acs = []
+    for rec in _load_jsonl(LIVE):
+        pid, ac_e = rec.get("task_id"), rec.get("ac_epoch")
+        if not pid or not isinstance(ac_e, (int, float)):
+            continue
+        key = (pid, int(ac_e))
+        if key in known_ac:
+            continue
+        known_ac.add(key)
+        prov_acs.append({"problem_id": pid, "epoch_second": int(ac_e),
+                         "result": "AC", "provisional": True})
+    prov_acs.sort(key=lambda s: s["epoch_second"])
+    acs_live = sorted(acs + prov_acs, key=lambda s: s["epoch_second"])
+
     # ---- streak ----
-    ac_days = sorted({day_of(s["epoch_second"]) for s in acs})
+    ac_days = sorted({day_of(s["epoch_second"]) for s in acs_live})
     max_streak = cur = 0
     prev = None
     for d in ac_days:
@@ -138,14 +167,16 @@ def main():
         streak += 1
         probe -= timedelta(days=1)
 
-    todays = [s for s in acs if day_of(s["epoch_second"]) == today]
+    todays = [s for s in acs_live if day_of(s["epoch_second"]) == today]
     first_ac_today = (
         time.strftime("%H:%M", time.localtime(todays[0]["epoch_second"])) if todays else None
     )
 
     # ---- calendar (last 84 days) ----
+    # STREAK パネル内の日ドットなので acs_live を使う（🔥 が今日を数えているのに今日のドットだけ
+    # 暗いという矛盾を出さない）。色＝その日の最高 diff は provisional でも models から引けるので同じ。
     per_day = {}
-    for s in acs:
+    for s in acs_live:
         d = day_of(s["epoch_second"])
         e = per_day.setdefault(d, {"n": 0, "m": 0})
         e["n"] += 1
@@ -164,7 +195,7 @@ def main():
     def week_stats(start):
         end = start + timedelta(days=7)
         pids, dsum = set(), 0
-        for s in acs:
+        for s in acs_live:
             d = day_of(s["epoch_second"])
             if start <= d < end and s["problem_id"] not in pids:
                 pids.add(s["problem_id"])
@@ -264,7 +295,10 @@ def main():
         })
 
     # ---- last sub ----
+    # subs は kenkoooo 由来（WA も含む）。まだ届いていない仮点灯 AC の方が新しければそちらを出す。
     last = subs[-1] if subs else None
+    if prov_acs and (last is None or prov_acs[-1]["epoch_second"] > last["epoch_second"]):
+        last = prov_acs[-1]
     last_sub = (
         {
             "pid": last["problem_id"],
