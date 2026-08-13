@@ -316,11 +316,28 @@ NOVI_REFRESH_GATE_S = 1200   # NoviSteps は上流クロールが遅い→20分�
 
 
 def kick_novisteps(task_id):
-    """初 AC = NoviSteps の進捗が変わる唯一の瞬間。該当トピック（workbook）だけ
-    fetch_novisteps.py --task で差分更新する。上流反映が遅いので鮮度ゲートで AC 連発を
-    1回に集約。cookie 不在なら fetch 側が黙って終わる（ここは投げっぱなし）。"""
+    """初 AC で該当トピック（workbook）だけ fetch_novisteps.py --task で差分更新する。
+    鮮度ゲートで AC 連発を1回に集約。cookie 不在なら fetch 側が黙って終わる（投げっぱなし）。
+
+    ⚠️ この経路**だけ**では足りない（2026-08-13 実測）。NoviSteps のステータスは AC の瞬間には
+    変わらず、あとから別のタイミングで変わる（abc468_c は AC の18秒後の取得でまだ `ns`、
+    3.8時間後には `ac`）。差分が消えるまでの追い取得は update.sh + bin/novi-hot.py が担当する。
+    ここは「AC 時点で既にマーク済みのものを早く拾う」速報経路として残す。
+
+    ゲートは**対象 workbook の** fetched_at で測る（2026-08-13 修正）。以前はトップレベルの
+    fetched_at を見ていたが、その値は --one が workbook を1冊更新しただけでも毎回 now に
+    書き換えるので、「この workbook を最近取ったか」ではなく「何でもいいから最近取ったか」を
+    測っていた。結果このキックは30分サイクル直後20分は必ず抑止され、サイクル後20〜30分の
+    窓でしか発火しないという、意図と無関係な挙動になっていた。"""
     novi = CACHE / "novisteps.json"
-    fa = (load_json(novi) or {}).get("fetched_at") if novi.is_file() else None
+    data = (load_json(novi) or {}) if novi.is_file() else {}
+    fa = None
+    for wb in (data.get("workbooks") or {}).values():
+        if not isinstance(wb, dict):
+            continue
+        if any(t.get("task_id") == task_id for t in wb.get("tasks", [])):
+            fa = wb.get("fetched_at")
+            break
     if fa:
         try:
             if time.time() - datetime.fromisoformat(fa).timestamp() < NOVI_REFRESH_GATE_S:

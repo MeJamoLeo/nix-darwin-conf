@@ -36,6 +36,26 @@ if /usr/bin/security find-generic-password -s "$NOVI_KEYCHAIN_SERVICE" -w >/dev/
     else
         log "fetch_novisteps FAILED — rendering from cache"
     fi
+
+    # hot 再取得（2026-08-13 追加）。NoviSteps のステータスは AC の瞬間には変わらない
+    # （abc468_c は AC の18秒後の取得でまだ `ns`、3.8時間後には `ac`）。--one の 32.5 時間周回に
+    # 任せると「今マークした分」が最大32時間盤面に出ないので、差分が残っている workbook だけ
+    # 追加で取る。選定と減衰は bin/novi-hot.py（差分が消えれば何も出力しなくなり自動停止）。
+    # bash 3.2（launchd）なので mapfile も空配列の ${#a[@]} も使えない → 文字列で組む。
+    # task_id は AtCoder 由来の [a-z0-9_] のみなので、引数展開のための非引用は意図的。
+    hot_args=""
+    while IFS= read -r tid; do
+        [ -n "$tid" ] && hot_args="$hot_args --task $tid"
+    done <<EOF
+$(python3 "$ROOT/bin/novi-hot.py" 2>> "$LOG")
+EOF
+    if [ -n "$hot_args" ]; then
+        if python3 "$UP/fetch_novisteps.py" $hot_args >> "$LOG" 2>&1; then
+            log "fetch_novisteps hot ok ($hot_args)"
+        else
+            log "fetch_novisteps hot FAILED"
+        fi
+    fi
 else
     log "novisteps cookie missing (Keychain service=$NOVI_KEYCHAIN_SERVICE) — skip"
 fi
