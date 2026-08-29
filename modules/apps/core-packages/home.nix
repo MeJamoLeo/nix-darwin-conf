@@ -91,11 +91,24 @@
 
       # 旧 Justfile の clean/gc レシピ（手で打つ・打った記憶がない）を定期実行へ。
       # darwin では launchd.agents.nh-clean が生える。
+      #
+      # ⚠⚠ extraArgs は **`--flag=value` の1トークンで書くこと**（2026-08-29 に踏んだ）。
+      #   home-manager の programs.nh は darwin で
+      #     ProgramArguments = [ nh clean user ] ++ lib.optional (extraArgs != "") extraArgs
+      #   と **文字列をまるごと配列要素1個** にする。launchd はシェルを挟まないので
+      #   空白で分割されず、`nh clean user '--keep-since 7d --keep 5'` という
+      #   1引数の呼び出しになって
+      #     error: unexpected argument '--keep-since 7d --keep 5' found
+      #   で**毎週静かに失敗する**。Linux 側は ExecStart で `clean user ''${extraArgs}` と
+      #   シェル展開されるため同じ値が動く＝ OS 差のある上流バグ（option の example も
+      #   "--keep 5 --keep-since 3d" と空白区切りを推奨してしまっている）。
+      #   `--keep-since=7d` なら1トークンなのでクォートされても壊れない（実測確認済み）。
+      #   複数フラグを渡したくなったら splitString 相当の回避が要る。
       # ⚠ nix.gc.automatic と併用すると警告が出る（モジュールが検出する）。
       clean = {
         enable = true;
         dates = "weekly";
-        extraArgs = "--keep-since 7d --keep 5";
+        extraArgs = "--keep-since=7d";
       };
     };
 
