@@ -1,11 +1,11 @@
 {
+  config,
   pkgs,
   hunk,
   ...
 }: {
   home.packages = with pkgs; [
     # build / task runners
-    just # Command runner (Justfile)
     tmux # Terminal multiplexer
     herdr # tmux ライクなエージェント対応マルチプレクサ（flake overlay 由来: flake.nix 参照）
     # online-judge-tools は modules/cp/tools/home.nix がラッパー付きで提供する
@@ -63,6 +63,42 @@
   ];
 
   programs = {
+    # nix コマンドのラッパー。**Justfile の後継**（2026-08-29 に just を撤去）。
+    #
+    # 旧 Justfile はテンプレ残渣で（導入コミット 670a7d8 に flake ごと一括流入・
+    # 選択の記録が無い）、かつ `just darwin` は**リポジトリ内でしか打てない**＝
+    # 「操作の前に cd」という日常の摩擦そのものだった。nh は flake の在処を
+    # 環境変数で持つので、どのディレクトリからでも動く。
+    #
+    # `darwinFlake` は NH_DARWIN_FLAKE を張るだけでなく、nh のバージョンを見て
+    # 4.0.0 未満なら旧名 FLAKE に切り替える分岐まで持っている（手書き env var では
+    # 再現できない）。値は my.forgeDir 由来＝$FORGE と同じ単一源
+    # （modules/base/forge/home.nix）。
+    #
+    # 移行後の対応：
+    #   just darwin        → nh darwin switch      （ホスト名は nh が自動解決）
+    #   just darwin-debug  → nh darwin switch -- --show-trace
+    #   just clean / gc    → 下の clean.enable で launchd 定期実行に格上げ
+    #   just up / upp      → nix flake update [input]
+    #   just fmt           → nix fmt .
+    #   just history / repl / gcroot → 代替なしで廃止（使用実績なし）
+    #
+    # 逃げ道：nh が壊れたら
+    #   sudo darwin-rebuild switch --flake "$NH_DARWIN_FLAKE#$(hostname -s)"
+    nh = {
+      enable = true;
+      darwinFlake = "${config.my.forgeDir}/nix-darwin-conf";
+
+      # 旧 Justfile の clean/gc レシピ（手で打つ・打った記憶がない）を定期実行へ。
+      # darwin では launchd.agents.nh-clean が生える。
+      # ⚠ nix.gc.automatic と併用すると警告が出る（モジュールが検出する）。
+      clean = {
+        enable = true;
+        dates = "weekly";
+        extraArgs = "--keep-since 7d --keep 5";
+      };
+    };
+
     # ディレクトリ単位の環境変数管理。nix-direnv 統合で flake devShell を
     # 高速キャッシュ＆GC ルート固定。enable が direnv 本体＋zsh フック＋
     # ~/.config/direnv/direnvrc（nix-direnv を source）を宣言的に生成するので、
