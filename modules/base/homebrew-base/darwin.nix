@@ -90,15 +90,15 @@
       # Productivity & Organization
       "libreoffice" # Free office suite
       "obsidian" # Knowledge base that works on top of markdown files
-      # "dynalist" — 2026-08-19 に外した。**cask が Homebrew から消滅**している
-      #   （Casks/d/dynalist.rb も formulae.brew.sh の JSON API も 404）。ローカルには
-      #   url も sha256 も空のスタブだけが残り、`brew bundle` の fetch 段が
-      #   `attempted to use a `Downloadable` without a URL!` で落ちて **darwin-rebuild
-      #   全体が失敗する**。宣言を残す限り毎回止まるので削除が唯一の解。
-      #   /Applications/Dynalist.app は cleanup="none" のおかげで残っており、
-      #   modules/base/macos-defaults/darwin.nix の Dock 常駐もそのまま効く。
-      #   ただし **今後 brew 経由の更新は来ない**（1.0.6 で凍結）。
-      #   完全に手を切るなら手動で `brew uninstall --cask dynalist`＋Dock の行も削除。
+      # "dynalist" # 2026-08-24 に宣言から外した。cask 自体が homebrew-cask から削除された
+      #            （`brew search --cask dynalist` で出てこない）。残っているのは
+      #            /opt/homebrew/Caskroom/dynalist/.metadata の stub だけで、これは
+      #            url を持たないので `brew fetch` が
+      #            "attempted to use a `Downloadable` without a URL!" で落ちる。
+      #            brew bundle は Brewfile 全体を先に fetch するので、この1件で
+      #            activation 丸ごと失敗＝他の cask の追加も一切通らなくなっていた。
+      #            cleanup="none" なので Dynalist.app と Caskroom はそのまま残る
+      #            （アプリは今までどおり使える）。upstream に戻ったら復活させる。
       "anki" # Spaced repetition flashcard program
 
       # Utilities
