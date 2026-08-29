@@ -313,6 +313,14 @@
   # Add ability to used TouchID for sudo authentication
   security.pam.services.sudo_local.touchIdAuth = true;
 
+  # ↑ だけでは **herdr / tmux の中で効かない**（2026-08-19 実測）。pam_tid は GUI の
+  # bootstrap session に紐づくが、herdr は `herdr server` というバックグラウンド常駐
+  # プロセスの子としてペインを持つ（tmux / screen と同じ構造）ため、そこから出た sudo は
+  # 指紋センサに到達できずパスワードにフォールバックする。日常の `darwin-rebuild switch` は
+  # ほぼ herdr の中から打つので、これが無いと TouchID が実質死んでいる。
+  # reattach は pam_reattach.so を pam_tid の前に挿してセッションを繋ぎ直す。
+  security.pam.services.sudo_local.reattach = true;
+
   # Create /etc/zshrc that loads the nix-darwin environment.
   # this is required if you want to use darwin's default shell - zsh
   programs.zsh.enable = true;
