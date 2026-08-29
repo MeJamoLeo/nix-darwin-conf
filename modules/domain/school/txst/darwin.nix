@@ -19,6 +19,14 @@
     # "Microsoft OneNote" = 784801555;
   };
 
+  # Microsoft Teams is NOT on the Mac App Store (only third-party "join a
+  # Teams meeting" clones are), so it has to come from the cask. The cask
+  # installs MicrosoftTeams.pkg and the app self-updates afterwards.
+  # Requires macOS >= 14.
+  homebrew.casks = [
+    "microsoft-teams" # Classes / group work — sign in with @txstate.edu
+  ];
+
   # iOS/iPad apps that run on Apple Silicon Macs cannot be installed via mas.
   # The mas CLI is bound to the macOS-only StoreFoundation framework and
   # cannot acquire iOS-bundle apps even when they appear in the Mac App Store's
