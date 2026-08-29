@@ -1,4 +1,23 @@
 {...}: {
+  # ⚠ home.sessionVariables に**新しい変数を足した／値を変えた**ときの注意
+  #   （2026-08-29 に NH_DARWIN_FLAKE 追加で踏んだ。pam_reattach と同じ構図で2度目）
+  #
+  #   生成される hm-session-vars.sh は冒頭でこうガードしている：
+  #       if [ -n "''${__HM_SESS_VARS_SOURCED-}" ]; then return; fi
+  #   この変数は **export される＝子プロセスに継承される**ので、switch より前に起動した
+  #   長生きプロセス（herdr server / Ghostty / tmux）の配下では、新しいターミナルを
+  #   開いても .zshenv/.zprofile が早期 return して**新しい変数が降りてこない**。
+  #   ファイルにも .zshenv の参照先にも正しい値が入っているのに空に見えるので紛らわしい。
+  #
+  #   確認：  env -u __HM_SESS_VARS_SOURCED zsh -c 'echo $NEW_VAR'   ← ここでは取れる
+  #   その場しのぎ（そのペインだけ新環境にする）：
+  #       unset __HM_SESS_VARS_SOURCED
+  #       source /etc/profiles/per-user/treo/etc/profile.d/hm-session-vars.sh
+  #   恒久化：長生きプロセスを再起動する（herdr server を落とすと**その配下の全ペインが
+  #   死ぬ**ので、作業が残っていないタイミングを選ぶこと）。
+  #
+  #   ★一般形：**長生きプロセスは、起動時点の環境を子孫に配り続ける。** 宣言的設定は
+  #   「次に生まれるプロセス」にしか効かない。switch が緑でも既存プロセスは変わらない。
   home.sessionVariables = {
     EDITOR = "nvim";
   };
