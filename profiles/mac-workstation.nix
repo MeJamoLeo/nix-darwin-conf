@@ -1,6 +1,7 @@
 {
   username,
   nixvim,
+  zen-browser,
   ...
 }: {
   ##########################################################################
@@ -48,6 +49,7 @@
       ../modules/apps/aerospace/home.nix
       ../modules/apps/handy/home.nix
       ../modules/apps/file-defaults/home.nix # IINA/Skim/Zed 関連付け + noTunes
+      ../modules/apps/zen/home.nix # 既定ブラウザ。Space/Folder を宣言的に固定する
 
       # custom — 自作システム
       ../modules/custom/chrome-anjin/home.nix
@@ -61,6 +63,7 @@
       ../modules/domain/school/cs4355/home.nix # Fall 2026 限定。学期末に _archive/ へ
       # 外部 flake 供給の HM モジュール
       ((nixvim.homeModules or nixvim.homeManagerModules).nixvim)
+      zen-browser.homeModules.default # 設定値は ../modules/apps/zen/home.nix 側
     ];
 
     home = {

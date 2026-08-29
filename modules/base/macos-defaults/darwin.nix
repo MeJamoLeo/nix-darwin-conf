@@ -39,7 +39,13 @@
         # Pin a fixed, reproducible set of apps (left section).
         # NOTE: setting this fully replaces the dock contents on rebuild.
         persistent-apps = [
-          "/Applications/Zen.app"
+          # Zen は 2026-08-27 に brew cask → flake の HM モジュールへ移行。実体が
+          # ~/Applications/Home Manager Apps/ に移ったのでここも追従する（Zed と同じ形）。
+          # ⚠ バンドル名は cask 版の `Zen.app` ではなく **`Zen Browser (Beta).app`**。
+          #   （upstream の配布 .app をそのまま入れる "signed" モードなので改名されない。
+          #    バンドル ID は cask 版と同じ app.zen-browser.zen・署名の TeamIdentifier も
+          #    9V5K9TP787 のまま＝1Password 等の Team ID 統合は維持される）
+          "/Users/${username}/Applications/Home Manager Apps/Zen Browser (Beta).app"
           "/Applications/Cursor.app"
           "/Users/${username}/Applications/Home Manager Apps/Zed.app"
           "/Applications/Discord.app"

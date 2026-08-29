@@ -10,19 +10,24 @@
 #
 # 撤去しても prefs.js に pref が焼き付いて残る。Zen の設定 → ネットワーク設定 →
 # 「プロキシを使用しない」に戻すか、user.js を type 0 で1回書いてから外すこと。
+#
+# ## 2026-08-27：プロファイルパスの二重管理をやめた（事故の再発防止）
+#
+# 旧構成はこのファイルが `home.file."…/Profiles/<ID>/user.js"` を直接置いていた。
+# `home.file` はディレクトリごと作ってしまうので、**Zen 側でプロファイルが作り直されて ID が
+# 変わると、存在しないプロファイルに user.js を書き続けて黙って無効化される**。実際に踏んだ：
+# 稼働プロファイルが `tof5kg3s.Default (release)-1` に移った後もここは `tbq2aiii.…` を
+# 指したままで、稼働側の prefs.js には `network.proxy.*` が1行も無く **ゲートが完全に死んでいた**。
+#
+# 現構成では **プロファイルの場所を知っているのは modules/apps/zen/home.nix ただ1箇所**で、
+# このモジュールは `settings`（＝ user.js）に pref を寄せるだけ。パスを持たない＝ずれようがない。
 let
   pac = import ./pac.nix {inherit pkgs;};
-
-  # ⚠ Zen を作り直すとプロファイル ID が変わり、この行が古い ID を指したまま**黙って効かなくなる**
-  #   （home.file はディレクトリごと作ってしまうので気づけない）。profiles.ini の
-  #   [Install…] Default が指す側に合わせること。
-  zenProfileDir = "Library/Application Support/zen/Profiles/tbq2aiii.Default (release)";
 in {
   # user.js は毎起動読まれる＝ UI から変えても再起動で戻る（恒久解除ができない）。
-  home.file."${zenProfileDir}/user.js".text = ''
-    // managed by nix-darwin: modules/custom/youtube-gate/home.nix
-    // 手で編集しても次の darwin-rebuild で上書きされる。
-    user_pref("network.proxy.type", 2);
-    user_pref("network.proxy.autoconfig_url", "file://${pac}");
-  '';
+  # 実際の書き出し先は zen モジュールが所有する（上のコメント参照）。
+  programs.zen-browser.profiles.default.settings = {
+    "network.proxy.type" = 2;
+    "network.proxy.autoconfig_url" = "file://${pac}";
+  };
 }

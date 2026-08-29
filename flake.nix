@@ -70,6 +70,35 @@
       inputs.bun2nix.inputs.systems.follows = "systems";
     };
 
+    # zen-browser: Zen（Firefox フォーク）の home-manager モジュールを供給する
+    #   コミュニティ flake（github:0xc000022070/zen-browser-flake）。
+    #
+    #   ★ なぜ homebrew cask ではなく flake input なのか（2026-08-27 に移行）：
+    #     Zen の **Space / Folder / ピン留め** は prefs ではなく実行時ステート
+    #     （プロファイル内の `zen-sessions.jsonlz4` ＝ LZ4 圧縮 JSON と places.sqlite の
+    #     `zen_bookmarks_workspaces` テーブル）に入っている。素の `home.file` で user.js を
+    #     置くやり方では **prefs までしか宣言できない**。この flake の HM モジュールは
+    #     activation script で jsonlz4 を展開 → jq で書き換え → 再圧縮するので、Space と
+    #     Folder を宣言的に固定できる。設定の実体は modules/apps/zen/home.nix。
+    #
+    #   ★ 副次的だが重要：モジュールが**プロファイルの場所を所有する**ので、
+    #     youtube-gate が踏んでいた「プロファイル ID をハードコードして Zen 再作成時に
+    #     黙って外れる」事故（modules/custom/youtube-gate/home.nix の旧コメント参照）が
+    #     構造的に起きなくなる。
+    #
+    #   ★ darwin では `darwin.packageMode = "signed"` を使う（modules/apps/zen/home.nix）。
+    #     upstream の .app 署名を保つので Team ID 依存の統合（1Password・iCloud
+    #     Passwords・Touch ID・Gatekeeper）が壊れない。"wrapped" は .app 内に書き込んで
+    #     署名を無効化するため採らない。
+    #
+    #   ⚠ Space / pin を宣言している間は **`darwin-rebuild switch` の前に Zen を終了**
+    #     させること（activation script が zen-sessions.jsonlz4 に排他アクセスを要る）。
+    zen-browser = {
+      url = "github:0xc000022070/zen-browser-flake";
+      inputs.nixpkgs.follows = "nixpkgs-darwin";
+      inputs.home-manager.follows = "home-manager";
+    };
+
     # hermes-agent: Nous Research の自律エージェント（永続メモリ＋自律スキル作成・MIT）。
     #   公式 flake は aarch64-darwin をビルド対象に含むが、出しているモジュールは
     #   nixosModules.default だけ。outputs を実測で列挙して確認済み（apps / checks /

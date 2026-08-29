@@ -413,7 +413,8 @@
         "nixpkgs-darwin": "nixpkgs-darwin",
         "nixpkgs-stable": "nixpkgs-stable",
         "nixvim": "nixvim",
-        "systems": "systems"
+        "systems": "systems",
+        "zen-browser": "zen-browser"
       }
     },
     "rust-overlay": {
@@ -496,6 +497,29 @@
       "original": {
         "owner": "pyproject-nix",
         "repo": "uv2nix",
+        "type": "github"
+      }
+    },
+    "zen-browser": {
+      "inputs": {
+        "home-manager": [
+          "home-manager"
+        ],
+        "nixpkgs": [
+          "nixpkgs-darwin"
+        ]
+      },
+      "locked": {
+        "lastModified": 1787854095,
+        "narHash": "sha256-mnz44qu/aLje0/FOIvH/nNBjKtjIo/oi/32mxGayi9Q=",
+        "owner": "0xc000022070",
+        "repo": "zen-browser-flake",
+        "rev": "99cb519f07578ee8e0e6cdb0cae06d9343a60fe8",
+        "type": "github"
+      },
+      "original": {
+        "owner": "0xc000022070",
+        "repo": "zen-browser-flake",
         "type": "github"
       }
     }

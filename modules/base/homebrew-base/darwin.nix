@@ -49,14 +49,21 @@
       # Browsers
       "google-chrome" # Web browser
       "brave-browser" # Privacy-focused web browser
-      # Firefox 系だが brew 版＝署名済み .app なので policies.json を置けず、拡張を宣言的に
-      # 入れられない（Zen は macOS の Managed Preferences も読まない: zen-browser/desktop#12363）。
-      # nix に固定する道はあるが日常ブラウザの自動更新が死ぬので採らない（2026-08-03 判断）。
-      # 新端末では AMO から手で入れる:
-      #   uBlock Origin / Vimium / Video Speed Controller / Unhook / Tampermonkey /
-      #   Obsidian Web Clipper
-      # ⚠ 広告ブロッカーは uBO に固定。AdGuard と併用するとフィルタが二重適用される。
-      "zen"
+      # "zen" — 2026-08-27 に cask をやめ、flake の home-manager モジュールへ移した
+      #   （modules/apps/zen/home.nix・flake.nix の zen-browser input）。
+      #   2026-08-03 に cask を選んだ理由は「nix に固定すると日常ブラウザの自動更新が死ぬ」
+      #   だったが、**Space / Folder が宣言できない**という代償のほうが重かったため反転。
+      #   更新は `nix flake update zen-browser` で回す。
+      #   ⚠ 実体は `~/Applications/Home Manager Apps/Zen Browser (Beta).app` に移る
+      #     （/Applications には生えず、バンドル名も cask 版と違う）。旧 cask の
+      #     /Applications/Zen.app は cleanup="none" のため残り、**同じバンドル ID の .app が
+      #     2つあると既定ブラウザの解決が不定になる**ので、移行を確認したら一度だけ手で
+      #     `brew uninstall --cask zen` すること。
+      #   拡張は引き続き AMO から手で入れる（署名を保つ "signed" モードでは
+      #   policies.json を .app に置けない）:
+      #     uBlock Origin / Vimium / Video Speed Controller / Unhook / Tampermonkey /
+      #     Obsidian Web Clipper
+      #   ⚠ 広告ブロッカーは uBO に固定。AdGuard と併用するとフィルタが二重適用される。
 
       # Development
       "visual-studio-code" # Code editor
