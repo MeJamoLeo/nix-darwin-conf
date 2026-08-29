@@ -1,0 +1,80 @@
+# ex-pdf <exNN> — zyBook Exercise のスキャン画像を Gradescope 提出用の 1 本の PDF にまとめる。
+#
+#   ex-pdf ex03        # ~/txst/CS4355/exercises/ex03/scans/* -> .../ex03/submit.pdf
+#   ex-pdf .           # カレントディレクトリを対象にする
+#
+# 設計：
+#   - iPhone の既定は HEIC。img2pdf は HEIC を読めないので sips（macOS 標準）で JPEG に
+#     中間変換する。JPEG/PNG はそのまま渡す。
+#   - img2pdf は JPEG を**再エンコードせずに埋め込む**ので画質が落ちず、サイズも増えない
+#     （ImageMagick 経由だと再圧縮されて劣化する）。
+#   - --rotation=ifvalid で iPhone の EXIF Orientation を尊重する。これが無いと横向きで入る。
+#   - ページ順はファイル名の自然順（sort -V）。撮った順に IMG_0001.. と並ぶ前提。
+#     順を変えたいならファイル名を 01- 02- のように付け替える。
+set -euo pipefail
+
+usage() {
+  echo "usage: ex-pdf <exNN|dir>" >&2
+  echo "  例: ex-pdf ex03" >&2
+  exit 2
+}
+
+arg="${1:-}"
+[ -n "$arg" ] || usage
+
+# 引数がディレクトリならそれを、そうでなければ exercises/ 配下の名前として解決する
+if [ -d "$arg" ]; then
+  dir="$arg"
+else
+  dir="$HOME/txst/CS4355/exercises/$arg"
+fi
+[ -d "$dir" ] || {
+  echo "ex-pdf: そんな課題ディレクトリは無い: $arg" >&2
+  exit 1
+}
+
+scans="$dir/scans"
+[ -d "$scans" ] || {
+  echo "ex-pdf: $scans が無い。スキャン画像をそこに置いて。" >&2
+  exit 1
+}
+
+# 対象画像を自然順で集める（拡張子は大小文字どちらも拾う）
+mapfile -t imgs < <(
+  find "$scans" -maxdepth 1 -type f \
+    \( -iname '*.heic' -o -iname '*.jpg' -o -iname '*.jpeg' -o -iname '*.png' \) \
+    | sort -V
+)
+[ "${#imgs[@]}" -gt 0 ] || {
+  echo "ex-pdf: $scans に画像が無い（heic/jpg/jpeg/png）" >&2
+  exit 1
+}
+
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+
+# HEIC だけ JPEG へ。それ以外はそのまま使う。連番を振って順序を固定する。
+converted=()
+i=0
+for src in "${imgs[@]}"; do
+  i=$((i + 1))
+  n=$(printf '%03d' "$i")
+  case "$(echo "${src##*.}" | tr '[:upper:]' '[:lower:]')" in
+    heic)
+      out="$tmp/$n.jpg"
+      /usr/bin/sips -s format jpeg "$src" --out "$out" >/dev/null
+      converted+=("$out")
+      ;;
+    *)
+      converted+=("$src")
+      ;;
+  esac
+done
+
+out="$dir/submit.pdf"
+img2pdf --rotation=ifvalid --output "$out" "${converted[@]}"
+
+pages="${#converted[@]}"
+size="$(du -h "$out" | cut -f1)"
+echo "ex-pdf: $out  (${pages} ページ / ${size})"
+echo "         Gradescope にこれを上げる。zyBook の中では提出しない。"

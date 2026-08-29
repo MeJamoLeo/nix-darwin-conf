@@ -58,6 +58,7 @@
       # domain — 生活ドメイン
       ../modules/domain/latex/home.nix
       ../modules/domain/school/txst/home.nix
+      ../modules/domain/school/cs4355/home.nix # Fall 2026 限定。学期末に _archive/ へ
       # 外部 flake 供給の HM モジュール
       ((nixvim.homeModules or nixvim.homeManagerModules).nixvim)
     ];

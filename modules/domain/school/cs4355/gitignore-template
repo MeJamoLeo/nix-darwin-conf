@@ -1,0 +1,18 @@
+# CS 4355 — 初回だけ nix が置いた種。以後は自由に編集してよい。
+
+# ビルド生成物
+a.out
+sol
+*.o
+*.dSYM/
+compile_commands.json
+.cache/
+
+# スキャン元画像。1枚数MBで嵩むわりに、履歴に要るのは submit.pdf の方。
+# （submit.pdf は「何を出したか」の証拠なのでコミットする）
+exercises/*/scans/
+
+# 教員の著作物。手元には置くが履歴には残さない。
+ref/slides/
+
+.DS_Store
