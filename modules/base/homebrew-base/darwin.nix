@@ -83,7 +83,15 @@
       # Productivity & Organization
       "libreoffice" # Free office suite
       "obsidian" # Knowledge base that works on top of markdown files
-      "dynalist" # Outliner and list making app
+      # "dynalist" — 2026-08-19 に外した。**cask が Homebrew から消滅**している
+      #   （Casks/d/dynalist.rb も formulae.brew.sh の JSON API も 404）。ローカルには
+      #   url も sha256 も空のスタブだけが残り、`brew bundle` の fetch 段が
+      #   `attempted to use a `Downloadable` without a URL!` で落ちて **darwin-rebuild
+      #   全体が失敗する**。宣言を残す限り毎回止まるので削除が唯一の解。
+      #   /Applications/Dynalist.app は cleanup="none" のおかげで残っており、
+      #   modules/base/macos-defaults/darwin.nix の Dock 常駐もそのまま効く。
+      #   ただし **今後 brew 経由の更新は来ない**（1.0.6 で凍結）。
+      #   完全に手を切るなら手動で `brew uninstall --cask dynalist`＋Dock の行も削除。
       "anki" # Spaced repetition flashcard program
 
       # Utilities
