@@ -20,6 +20,25 @@ in {
     rm -f ~/.gitconfig
   '';
 
+  # git-crypt — 2026-08-29 に homebrew から nixpkgs へ移した（brew 版と同じ 0.8.0）。
+  #
+  # 移行の理由：**非対話 ssh で PATH に入らず、リモートからの vault 操作が落ちる**。
+  # brew の PATH は `brew shellenv` を評価する ~/.zprofile 経由で張られるが、
+  # `ssh host 'cmd'` はログインシェルを起こさないので /opt/homebrew/bin を見ない。
+  # claude-obsidian の vault は .gitattributes で git-crypt filter を張っているため、
+  # フィルタが見つからないと commit 自体が
+  #     "git-crypt" clean: git-crypt: command not found
+  #     fatal: <file>: clean filter 'git-crypt' failed
+  # で失敗する（2026-08-29 に tanegashima への ssh で実際に踏んだ）。
+  # nix 管理なら /etc/profiles/per-user/treo/bin に入り、非対話でも解決する。
+  #
+  # ここ（apps/git）に置くのは、git のフィルタとして動く＝ git の一部として扱うのが
+  # 自然なため。上の SIGTRAP コメントでも git 本体と並べて言及している。
+  #
+  # ⚠ brew 版は宣言に無い（手で入れたもの）ので自動では消えない。PATH 優先順位で
+  #   nix 版が勝つため実害は無いが、掃除するなら各機で `brew uninstall git-crypt`。
+  home.packages = [pkgs.git-crypt];
+
   programs.git = {
     enable = true;
     # 上記コメント参照：unstable git 2.54.0 の untracked 走査 SIGTRAP 回避のため 2.50.1 に固定
