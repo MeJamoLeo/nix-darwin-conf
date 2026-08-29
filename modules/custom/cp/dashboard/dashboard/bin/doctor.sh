@@ -6,6 +6,7 @@ set -uo pipefail
 
 ROOT="${1:-$HOME/cp-dashboard}"
 NOVI_KEYCHAIN_SERVICE="novisteps-auth-session"
+NOVI_PASSWORD_SERVICE="novisteps-password"
 WALL_STORE="$HOME/Library/Application Support/com.apple.wallpaper/Store/Index.plist"
 
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$1"; }
@@ -29,12 +30,17 @@ else
     bad "Chrome 不在" "brew の cask google-chrome が入るまで switch を確認（homebrew-base に宣言済み）"
 fi
 
-# 3. NoviSteps cookie — 無くても盤面は動く（novisteps パネルのみ stale）
-if /usr/bin/security find-generic-password -s "$NOVI_KEYCHAIN_SERVICE" -w >/dev/null 2>&1; then
-    ok "NoviSteps cookie (Keychain)"
+# 3. NoviSteps 資格情報 — 無くても盤面は動く（novisteps パネルのみ stale）
+#    password があれば cookie は fetch_novisteps.py が自動で取り直す。恒久的に効くのは
+#    password の方で、cookie 単独は「今は動くが失効したら止まる」状態。
+if /usr/bin/security find-generic-password -s "$NOVI_PASSWORD_SERVICE" -w >/dev/null 2>&1; then
+    ok "NoviSteps password (Keychain) — cookie 失効時は自動ログインで復帰"
+elif /usr/bin/security find-generic-password -s "$NOVI_KEYCHAIN_SERVICE" -w >/dev/null 2>&1; then
+    bad "NoviSteps cookie はあるが password が無い（失効したら手番が発生する）" \
+        "security add-generic-password -U -s $NOVI_PASSWORD_SERVICE -a '<NoviStepsのユーザ名>' -T /usr/bin/security -w '<パスワード>'"
 else
-    bad "NoviSteps cookie が Keychain に無い" \
-        "Chrome で NoviSteps にログイン → DevTools で auth_session cookie をコピー → security add-generic-password -s $NOVI_KEYCHAIN_SERVICE -a \$USER -T /usr/bin/security -w '<cookie値>'"
+    bad "NoviSteps の資格情報が Keychain に無い" \
+        "security add-generic-password -U -s $NOVI_PASSWORD_SERVICE -a '<NoviStepsのユーザ名>' -T /usr/bin/security -w '<パスワード>'"
 fi
 
 # 3b. AtCoder cookie — stopwatch の凍結検出用（無くても公開データは描画される）

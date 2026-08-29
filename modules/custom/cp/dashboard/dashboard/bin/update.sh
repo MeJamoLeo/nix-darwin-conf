@@ -9,6 +9,7 @@ OUT="$ROOT/out"
 LOG="$OUT/update.log"
 CACHE="$HOME/.cache/cp-dashboard"
 NOVI_KEYCHAIN_SERVICE="novisteps-auth-session"
+NOVI_PASSWORD_SERVICE="novisteps-password"
 
 mkdir -p "$OUT" "$CACHE"
 
@@ -30,7 +31,9 @@ else
     log "fetch_stats FAILED — rendering from cache"
 fi
 
-if /usr/bin/security find-generic-password -s "$NOVI_KEYCHAIN_SERVICE" -w >/dev/null 2>&1; then
+# password があれば cookie 不在でも自動ログインで取れるので、どちらかあれば走らせる
+if /usr/bin/security find-generic-password -s "$NOVI_KEYCHAIN_SERVICE" -w >/dev/null 2>&1 \
+   || /usr/bin/security find-generic-password -s "$NOVI_PASSWORD_SERVICE" -w >/dev/null 2>&1; then
     if python3 "$UP/fetch_novisteps.py" --one >> "$LOG" 2>&1; then
         log "fetch_novisteps ok"
     else
@@ -57,7 +60,7 @@ EOF
         fi
     fi
 else
-    log "novisteps cookie missing (Keychain service=$NOVI_KEYCHAIN_SERVICE) — skip"
+    log "novisteps credentials missing ($NOVI_KEYCHAIN_SERVICE / $NOVI_PASSWORD_SERVICE) — skip"
 fi
 
 # draft-v1 盤面のデータ生成（キャッシュから直接計算・fetch 失敗時は stale で描く）
