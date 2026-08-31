@@ -1,0 +1,437 @@
+#!/usr/bin/env python3
+"""record-blocks — Claude Code の transcript から1日の作業ブロックを復元する。
+
+なぜこれが在るか（2026-08-30）:
+  Google カレンダー "Record" を後から埋めるとき、**終了時刻は git のコミットや
+  ファイルの mtime から拾えるのに、開始時刻だけが復元できない**という非対称が
+  あった。実際 2026-08-30 の記録では推定した開始時刻が1時間ずれていた。
+
+  新しく計測器を足す必要は無い。Claude Code は
+  `~/.claude/projects/<slug>/<session-uuid>.jsonl` に1行ごと ISO タイムスタンプ付きで
+  全セッションを残しており、そこには
+    - 最初のユーザー発話（＝その作業に着手した「きっかけ」）
+    - `ai-title`（セッションの日本語タイトル）
+    - `cwd` / `gitBranch`
+  まで入っている。**足りないのは計測ではなく読み出しだった。**
+
+  ★ 一般形＝記録が無いと思ったら、まず既存のログに無いかを見る。新しい常駐を足す前に、
+    既に取れているデータを読む経路を作るほうが安い（常駐は増えるほど死ぬ）。
+
+取れないもの（設計上の限界。ここは手入力のまま）:
+  - **端末の外の作業**（ジム・食事・移動・ブラウザや Word だけで完結した作業）は映らない。
+  - Claude Code を起動せずに端末だけで作業した時間も映らない。
+  → 出力の `gaps` がその候補。空白を「取れなかった時間」として明示する。
+
+⚠ transcript は Claude Code の `cleanupPeriodDays`（既定 30 日）で消える。
+  日次で JSON に落としておくことが、そのまま保持期間の対策になっている。
+"""
+
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import json
+import os
+import sys
+from pathlib import Path
+from zoneinfo import ZoneInfo
+
+DEFAULT_TZ = "America/Chicago"
+
+# 本物のユーザー発話ではない合成メッセージ。きっかけの判定から除外する。
+SYNTHETIC_PREFIXES = (
+    "<command-name>",
+    "<local-command-",
+    "<system-reminder>",
+    "<user-prompt-submit-hook>",
+    "Caveat: The messages below",
+)
+
+
+def parse_date(value: str, tz: ZoneInfo) -> dt.date:
+    today = dt.datetime.now(tz).date()
+    if value == "today":
+        return today
+    if value == "yesterday":
+        return today - dt.timedelta(days=1)
+    return dt.date.fromisoformat(value)
+
+
+def parse_ts(raw: str) -> dt.datetime | None:
+    if not raw:
+        return None
+    try:
+        # Claude Code は "...Z" 表記で書く。fromisoformat は 3.11 未満だと Z を読めない。
+        ts = dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    # naive を素通しすると aware な窓境界との比較で TypeError になり全体が落ちる。UTC とみなす。
+    return ts if ts.tzinfo is not None else ts.replace(tzinfo=dt.timezone.utc)
+
+
+def extract_text(message: dict) -> str | None:
+    """user エントリの本文をテキストに落とす。tool_result しか無い行は None。"""
+    content = message.get("content")
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return None
+    parts = []
+    for block in content:
+        if not isinstance(block, dict):
+            continue
+        if block.get("type") == "text" and block.get("text"):
+            parts.append(str(block["text"]))
+        elif block.get("type") == "image":
+            parts.append("[image]")
+    return " ".join(parts) if parts else None
+
+
+def is_real_prompt(entry: dict) -> bool:
+    if entry.get("type") != "user":
+        return False
+    if entry.get("isMeta") or entry.get("isSidechain"):
+        return False
+    text = extract_text(entry.get("message") or {})
+    if not text:
+        return False
+    stripped = text.strip()
+    if not stripped:
+        return False
+    return not stripped.startswith(SYNTHETIC_PREFIXES)
+
+
+def scan_session(
+    path: Path, lo: dt.datetime, hi: dt.datetime, idle: dt.timedelta
+) -> list[dict]:
+    """1セッションファイルを走査して、窓に重なる作業区間を返す。
+
+    ★ セッション1本＝作業ブロック1つ**ではない**。herdr のタブは開きっぱなしにするので、
+      同じセッションが睡眠を挟んで翌日まで生きている（実測：02:21 に始まった OmniWM の
+      タブが 20:55 まで同一セッション＝1114分）。first/last をそのまま採ると睡眠が
+      作業時間に化けて gaps が消える。**中の無活動が `idle` を超えたらそこで切る。**
+    """
+    segments: list[dict] = []
+    current: dict | None = None
+    before = after = False
+    title = None
+    title_at_end = None
+    cwd = None
+    branch = None
+
+    def close() -> None:
+        nonlocal current
+        if current is not None:
+            segments.append(current)
+            current = None
+
+    with path.open(encoding="utf-8", errors="replace") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entry = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            if entry.get("type") == "ai-title" and entry.get("aiTitle"):
+                title = entry["aiTitle"]
+
+            timestamp = parse_ts(entry.get("timestamp", ""))
+            if timestamp is None:
+                continue
+            if timestamp < lo:
+                before = True
+                continue
+            if timestamp >= hi:
+                after = True
+                continue
+
+            # タイトルは後から付け替わるので、窓の終わり時点の値を採る。
+            title_at_end = title
+            if cwd is None and entry.get("cwd"):
+                cwd = entry["cwd"]
+            if branch is None and entry.get("gitBranch"):
+                branch = entry["gitBranch"]
+
+            if current is not None and timestamp - current["end"] >= idle:
+                close()
+            if current is None:
+                current = {"start": timestamp, "end": timestamp, "trigger": None, "prompts": 0}
+            current["end"] = timestamp
+
+            if is_real_prompt(entry):
+                current["prompts"] += 1
+                if current["trigger"] is None:
+                    current["trigger"] = extract_text(entry["message"]).strip()
+
+    close()
+    if not segments:
+        return []
+
+    for index, segment in enumerate(segments):
+        segment.update(
+            {
+                "session": path.stem,
+                "segment": index + 1,
+                "segments_in_session": len(segments),
+                "title": title_at_end,
+                "cwd": cwd,
+                "branch": branch,
+                # 窓の外に続きがある＝この日の中では途中から/途中までしか見えていない。
+                "continued_from_previous_day": before and index == 0,
+                "continues_into_next_day": after and index == len(segments) - 1,
+            }
+        )
+    return segments
+
+
+def flag_duplicates(blocks: list[dict]) -> None:
+    """resume / fork で同じ会話が別ファイルに複製されることがある。落とさず印だけ付ける。
+
+    消さないのは、並行タブで**別々の本物の作業**が同じ時刻に走るのが常態だから
+    （実測：20:55 に「画像の意味を理解する」と「OmniWM 枠線」が同時に動いていた）。
+    自動で畳むと本物を消す。判断は読む人に残す。
+    """
+    for i, a in enumerate(blocks):
+        if not a.get("trigger"):
+            continue
+        for b in blocks[i + 1 :]:
+            if a["trigger"] != b.get("trigger"):
+                continue
+            overlap = min(a["end"], b["end"]) - max(a["start"], b["start"])
+            span = max(a["end"] - a["start"], b["end"] - b["start"])
+            if span and overlap >= span * 0.8:
+                b["possible_duplicate_of"] = a["session"]
+
+
+def merge_intervals(blocks: list[dict]) -> list[tuple[dt.datetime, dt.datetime]]:
+    """並行セッションを1本の「作業していた時間」に畳む。gap 判定はこの上で行う。"""
+    spans = sorted((b["start"], b["end"]) for b in blocks)
+    merged: list[list[dt.datetime]] = []
+    for start, end in spans:
+        if merged and start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], end)
+        else:
+            merged.append([start, end])
+    return [(a, b) for a, b in merged]
+
+
+def find_gaps(
+    merged: list[tuple[dt.datetime, dt.datetime]],
+    lo: dt.datetime,
+    hi: dt.datetime,
+    threshold: dt.timedelta,
+) -> list[tuple[dt.datetime, dt.datetime]]:
+    gaps = []
+    cursor = lo
+    for start, end in merged:
+        if start - cursor >= threshold:
+            gaps.append((cursor, start))
+        cursor = max(cursor, end)
+    if hi - cursor >= threshold:
+        gaps.append((cursor, hi))
+    return gaps
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Claude Code の transcript から1日の作業ブロックを復元する"
+    )
+    parser.add_argument(
+        "--date",
+        default="yesterday",
+        help="YYYY-MM-DD / today / yesterday（既定: yesterday）",
+    )
+    parser.add_argument("--tz", default=DEFAULT_TZ, help=f"IANA タイムゾーン（既定: {DEFAULT_TZ}）")
+    parser.add_argument(
+        "--projects-dir",
+        default=str(Path.home() / ".claude" / "projects"),
+        help="Claude Code の transcript 置き場",
+    )
+    parser.add_argument(
+        "--gap-minutes",
+        type=int,
+        default=30,
+        help="これ以上の空白を gaps として報告する（既定: 30）",
+    )
+    parser.add_argument("--out-dir", help="指定すると <out-dir>/<date>.json にも書く")
+    parser.add_argument("--json", action="store_true", help="標準出力を JSON にする")
+    args = parser.parse_args()
+
+    tz = ZoneInfo(args.tz)
+    day = parse_date(args.date, tz)
+    lo = dt.datetime.combine(day, dt.time.min, tzinfo=tz)
+    hi = lo + dt.timedelta(days=1)
+    now = dt.datetime.now(tz)
+    # 当日を見るときは「まだ来ていない時間」を gap にしない。
+    horizon = min(hi, now) if day == now.date() else hi
+
+    projects = Path(args.projects_dir).expanduser()
+    if not projects.is_dir():
+        print(f"transcript ディレクトリが無い: {projects}", file=sys.stderr)
+        return 1
+
+    blocks = []
+    for path in sorted(projects.glob("*/*.jsonl")):
+        # 窓の開始より前に最終更新されたファイルは、窓内のエントリを持ち得ない。
+        try:
+            if dt.datetime.fromtimestamp(path.stat().st_mtime, tz=dt.timezone.utc) < lo:
+                continue
+        except OSError:
+            continue
+        # 1ファイルの異常（壊れた行・想定外のスキーマ）で日全体を落とさない。skip して報告する。
+        try:
+            found = scan_session(path, lo, hi, dt.timedelta(minutes=args.gap_minutes))
+        except Exception as exc:  # noqa: BLE001
+            print(f"skip {path}: {exc}", file=sys.stderr)
+            continue
+        for block in found:
+            block["project"] = path.parent.name
+            blocks.append(block)
+
+    # セッションを開いた/クリアしただけの痕跡（発話ゼロ・2分未満）は作業ではない。
+    # 落とした数は下で必ず報告する（黙って間引くと「全部載っている」と誤読される）。
+    kept = [
+        b
+        for b in blocks
+        if b["prompts"] > 0 or (b["end"] - b["start"]) >= dt.timedelta(minutes=2)
+    ]
+    dropped = len(blocks) - len(kept)
+    blocks = kept
+
+    blocks.sort(key=lambda b: b["start"])
+    flag_duplicates(blocks)
+    merged = merge_intervals(blocks) if blocks else []
+    gaps = find_gaps(merged, lo, horizon, dt.timedelta(minutes=args.gap_minutes))
+
+    def local(value: dt.datetime) -> dt.datetime:
+        return value.astimezone(tz)
+
+    def minutes(start: dt.datetime, end: dt.datetime) -> int:
+        return max(1, round((end - start).total_seconds() / 60))
+
+    payload = {
+        "date": day.isoformat(),
+        "timezone": args.tz,
+        "generated_at": now.isoformat(timespec="seconds"),
+        "source": "claude-code-transcripts",
+        "dropped_empty_segments": dropped,
+        "coverage_note": (
+            "端末で Claude Code を使った時間だけが映る。"
+            "端末外の作業（ジム・食事・移動・ブラウザ単独）は原理的に取れない。"
+        ),
+        "blocks": [
+            {
+                **{k: v for k, v in b.items() if k not in ("start", "end")},
+                "start": local(b["start"]).isoformat(timespec="seconds"),
+                "end": local(b["end"]).isoformat(timespec="seconds"),
+                "minutes": minutes(b["start"], b["end"]),
+            }
+            for b in blocks
+        ],
+        "gaps": [
+            {
+                "start": local(a).isoformat(timespec="seconds"),
+                "end": local(b).isoformat(timespec="seconds"),
+                "minutes": minutes(a, b),
+            }
+            for a, b in gaps
+        ],
+    }
+
+    if args.out_dir:
+        out_dir = Path(args.out_dir).expanduser()
+        out_dir.mkdir(parents=True, exist_ok=True)
+        target = out_dir / f"{day.isoformat()}.json"
+        # この JSON が transcript 失効後の唯一の記録。途中で殺されても壊れないよう atomic に置く。
+        tmp = target.with_suffix(".json.tmp")
+        tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        os.replace(tmp, target)
+        print(f"wrote {target}", file=sys.stderr)
+
+    if args.json:
+        json.dump(payload, sys.stdout, ensure_ascii=False, indent=2)
+        sys.stdout.write("\n")
+        return 0
+
+    # 表示は2層に分ける（2026-08-31 のフィードバック）:
+    #   カレンダーに書く価値がある「本編」と、それ自体は雑音だが**隙間を思い出す
+    #   手がかりになる「小片」**は別のレイヤー。消すと手がかりが失われ、混ぜると
+    #   本編が読めない。JSON は全部持ち、人間向け表示だけ分ける。
+    minor_cut = 10
+    major = [b for b in payload["blocks"] if b["minutes"] >= minor_cut and not b.get("possible_duplicate_of")]
+    minor = [b for b in payload["blocks"] if b not in major]
+
+    # cwd は全ブロック共通なことが多い。共通値は先頭に1回だけ出し、例外だけ行内に残す。
+    from collections import Counter
+
+    cwd_common = None
+    counts = Counter(b["cwd"] for b in payload["blocks"] if b["cwd"])
+    if counts:
+        cwd_common = counts.most_common(1)[0][0]
+
+    def shorten(path: str | None) -> str:
+        return (path or "").replace(str(Path.home()), "~")
+
+    print(
+        f"# {day.isoformat()} ({args.tz})  blocks={len(blocks)} gaps={len(gaps)}"
+        f" dropped={dropped}"
+    )
+    if cwd_common:
+        print(f"# cwd: {shorten(cwd_common)}（例外のみ行内に表示）")
+
+    def render(b: dict, compact: bool) -> None:
+        start = b["start"][11:16]
+        end = b["end"][11:16]
+        marks = ""
+        if b["continued_from_previous_day"]:
+            marks += "<"
+        if b["continues_into_next_day"]:
+            marks += ">"
+        if b.get("possible_duplicate_of"):
+            marks += "="
+        title = b["title"] or "(no title)"
+        if b["segments_in_session"] > 1:
+            title = f"{title}  [{b['segment']}/{b['segments_in_session']}]"
+        extra = f"  ({shorten(b['cwd'])})" if b["cwd"] and b["cwd"] != cwd_common else ""
+        if compact:
+            trigger = " ".join((b["trigger"] or "").split())
+            tail = f" ↳ {trigger[:60]}" if trigger else ""
+            print(f"{start}-{end} ({b['minutes']:>3}m){marks:<3} {title}{extra}{tail}")
+            return
+        print(f"{start}-{end} ({b['minutes']:>3}m){marks:<3} {title}{extra}")
+        if b["trigger"]:
+            trigger = " ".join(b["trigger"].split())
+            print(f"{'':>18}   ↳ {trigger[:100]}")
+
+    for b in major:
+        render(b, compact=False)
+    if minor:
+        print("\n# 小片（それ自体は書かない。隙間を思い出す手がかり）")
+        for b in minor:
+            render(b, compact=True)
+    if gaps:
+        print("\n# gaps (端末に痕跡が無い時間。手入力の候補)")
+        # 隙間は前後の作業タイトルを添える。「何の後・何の前」が思い出しの手がかりの本体。
+        for g in payload["gaps"]:
+            # 翌日 00:00 で終わる gap を "00:00" と出すと幅ゼロに見えるので 24:00 と書く。
+            end = "24:00" if g["end"][:10] != day.isoformat() else g["end"][11:16]
+            prev_title = next(
+                (b["title"] for b in reversed(payload["blocks"]) if b["end"] <= g["start"] and b["title"]),
+                None,
+            )
+            next_title = next(
+                (b["title"] for b in payload["blocks"] if b["start"] >= g["end"] and b["title"]),
+                None,
+            )
+            cue = ""
+            if prev_title or next_title:
+                cue = f"  「{(prev_title or '?')[:20]}」→ … →「{(next_title or '?')[:20]}」"
+            print(f"{g['start'][11:16]}-{end} ({g['minutes']}m){cue}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

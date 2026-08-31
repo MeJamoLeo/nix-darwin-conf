@@ -61,6 +61,7 @@
       ../modules/custom/cp/dashboard/home.nix
       ../modules/custom/calendar-dashboard/home.nix
       ../modules/custom/earbud-ptt/home.nix
+      ../modules/custom/record-blocks/home.nix # 日次で前日の作業ブロックを transcript から復元
       # domain — 生活ドメイン
       ../modules/domain/latex/home.nix
       ../modules/domain/school/txst/home.nix
