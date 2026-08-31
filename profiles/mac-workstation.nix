@@ -46,7 +46,10 @@
       ../modules/apps/zed/home.nix
       ../modules/apps/herdr/home.nix
       ../modules/apps/claude/home.nix
-      ../modules/apps/aerospace/home.nix
+      # WM は OmniWM を評価中（2026-08-30）。AeroSpace はモジュールごと残してあるので
+      # 戻すのは下の2行を入れ替えるだけ（設定 .aerospace.toml も無傷）。
+      # ../modules/apps/aerospace/home.nix
+      ../modules/apps/omniwm/home.nix # 設定は omniwm/settings.nix が正本（UUID 層だけ実機の GUI が正）
       ../modules/apps/handy/home.nix
       ../modules/apps/file-defaults/home.nix # IINA/Skim/Zed 関連付け + noTunes
       ../modules/apps/zen/home.nix # 既定ブラウザ。Space/Folder を宣言的に固定する
