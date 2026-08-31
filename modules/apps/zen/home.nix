@@ -347,6 +347,9 @@
             "txstate".reference = "txstate.edu";
             "txst".reference = "txst.edu";
             "sharepoint".reference = "txst-my.sharepoint.com";
+            # 組織サイト側テナント（授業・部署の共有サイト）。txst-my は個人 OneDrive
+            # テナントで別ホストなので、両方 route しないと片方が漏れる。
+            "sharepoint-sites".reference = "txst.sharepoint.com";
             # onedrive.live.com は route しない（2026-08-29 監査で除去）。実測の中身は
             # CS4371 の ISO 配布（/personal/… の**個人 OneDrive 公開共有**）で、TXST の
             # 組織ドメインではない（組織側は txst-my.sharepoint.com＝上で route 済み）。
