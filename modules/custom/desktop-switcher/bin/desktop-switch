@@ -2,16 +2,19 @@
 # desktop-switch — デスクトップ壁紙レイヤーを alt+N で切替する tiny dispatcher。
 #
 # サブコマンド:
-#   desktop-switch <layer> [--all]      表示切替
+#   desktop-switch <layer> [--all|--screen NAME]   表示切替
 #       layer: wallpaper | caldash | cp
-#       --all: 全画面に一括適用（既定は aerospace の focused monitor のみ）
+#       --all:          全画面に一括適用（既定はフォーカス中の画面のみ）
+#       --screen NAME:  画面を名前で指定（desktop-auto が使う）
 #   desktop-switch reload <layer>       kickstart で dashboard を再起動
 #       表示状態（state file）は変更しない。再起動後の app が state を読み直して復元。
 #
 # 動作原理:
-#   1. active monitor 名を aerospace list-monitors --focused から取得（--all なら "all"）
-#      ※ aerospace の monitor-id は独自順で NSScreen の index と一致しないため、
-#        識別子は monitor-name を使う（Swift 側で NSScreen.localizedName と照合）。
+#   1. active monitor 名を `omniwmctl query displays --current` から取得（--all なら "all"）
+#      ※ 識別子は monitor-name を使う（Swift 側で NSScreen.localizedName と照合）。
+#      ※ 2026-08-30：AeroSpace → OmniWM 移行に伴い `aerospace list-monitors` から移設。
+#        `--format tsv` は --fields を尊重せず全列＋ヘッダを出すので json + jq で読む。
+#        前提として OmniWM 側の `general.ipcEnabled = true` が要る（settings.nix で宣言済み）。
 #   2. 命令ファイル ~/.local/state/desktop-switch/cmd に "layer=X;screen=Y" を書く
 #      （Y は monitor-name または "all"）
 #   3. 両 dashboard に SIGUSR1 → 各 app が cmd を読んで自身の該当 window を show/hide
@@ -49,20 +52,32 @@ fi
 
 # --- 表示切替 subcommand ---
 layer="${1:-}"
+shift || true
 all=0
-[[ "${2:-}" == "--all" ]] && all=1
+screen=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --all)    all=1; shift ;;
+    --screen) screen="${2:-}"; shift 2 ;;
+    *) echo "desktop-switch: unknown option $1" >&2; exit 2 ;;
+  esac
+done
 
 case "$layer" in
   wallpaper|caldash|cp) ;;
-  *) echo "usage: desktop-switch {wallpaper|caldash|cp} [--all] | reload {caldash|cp}" >&2; exit 2 ;;
+  *) echo "usage: desktop-switch {wallpaper|caldash|cp} [--all|--screen NAME] | reload {caldash|cp}" >&2; exit 2 ;;
 esac
 
-# active monitor 名（"1 | Mi TV" → "Mi TV"）。--all なら "all"。
+# 画面名を決める。--all なら "all"、--screen があればそれ、無ければフォーカス中の画面。
 if [[ $all == 1 ]]; then
   screen="all"
-else
-  screen="$(aerospace list-monitors --focused 2>/dev/null | sed -E 's/^[0-9]+ \| //' | head -1)"
-  [[ -z "$screen" ]] && { echo "desktop-switch: failed to get focused monitor" >&2; exit 3; }
+elif [[ -z "$screen" ]]; then
+  screen="$(omniwmctl query displays --current --fields name --format json 2>/dev/null \
+            | jq -r '.result.payload.displays[0].name // empty')"
+  [[ -z "$screen" ]] && {
+    echo "desktop-switch: failed to get focused monitor (OmniWM の ipcEnabled は？)" >&2
+    exit 3
+  }
 fi
 
 mkdir -p "$STATE_DIR"
@@ -77,9 +92,10 @@ done
 # state file 更新（key = monitor-name）
 touch "$STATE_FILE"
 if [[ $screen == "all" ]]; then
-  # aerospace から全 monitor 名を取得して 1 行ずつ書き直す
+  # 全 monitor 名を取得して 1 行ずつ書き直す
   tmp="$(mktemp)"
-  aerospace list-monitors 2>/dev/null | sed -E 's/^[0-9]+ \| //' | while read -r name; do
+  omniwmctl query displays --fields name --format json 2>/dev/null \
+    | jq -r '.result.payload.displays[].name' | while read -r name; do
     [[ -n "$name" ]] && printf '%s=%s\n' "$name" "$layer" >> "$tmp"
   done
   mv "$tmp" "$STATE_FILE"

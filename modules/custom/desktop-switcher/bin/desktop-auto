@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# desktop-auto — 接続中のディスプレイ構成から、各画面に出す層を決めて適用する。
+#
+# ルール（2026-08-30 決定）:
+#   main ディスプレイ        → caldash（常に。1枚のときはこれだけ）
+#   main 以外のディスプレイ  → cp（作業ダッシュボード）
+#
+#   つまり「カレンダーは常に手元のメイン画面、AtCoder ダッシュボードはサブがあるときだけ」。
+#   モニタが1枚の機体（tanegashima）では自動的に caldash だけになる。
+#
+# 起動方法:
+#   launchd agent が `omniwmctl watch display-changed --exec desktop-auto` で常駐し、
+#   ディスプレイの抜き差しごとにこれを1回呼ぶ（modules/custom/desktop-switcher/home.nix）。
+#   watch は既定で初期スナップショットも送るので、ログイン直後にも1回発火する。
+#
+#   ★ なぜ watch なのか：OmniWM の**ホットキーは任意コマンドを実行できない**
+#     （169個のコマンド ID に exec 相当が無い。AeroSpace の exec-and-forget に当たるものが
+#     構造的に不在）。一方 `omniwmctl watch --exec` は**イベント駆動の exec を持つ**ので、
+#     外部ホットキーデーモン（skhd 等）を入れずに自動化できる唯一の口がこれ。
+#
+# stdin にはイベント JSON が流れてくるが、状態は毎回 query で取り直すので読み捨てる
+#   （watch のイベントは coalesce される＝ロスレスなログではないと明記されているため、
+#    イベントの中身に依存せず「今の状態」を見るほうが堅い）。
+
+set -euo pipefail
+
+cat >/dev/null 2>&1 || true # stdin のイベント JSON は使わない
+
+readonly SWITCH="$HOME/bin/desktop-switch"
+
+displays_json="$(omniwmctl query displays --fields name,is-main --format json 2>/dev/null)" || {
+  echo "desktop-auto: omniwmctl に接続できない（OmniWM 未起動 or ipcEnabled=false）" >&2
+  exit 1
+}
+
+# ⚠ macOS の /bin/bash は 3.2 なので `mapfile` は使えない（2026-08-30 に実際に踏んだ）。
+#   launchd から起動されるとき PATH の先頭に nix の bash が居るとは限らないので、
+#   bash 3.2 で動く while-read で回す。
+applied=0
+while IFS=$'\t' read -r is_main name; do
+  [[ -z "$name" ]] && continue
+  if [[ "$is_main" == "true" ]]; then
+    layer="caldash"
+  else
+    layer="cp"
+  fi
+  # ⚠ 1画面で失敗しても残りは適用する。set -e のまま素通しにすると、途中で落ちたとき
+  #   「main だけ caldash・サブは未適用」という中途半端な状態で終わり、次の
+  #   display-changed が来るまで直らない（＝抜き差ししない限り放置される）。
+  if "$SWITCH" "$layer" --screen "$name"; then
+    applied=$((applied + 1))
+  else
+    echo "desktop-auto: $name への $layer 適用に失敗（他の画面は続行）" >&2
+  fi
+done <<EOF
+$(printf '%s' "$displays_json" | jq -r '.result.payload.displays[] | "\(.isMain)\t\(.name)"')
+EOF
+
+[[ $applied -eq 0 ]] && { echo "desktop-auto: ディスプレイが取得できない" >&2; exit 1; }
+exit 0
