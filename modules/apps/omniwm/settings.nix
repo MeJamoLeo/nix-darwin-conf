@@ -213,8 +213,13 @@
     mode = "dark";
   };
 
+  # OmniWM 内蔵のフォーカス枠は切り、AeroSpace 時代から使っている JankyBorders に
+  # 描かせる（起動は ./home.nix の launchd agent）。内蔵側の描画に不具合が出たため
+  # で、機能自体を捨てたわけではない ── 直ったら enabled = true に戻して
+  # home.nix の jankyborders 側を落とせば元に戻る（二重に枠が出るので併用はしない）。
+  # width / color は戻したときのために当時の値を残してある。
   borders = {
-    enabled = true;
+    enabled = false;
     width = 5.0;
     color = {
       alpha = 1.0;

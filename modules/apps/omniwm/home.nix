@@ -152,6 +152,24 @@
   #    （skhd 等）へ逃がす必要がある。逃がし先は使用実績を見てから決める。
   #
   ##########################################################################
+  ##########################################################################
+  #
+  #  フォーカス枠は JankyBorders（AeroSpace 時代からの継続）
+  #
+  #  OmniWM 内蔵の borders に描画の不具合があるため、枠だけ外部デーモンに出させる。
+  #  JankyBorders は WM 非依存（SkyLight でフォーカス窓を追うだけで、yabai や
+  #  AeroSpace への依存は無い）なので、AeroSpace が
+  #  `after-startup-command = ["exec-and-forget borders …"]` でやっていた起動を
+  #  launchd に移すだけで同じ枠が出る。色と幅は AeroSpace 時代の値そのまま
+  #  （modules/apps/aerospace/home.nix と一致させてある）。
+  #
+  #  ⚠ 併用しないこと。OmniWM 側は settings.nix で `borders.enabled = false` に
+  #    してある。両方 on にすると枠が二重に出る。内蔵側が直ったらこの節と
+  #    launchd.agents.jankyborders を消して settings.nix を true に戻す。
+  #
+  ##########################################################################
+  bordersBin = "${pkgs.jankyborders}/bin/borders";
+
   tomlFormat = pkgs.formats.toml {};
 
   # 宣言する設定。{} にすると activation ごと無効化され、settings.toml は GUI 任せに戻る。
@@ -159,7 +177,10 @@
 
   settingsFile = tomlFormat.generate "omniwm-settings.toml" settings;
 in {
-  home.packages = [omniwm];
+  home.packages = [
+    omniwm
+    pkgs.jankyborders
+  ];
 
   # 常駐。AeroSpace の `start-at-login = true` に相当するものが nix 経由の
   # インストールには無い（あれは LaunchServices のログイン項目登録で、.app を
@@ -173,6 +194,24 @@ in {
       RunAtLoad = true;
       StandardOutPath = "${config.home.homeDirectory}/Library/Logs/omniwm.log";
       StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/omniwm.err.log";
+    };
+  };
+
+  # JankyBorders も常駐させる（AeroSpace の after-startup-command 相当）。
+  # borders は前面に居続けるフォアグラウンドプロセスなので KeepAlive で持つ。
+  launchd.agents.jankyborders = {
+    enable = true;
+    config = {
+      ProgramArguments = [
+        bordersBin
+        "active_color=0xff6d28d9"
+        "inactive_color=0x00000000"
+        "width=20.0"
+      ];
+      KeepAlive = true;
+      RunAtLoad = true;
+      StandardOutPath = "${config.home.homeDirectory}/Library/Logs/jankyborders.log";
+      StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/jankyborders.err.log";
     };
   };
 
