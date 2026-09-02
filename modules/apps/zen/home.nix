@@ -25,8 +25,20 @@
 # プロファイルディレクトリ名**に合わせることで、10MB の places.sqlite・logins.db・
 # 拡張7個が入った既存プロファイルをそのまま引き継ぐ（新規プロファイルを作らせない）。
 #
-# ⚠ この値は `~/Library/Application Support/zen/profiles.ini` の `[Install…] Default`
-#   と一致していなければならない。Zen 側でプロファイルを作り直したらここを更新する。
+# ⚠ この値は `~/Library/Application Support/zen/installs.ini` の `[<ハッシュ>] Default`
+#   と一致していなければならない（profiles.ini 側に `[Install…]` は生成されないので、
+#   起動時にどのプロファイルが選ばれるかは installs.ini が決める）。Zen 側でプロファイルを
+#   作り直したらここを更新する。
+#
+# ### ⚠⚠ 実在しない名前を書くと「空のプロファイルが生える」（2026-08-31 に踏んだ）
+#
+# `path` に実在しないディレクトリ名（当時は `tof5kg3s.Default (release)-1`）を書いていた。
+# HM は `.keep` を置くためにその名前のディレクトリを**作ってしまう**ので、Zen から見ると
+# 「登録済みだが中身が無いプロファイル」になり、そこを新規初期化して起動する。
+# エラーにならず静かに空のブラウザが立ち上がるのでタチが悪い。実測（2026-08-31）：
+#   tbq2aiii.Default (release)     248M / 履歴 2498 / ユーザー拡張 7  ← 本物
+#   tof5kg3s.Default (release)-1    58M / 履歴   20 / ユーザー拡張 0  ← 空。誤って指していた先
+# 判別は `places.sqlite` の `moz_places` 行数と `extensions.json` を見るのが速い。
 #   ※ configPath は上流モジュールが大文字の `…/Zen` を使うが、macOS の APFS は
 #     既定で case-insensitive なので実体の `…/zen` と同じディレクトリに解決する（実測確認済み）。
 #
@@ -46,8 +58,12 @@
 #
 # 対処は `installs.ini` の当該ハッシュ行を既存プロファイルに向けるだけ（1回きり）：
 #
-#   [DFEDCF58DA149FC0]                              ← nix 版 Zen のインストールハッシュ
-#   Default=Profiles/tof5kg3s.Default (release)-1   ← ここを既存プロファイルにする
+#   [DFEDCF58DA149FC0]                            ← nix 版 Zen のインストールハッシュ
+#   Default=Profiles/tbq2aiii.Default (release)   ← ここを既存プロファイルにする
+#
+# ⚠ `Locked=1` が付いていても Zen が黙って書き換えることがある（2026-08-31 に、この行が
+#   空プロファイル `tof5kg3s.…-1` を向いた状態を実測）。上の `path` を変えたら、
+#   **Zen を終了した状態で** この行も必ず追従させること。片方だけ直しても効かない。
 #
 # このハッシュが**バージョン更新で変わらない**のは flake 側の設計による。package.nix:82 が
 # `$HOME/Applications/Home Manager Apps/<app>.app` という安定パス経由で起動するラッパーを
@@ -97,6 +113,34 @@
 # 娯楽（X / YouTube）には**場所を与えない**。Space は「タブの置き場」であって開く行為は
 # 止めないので、専用 Space を作ると摩擦が下がって逆に働く。遮断は youtube-gate の担当。
 #
+# ## ⚠ 上の 2026-08-29 の数値は再現しない（2026-08-31 の棚卸しで判明）
+#
+# 空プロファイル事故（前述）から復帰したあと同じ測定をやり直したところ、上に並んでいる
+# 数値のうち **netgate 13 / onedrive 20 / blog.adafruit.com 60日1135** は
+# `moz_places` に**行そのものが存在しない**（＝一度も訪問していない）。履歴の期限切れなら
+# 訪問行が消えても place 行と `visit_count` は残るので、これは「消えた」ではなく
+# 「無かった」を意味する。他に履歴を持つプロファイルも存在しない（残り3つは空か履歴20件）。
+# canvas 103→107・youtube「直近7日ゼロ」など**合っている数値もある**ので、全部が誤りでは
+# ないが、上のリストは一次資料として信用しないこと。
+# ⚠ 未確認：当時どこを測っていたのかは特定できていない。
+#
+# ## School の再設計（2026-08-31・`tbq2aiii` の実データのみで再測）
+#
+# 直近14日の School 系ホスト（ページ数）：
+#   canvas.txstate.edu 107 / authentic.txstate.edu 20（SSO）/ duosecurity 25（MFA）/
+#   zoom.us 23（app 16・txstate 4・google 3）/ txst.sharepoint.com 14 /
+#   login.microsoftonline.com 12 / zybooks 8 / printing 6 / kortext 5 / follett 3
+#
+# ここから3つ直した：
+#   1. **Zoom が丸ごと抜けていた**（実測3位相当なのに pin も route も無し）→ Essential + route。
+#   2. **📚Fall 2026 の中身が事務だった**（Printing/YuJa/Bursar）→ 履修科目に入れ替え、
+#      事務は 🏫Campus に分離。学期末の退役がフォルダ1つの削除で済む形に戻した。
+#   3. **教科書の導線（Follett → Kortext）が未宣言**だった → 🏫Campus に追加。
+#
+# 実測ゼロ（`moz_places` に行が無い）だが**残した**もの：CS4371 Lab の3件・Campus Job の
+# Handshake・`txst-my.sharepoint.com` route。学期序盤で未使用なだけの可能性があるため
+# （本人判断）。次の棚卸しでもゼロなら落とす。
+#
 # container（Cookie 隔離）は **School だけに使う**。当初は「不要」と判断していた——実測で
 # 既定コンテナ4つ（Personal/Work/Banking/Shopping）が全部未使用、Google も第1アカウント 184
 # に対し第2（`/u/1/`）は 14 visits で Drive 閲覧のみ、かつ TXST 本体は Microsoft だったため。
@@ -119,8 +163,8 @@
 
     profiles.default = {
       id = 0;
-      name = "Default (release)-1";
-      path = "tof5kg3s.Default (release)-1";
+      name = "Default (release)";
+      path = "tbq2aiii.Default (release)";
       isDefault = true;
 
       # user.js の中身は関心事ごとに各モジュールが寄せる（nix の attrset マージ）：
@@ -233,22 +277,47 @@
               isEssential = true;
               position = 100;
             };
-            "zyBooks" = {
-              id = "097a76dd-54f4-4c24-8aca-31ced22f9fb0";
-              url = "https://learn.zybooks.com/";
+            "TXST Mail" = {
+              id = "54aba3fb-69d2-4a3f-8104-6743fbb03cc4";
+              url = "https://outlook.cloud.microsoft/mail/";
               container = 2;
               isEssential = true;
               position = 110;
             };
-            "TXST Mail" = {
-              id = "54aba3fb-69d2-4a3f-8104-6743fbb03cc4";
-              url = "https://outlook.cloud.microsoft/mail/";
+            # 直近14日で 33 ページ（app.zoom.us 16 / txstate.zoom.us 4 / google.zoom.us 3）
+            # ありながら、2026-08-31 の棚卸しまで**まったく宣言されていなかった**最大の穴。
+            # 授業ミーティングの入口なので Essential に置く。URL は TXST テナント側
+            # （`txstate.zoom.us`）にする — 実測の参加リンクが全部このホスト経由で、
+            # かつ TXST SSO に乗るので TXST コンテナと噛み合う。`app.zoom.us` は
+            # そこから飛ばされる Web クライアントなので入口には向かない。
+            "Zoom" = {
+              id = "7f49dbec-fd3d-4428-abae-03419f404a6c";
+              url = "https://txstate.zoom.us/";
               container = 2;
               isEssential = true;
               position = 120;
             };
             # 学期でライフサイクルが切れるものはフォルダに落とす（Fall 2026 が終わったら
             # このフォルダごと消す。modules/domain/school/cs4355 の退役と同じ寿命）。
+            #
+            # ## 中身を「事務用品」から「履修科目そのもの」へ入れ替えた（2026-08-31）
+            #
+            # 旧構成は Printing / YuJa / Bursar ＝ **事務系**が入っていて、名前（学期）と
+            # 中身（学期をまたぐ事務手続き）が噛み合っていなかった。事務は 🏫 Campus に
+            # 分離し、ここは履修科目だけにする。→ 学期末は**このフォルダを消すだけ**で退役が済む。
+            #
+            # 科目は `places.sqlite` の Canvas コース ID から起こした（想像ではない）。
+            # 直近14日の visits：
+            #   2683280 CS2315                        62  ← 断トツ
+            #   2740298 CS4355 Algorithms and Analysis 26
+            #   1697110 CS Introduction to Linux       19
+            #   2738766 CS4371 Computer Security       16
+            #   2736540 CS3360 (JT)                    11
+            # URL を Canvas のコース直リンクにしてあるのは、実測の踏み方がダッシュボード
+            # 経由ではなく `/courses/<id>` 直行だったため（＝1クリック減る場所に置く）。
+            #
+            # ⚠ コース ID は**学期ごとに変わる**。次の学期はこのフォルダを作り直すので、
+            #   そのとき同じクエリで採り直すこと（moz_places の url like '%/courses/%'）。
             "Fall 2026" = {
               id = "4c2d5a50-07e6-41ca-bfac-1a49eea4ff48";
               isGroup = true;
@@ -256,23 +325,51 @@
               folderIcon = "📚";
               position = 200;
               pins = {
-                "Printing" = {
-                  id = "6290d0cf-7755-4be5-a813-3aac805017a8";
-                  url = "https://printing.library.txstate.edu/user";
+                "CS2315" = {
+                  id = "a17d6bfd-e9f2-4c2a-838d-bad99f3e0471";
+                  url = "https://canvas.txstate.edu/courses/2683280";
                   container = 2;
                   position = 201;
                 };
-                "YuJa" = {
-                  id = "aa1f66f3-9117-484c-95b1-44f32ef09c88";
-                  url = "https://txst.yuja.com/";
+                "CS4355 Algorithms" = {
+                  id = "d97ef5a4-4c0e-4e93-9589-87558d26ea70";
+                  url = "https://canvas.txstate.edu/courses/2740298";
                   container = 2;
                   position = 202;
                 };
-                "Bursar" = {
-                  id = "b2b89406-8ef6-4853-9c00-96b9f1fca070";
-                  url = "https://secure.touchnet.com/";
+                # 旧「zyBooks」Essential の id を引き継いでいる（新規 pin を生やさず
+                # 移動として扱わせるため）。トップの汎用 `learn.zybooks.com` から
+                # **CS4355 の zyBook 直リンク**に変えた：実測の zyBook は
+                # `TXSTATECS4355LiFall2026` の1冊だけで、Space 全体の Essential に
+                # 据えるほど汎用ではなかった。
+                "CS4355 zyBook" = {
+                  id = "097a76dd-54f4-4c24-8aca-31ced22f9fb0";
+                  url = "https://learn.zybooks.com/zybook/TXSTATECS4355LiFall2026";
                   container = 2;
                   position = 203;
+                };
+                "CS4371 Computer Security" = {
+                  id = "64dd7ba9-8e6b-44ed-be40-b1b3355a8545";
+                  url = "https://canvas.txstate.edu/courses/2738766";
+                  container = 2;
+                  position = 204;
+                };
+                "CS3360" = {
+                  id = "85f29099-cd13-4d96-942a-d36acbcad8af";
+                  url = "https://canvas.txstate.edu/courses/2736540";
+                  container = 2;
+                  position = 205;
+                };
+                # コース ID の桁が他の4つ（27xxxxx）より1桁若い（1697110）＝ Fall 2026 に
+                # 開講されたものではなく、**学期をまたいで生きている自習コース**と見える。
+                # そうであればここではなく Campus 側が正しい。
+                # ⚠ 未確認（Canvas の enrollment 期間を見ていない）。学期末に Fall 2026 を
+                #   畳むとき、これだけ生きていないか確認して必要なら Campus へ移すこと。
+                "Intro to Linux" = {
+                  id = "6285a89c-aeb7-4462-aad2-3a14266cdb4c";
+                  url = "https://canvas.txstate.edu/courses/1697110";
+                  container = 2;
+                  position = 206;
                 };
               };
             };
@@ -339,11 +436,62 @@
                 };
               };
             };
+
+            # 🏫 Campus：事務・学内サービス（2026-08-31 新設）。
+            #
+            # **寿命で切った**：📚Fall 2026 が学期で死ぬのに対し、ここは学期をまたいで
+            # 生き続けるもの。旧構成はこれらが Fall 2026 に同居していて、学期末に
+            # フォルダを畳むと印刷や教科書まで巻き込んで消える形になっていた。
+            #
+            # Follett（大学書店）→ Kortext（電子教科書リーダー）は実測で**連鎖している**
+            # （`student.follett.com/launch/krtxt/…` → `app.na1.kortext.com` → `read.…`）。
+            # つまり Follett が入口で Kortext が本棚。両方置くのは重複ではなく導線の両端。
+            #
+            # ⚠ 旧 Fall 2026 にあった YuJa（`txst.yuja.com`）と Bursar（`secure.touchnet.com`）は
+            #   削除した。どちらも `moz_places` に**行が1つも無い**＝一度も開いていない
+            #   （履歴期限切れなら行だけは残るので、これは「未訪問」の確証になる）。
+            #   Bursar は学期に数回しか踏まない性質上、必要になったらここへ足し直す。
+            "Campus" = {
+              id = "f8e9cd03-db64-48b9-9fa3-357e52569e1f";
+              isGroup = true;
+              isFolderCollapsed = true;
+              folderIcon = "🏫";
+              position = 500;
+              pins = {
+                "Printing" = {
+                  id = "6290d0cf-7755-4be5-a813-3aac805017a8";
+                  url = "https://printing.library.txstate.edu/user";
+                  container = 2;
+                  position = 501;
+                };
+                "Textbooks" = {
+                  id = "764cb0b3-ecae-48db-b074-386a5733cfbe";
+                  url = "https://student.follett.com/institution/texas-state-university/materials";
+                  container = 2;
+                  position = 502;
+                };
+                "Kortext" = {
+                  id = "a7eac27e-3c62-4c96-bd14-0ca59b2b1df2";
+                  url = "https://read.na1.kortext.com/library/books";
+                  container = 2;
+                  position = 503;
+                };
+              };
+            };
           };
           # 空間内 routes は openIn を持たない（この Space に固定される）。
           routes = {
             "canvas".reference = "canvas.txstate.edu";
+            # Canvas の SSO 中継（`sso.canvaslms.com`）。実測 2 ページ。Canvas 専用ホスト
+            # なので School に寄せて曖昧さが無い。
+            "canvaslms".reference = "canvaslms.com";
             "zybooks".reference = "zybooks.com";
+            # Zoom。`app.` / `txstate.` / `google.` の3サブドメインが実測に出ていて、
+            # reference を裸の `zoom.us` にすると1本で全部拾える。
+            "zoom".reference = "zoom.us";
+            # 教科書の導線（大学書店 → 電子教科書リーダー）。
+            "follett".reference = "follett.com";
+            "kortext".reference = "kortext.com";
             "txstate".reference = "txstate.edu";
             "txst".reference = "txst.edu";
             "sharepoint".reference = "txst-my.sharepoint.com";
@@ -365,6 +513,22 @@
             "ubuntu".reference = "ubuntu.com";
             # キャンパスジョブ。
             "handshake".reference = "joinhandshake.com";
+
+            # ── route を張らなかったもの（2026-08-31 の棚卸しでの判断）────────────
+            #
+            # SSO / MFA の中継ホストは実測上位に来るが**意図的に route しない**：
+            #   authentic.txstate.edu 20 / api-d64801e3.duosecurity.com 23 /
+            #   login.microsoftonline.com 12 ページ（直近14日）
+            # これらは単独で開くものではなく、リダイレクト連鎖の途中に現れる中継点。
+            # route を張ると認証の途中で Space が切り替わる恐れがある一方、張らなければ
+            # 「今いる Space に留まる」＝踏んだ文脈のまま認証が終わる（docs/drive を
+            # route しない判断と同じ理屈）。なお `authentic.txstate.edu` は上の
+            # `txstate.edu` に既に食われている。
+            # ⚠ 未確認：Zen の route がリダイレクト先にも効くのか、最初のナビゲーション
+            #   だけなのかは検証していない。効かないなら上の懸念自体が消える。
+            #
+            # `txst.com` も School に置かない。実測4ページの中身は Strahan Arena と
+            # weight room ＝**学内スポーツ施設**で、学業ではなく生活。→ Life へ回した。
           };
         };
 
@@ -539,6 +703,10 @@
             #   Outlook/OneDrive/SharePoint だが、CS4371 の教材配布は Google Drive）。
             #   route が無ければ「今いる Space に開く」＝ドキュメントは開いた文脈に付いてくる
             #   という、この場合いちばん正しい既定になる。
+            # 学内スポーツ施設（Strahan Arena / weight room）。`txst.edu` ではなく
+            # `txst.com` という別ドメインで、中身は運動＝生活。School の `txst.edu`
+            # route とは衝突しない。
+            "txst-rec".reference = "txst.com";
             "apartment".reference = "viewonthesquareapt.residentportal.com";
             "petscreening".reference = "petscreening.com";
             "usmobile".reference = "usmobile.com";
