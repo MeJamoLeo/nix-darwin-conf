@@ -1,4 +1,6 @@
-{...}:
+{
+  ...
+}:
 # Zen（Firefox フォーク）— 既製品の設定値なので apps バケツ。
 #
 # ## なぜ homebrew cask から flake の home-manager モジュールへ移したか（2026-08-27）
@@ -39,6 +41,28 @@
 #   tbq2aiii.Default (release)     248M / 履歴 2498 / ユーザー拡張 7  ← 本物
 #   tof5kg3s.Default (release)-1    58M / 履歴   20 / ユーザー拡張 0  ← 空。誤って指していた先
 # 判別は `places.sqlite` の `moz_places` 行数と `extensions.json` を見るのが速い。
+#
+# ### 🔴 名前は機体固有「だった」→ 統一した（2026-09-01 に分離 → 2026-09-04 に解消）
+#
+# Zen はプロファイル作成時にランダムな8文字を頭に付けるので、各機が独立に作った結果
+# 名前が割れていた。しかも `tof5kg3s.Default (release)-1` は**両機に実在して中身が違う**：
+#   ogasawara    tof5kg3s.Default (release)-1  601M ← 本物（現役）
+#   tanegashima  tbq2aiii.Default (release)    253M ← 本物（現役）
+#   tanegashima  tof5kg3s.Default (release)-1   54M ← 残骸
+# 名前だけでは正しい方を選べないので、09-01 に `zenProfilesByHost` へ機体別に切り出した。
+#
+# ★ だがそれは**ばらつきを設定に写し取る**形で、fleet-home-directory-design の原則
+#   （ばらつく場所が定義上存在しない形にする）に反する。ランダム接頭辞は「初回に何も
+#   指定しなかった場合の既定」でしかなく、`path` は**こちらが宣言する値**である
+#   （dejima に `dejima.Default (release)` という捏造名を書けていたのがその証拠）。
+#   よって 09-04 に**各機のディレクトリを共通名へ 1 回だけ改名**して機体差を消した。
+#   移行手順（機体ごとに 1 回）:
+#     1. Zen を終了する（起動中は書き戻される）
+#     2. `~/Library/Application Support/zen/Profiles/<旧名>` を `zen.Default` へ mv
+#     3. `installs.ini` の `Default=Profiles/<旧名>` を全ハッシュぶん新名へ書き換える
+#        （profiles.ini だけ直しても効かない。下の dedicated profile の節を参照）
+#     4. rebuild して Zen を起動し、履歴と拡張が生きていることを確認
+#   統一されるのは**設定の形**だけで、履歴・拡張・cookie は元から機体別（同期しない設計）。
 #   ※ configPath は上流モジュールが大文字の `…/Zen` を使うが、macOS の APFS は
 #     既定で case-insensitive なので実体の `…/zen` と同じディレクトリに解決する（実測確認済み）。
 #
@@ -60,6 +84,7 @@
 #
 #   [DFEDCF58DA149FC0]                            ← nix 版 Zen のインストールハッシュ
 #   Default=Profiles/tbq2aiii.Default (release)   ← ここを既存プロファイルにする
+#                                                    （＝その機体の zenProfilesByHost の値）
 #
 # ⚠ `Locked=1` が付いていても Zen が黙って書き換えることがある（2026-08-31 に、この行が
 #   空プロファイル `tof5kg3s.…-1` を向いた状態を実測）。上の `path` を変えたら、
@@ -146,7 +171,26 @@
 # に対し第2（`/u/1/`）は 14 visits で Drive 閲覧のみ、かつ TXST 本体は Microsoft だったため。
 # **その `/u/1/` が TXST の Google Workspace だと判明して反転**（本人確認・2026-08-29）。
 # 私用 Google と学校 Google が同じ Cookie 壺に同居していたので、School を別の器に分ける。
-{
+let
+  # 全機共通のプロファイルディレクトリ名（2026-09-04 に統一。経緯は上の「名前は機体固有
+  # だった → 統一した」）。ランダム接頭辞は Zen の初回既定でしかなく、`path` はこちらが
+  # 宣言する値なので、実ディレクトリを改名して機体差を消した。
+  #
+  # ★ 揃うのは**宣言層だけ**。Firefox Sync は張らない。Space / Folder / pin / prefs は
+  #   このファイルが全機に同じものを配る。履歴・ブックマーク・拡張は機体ごとに別のまま
+  #   （どちらも現役の実データで、片方に寄せると片方の実績が消えるので統合しない）。
+  #   パスワードは Bitwarden に寄せる方針なのでブラウザの logins を同期経路に載せない
+  #   （vault の secret-management-fleet-strategy が正本）。
+  #
+  # ⚠ 新しい機体を足すときは、その実機で Zen を一度起動してプロファイルを作らせてから
+  #   `~/Library/Application Support/zen/Profiles/<ランダム名>` を `zen.Default` へ改名し、
+  #   `installs.ini` の該当ハッシュも同じ先を向かせる。**両方直さないと効かない**
+  #   （profiles.ini だけでは dedicated profile の解決に負ける。上の節を参照）。
+  zenProfile = {
+    name = "Default";
+    path = "zen.Default";
+  };
+in {
   programs.zen-browser = {
     enable = true;
 
@@ -163,8 +207,7 @@
 
     profiles.default = {
       id = 0;
-      name = "Default (release)";
-      path = "tbq2aiii.Default (release)";
+      inherit (zenProfile) name path;
       isDefault = true;
 
       # user.js の中身は関心事ごとに各モジュールが寄せる（nix の attrset マージ）：
@@ -506,11 +549,6 @@
             # route 無しでも School に落ちる＝失うものは無い。
             "outlook".reference = "outlook.cloud.microsoft";
             "instructure-cdn".reference = "inscloudgate.net";
-            # CS4371 Lab の移設に伴い Build から移動。
-            "netgate".reference = "netgate.com";
-            "pfsense".reference = "pfsense.org";
-            "kali".reference = "kali.org";
-            "ubuntu".reference = "ubuntu.com";
             # キャンパスジョブ。
             "handshake".reference = "joinhandshake.com";
 
@@ -697,23 +735,6 @@
           routes = {
             "gmail".reference = "mail.google.com";
             "gcal".reference = "calendar.google.com";
-            # ⚠ `docs.google.com` / `drive.google.com` は**意図的に route を張らない**。
-            #   実測では直近14日で docs 49・drive 16 ページと多いが、**学業と私事の両方で
-            #   使われていて振り分け先が一意に決まらない**（TXST 本体は Microsoft 側＝
-            #   Outlook/OneDrive/SharePoint だが、CS4371 の教材配布は Google Drive）。
-            #   route が無ければ「今いる Space に開く」＝ドキュメントは開いた文脈に付いてくる
-            #   という、この場合いちばん正しい既定になる。
-            # 学内スポーツ施設（Strahan Arena / weight room）。`txst.edu` ではなく
-            # `txst.com` という別ドメインで、中身は運動＝生活。School の `txst.edu`
-            # route とは衝突しない。
-            "txst-rec".reference = "txst.com";
-            "apartment".reference = "viewonthesquareapt.residentportal.com";
-            "petscreening".reference = "petscreening.com";
-            "usmobile".reference = "usmobile.com";
-            "wise".reference = "wise.com";
-            "amazon".reference = "amazon.com";
-            "zipair".reference = "zipair.net";
-            "evaair".reference = "evaair.com";
           };
         };
       };
