@@ -47,6 +47,7 @@
       ../modules/apps/zed/home.nix
       ../modules/apps/herdr/home.nix
       ../modules/apps/claude/home.nix
+      ../modules/apps/bitwarden/home.nix # fleet 横断の秘密ストア(D1)の CLI = rbw
       # WM は OmniWM を評価中（2026-08-30）。AeroSpace はモジュールごと残してあるので
       # 戻すのは下の2行を入れ替えるだけ（設定 .aerospace.toml も無傷）。
       # ../modules/apps/aerospace/home.nix
@@ -57,6 +58,7 @@
 
       # custom — 自作システム
       ../modules/custom/chrome-anjin/home.nix
+      ../modules/custom/discord/home.nix # discord-api: Bitwarden の bot token で REST を叩く
       ../modules/custom/youtube-gate/home.nix
       ../modules/custom/cp/tools/home.nix
       ../modules/custom/cp/dashboard/home.nix

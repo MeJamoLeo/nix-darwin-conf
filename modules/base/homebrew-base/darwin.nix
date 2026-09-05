@@ -100,6 +100,11 @@
       #            cleanup="none" なので Dynalist.app と Caskroom はそのまま残る
       #            （アプリは今までどおり使える）。upstream に戻ったら復活させる。
       "anki" # Spaced repetition flashcard program
+      # Bitwarden GUI。CLI 側 (rbw) は nixpkgs 管理 → modules/apps/bitwarden/home.nix。
+      # nixpkgs の bitwarden-desktop は aarch64-darwin 対応だが、Electron を nix で
+      # 再ビルドすると ad-hoc 署名になり Touch ID 解錠とブラウザ拡張の native
+      # messaging が壊れうる。zen で "signed" を選んだのと同じ理由で cask を採る。
+      "bitwarden" # Password manager (fleet 横断の秘密ストア D1)
 
       # Utilities
       "ghostty" # GUI terminal (nixpkgs は darwin 非対応→cask。設定は modules/ghostty/home.nix)

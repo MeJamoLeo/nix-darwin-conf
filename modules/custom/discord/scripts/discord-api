@@ -1,0 +1,176 @@
+# discord-api — Discord REST API v10 を Bitwarden の bot token で叩く薄いラッパー。
+#
+# ## 設計（vault: secret-management-fleet-strategy / fleet-home-directory-design）
+#
+# bot token は D1（あなた名義の秘密）＝ Bitwarden にだけ在る。このスクリプトの中で
+# rbw が解決して curl が消費し、**呼び出し側にはレスポンスしか返らない**。
+# token を stdout にも argv にも載せない：
+#   - Authorization ヘッダは `--config <(printf ...)` の process substitution 経由
+#     （argv に出ないので `ps` から見えない。cp-submit / cp-login と同じ手）。
+#   - `curl -v` を使わない（-v は送信ヘッダを stderr に出す＝token が漏れる）。
+#   - エラー時も curl の設定内容は出さない。
+#
+# ⚠ 正直な限界：Claude Code は任意の Bash を持つので「AI が値を見ない」のは
+#    **協調的な約束**であって構造的な保証ではない。構造で封じるには executor 分離
+#    （MCP 等）が要る。vault で明示的に先送りした論点。
+#
+# ## 破壊的操作の柵
+#
+# Discord の `MANAGE_CHANNELS` は create と delete を**同じ 1 ビット**で持つので、
+# 権限側で「作成だけ許可」はできない。よって柵をここに置く：
+#   - GET 以外は `--write` を明示しないと通らない
+#   - DELETE は `--allow-delete` も要る
+# 公式ドキュメント曰く guild channel の削除は **取り消し不能**
+# （https://docs.discord.com/developers/resources/channel）。
+#
+# ## 使い方
+#
+#   discord-api GET /users/@me
+#   discord-api GET /users/@me/guilds
+#   discord-api GET /guilds/<guild_id>/channels
+#   discord-api --write POST  /guilds/<guild_id>/channels '{"name":"読書","type":4}'
+#   discord-api --write PATCH /channels/<id> '{"name":"雑談","parent_id":"123"}'
+#   discord-api --write PATCH /guilds/<guild_id>/channels '[{"id":"1","position":0}]'
+#   discord-api --write --allow-delete DELETE /channels/<id>
+#
+# 環境変数 DISCORD_TOKEN_ENTRY で Bitwarden のエントリ名を上書き（既定 discord-bot-token-spurs）。
+#
+# 終了コード: 0 成功 / 2 引数不正 / 3 柵に阻まれた / 4 token を取れない / 5 API がエラー
+
+set -euo pipefail
+
+API_BASE="https://discord.com/api/v10"
+ENTRY="${DISCORD_TOKEN_ENTRY:-discord-bot-token-spurs}"
+WRITE=0
+ALLOW_DELETE=0
+MAX_RETRY=3
+
+die() {
+    printf 'discord-api: %s\n' "$1" >&2
+    exit "${2:-2}"
+}
+
+usage() {
+    cat <<'EOF'
+discord-api — Discord REST API v10 を Bitwarden の bot token で叩く
+
+  discord-api [--entry NAME] GET <route>
+  discord-api [--entry NAME] --write <POST|PATCH|PUT> <route> '<json>'
+  discord-api [--entry NAME] --write --allow-delete DELETE <route>
+
+  --write         GET 以外を通すのに必須（意図の明示）
+  --allow-delete  DELETE に追加で必須。guild channel の削除は取り消し不能
+  --entry NAME    Bitwarden のエントリ名（既定: $DISCORD_TOKEN_ENTRY / discord-bot-token-spurs）
+
+例:
+  discord-api GET /users/@me
+  discord-api GET /users/@me/guilds
+  discord-api GET /guilds/<guild_id>/channels
+  discord-api --write POST  /guilds/<guild_id>/channels '{"name":"読書","type":4}'
+  discord-api --write PATCH /channels/<id> '{"name":"雑談","parent_id":"123"}'
+  discord-api --write PATCH /guilds/<guild_id>/channels '[{"id":"1","position":0}]'
+
+終了コード: 0 成功 / 2 引数不正 / 3 柵に阻まれた / 4 token を取れない / 5 API がエラー
+EOF
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --write) WRITE=1; shift ;;
+        --allow-delete) ALLOW_DELETE=1; shift ;;
+        --entry) [ $# -ge 2 ] || die "--entry にエントリ名が要る"; ENTRY="$2"; shift 2 ;;
+        -h|--help) usage; exit 0 ;;
+        --) shift; break ;;
+        -*) die "不明なオプション: $1" ;;
+        *) break ;;
+    esac
+done
+
+[ $# -ge 2 ] || { usage >&2; exit 2; }
+
+METHOD=$(printf '%s' "$1" | tr '[:lower:]' '[:upper:]')
+ROUTE="$2"
+BODY="${3:-}"
+
+case "$METHOD" in
+    GET|POST|PATCH|PUT|DELETE) ;;
+    *) die "対応していないメソッド: $METHOD" ;;
+esac
+
+case "$ROUTE" in
+    /*) ;;
+    *) die "route は / で始める（例: /guilds/123/channels）" ;;
+esac
+
+# ── 柵 ──────────────────────────────────────────────────────────────
+if [ "$METHOD" != "GET" ] && [ "$WRITE" -ne 1 ]; then
+    die "$METHOD は書き込み系。意図を明示するため --write が要る" 3
+fi
+if [ "$METHOD" = "DELETE" ] && [ "$ALLOW_DELETE" -ne 1 ]; then
+    printf 'discord-api: DELETE は既定で拒否。\n' >&2
+    printf '  guild channel の削除は Discord 公式が「取り消し不能」と明記していて、\n' >&2
+    printf '  メッセージ履歴ごと消える。本当に消すなら --allow-delete を足す。\n' >&2
+    exit 3
+fi
+
+if [ -n "$BODY" ]; then
+    printf '%s' "$BODY" | jq -e . >/dev/null 2>&1 \
+        || die "body が JSON として不正"
+fi
+
+# ── token ───────────────────────────────────────────────────────────
+command -v rbw >/dev/null 2>&1 || die "rbw が無い（darwin-rebuild switch は済んでる？）" 4
+
+if ! rbw unlocked >/dev/null 2>&1; then
+    printf 'discord-api: Bitwarden がロック中。先に `rbw unlock` を実行して\n' >&2
+    printf '  （pinentry-mac のダイアログでマスターパスワードを聞かれる）。\n' >&2
+    exit 4
+fi
+
+TOKEN=$(rbw get "$ENTRY" 2>/dev/null) \
+    || die "Bitwarden に '$ENTRY' が無い（rbw sync 済み？ 名前は rbw ls で確認）" 4
+[ -n "$TOKEN" ] || die "'$ENTRY' の password フィールドが空" 4
+
+# ── 送信 ────────────────────────────────────────────────────────────
+# `[ ... ] && cmd` を最終文にすると set -e が偽で即 exit するので if で書く
+CURL_ARGS=(-sS --max-time 30 -X "$METHOD" -w $'\n%{http_code}')
+if [ -n "$BODY" ]; then
+    CURL_ARGS+=(--data-binary "$BODY")
+fi
+
+attempt=0
+while :; do
+    attempt=$((attempt + 1))
+
+    set +e
+    RESP=$(curl "${CURL_ARGS[@]}" \
+        --config <(printf 'header = "Authorization: Bot %s"\nheader = "Content-Type: application/json"\nheader = "User-Agent: DiscordBot (local-fleet, 0.1)"\n' "$TOKEN") \
+        "$API_BASE$ROUTE")
+    RC=$?
+    set -e
+
+    [ "$RC" -eq 0 ] || die "curl 失敗（exit $RC）: ネットワーク/タイムアウト" 5
+
+    CODE="${RESP##*$'\n'}"
+    OUT="${RESP%$'\n'*}"
+
+    # Discord のレート制限。retry_after 秒だけ待って再試行する
+    if [ "$CODE" = "429" ] && [ "$attempt" -le "$MAX_RETRY" ]; then
+        WAIT=$(printf '%s' "$OUT" | jq -r '.retry_after // 1' 2>/dev/null || printf '1')
+        printf 'discord-api: rate limited, %ss 待機して再試行 (%s/%s)\n' "$WAIT" "$attempt" "$MAX_RETRY" >&2
+        sleep "$WAIT"
+        continue
+    fi
+    break
+done
+
+unset TOKEN
+
+if [ -n "$OUT" ]; then
+    printf '%s\n' "$OUT"
+fi
+
+case "$CODE" in
+    2*) exit 0 ;;
+    *)  printf 'discord-api: HTTP %s\n' "$CODE" >&2; exit 5 ;;
+esac
