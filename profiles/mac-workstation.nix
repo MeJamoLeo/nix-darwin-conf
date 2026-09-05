@@ -28,6 +28,7 @@
     ../modules/custom/youtube-gate/darwin.nix
     ../modules/domain/latex/darwin.nix
     ../modules/domain/school/txst/darwin.nix
+    ../modules/apps/claude/darwin.nix # managed settings（秘密読み出し禁止 hook。エージェント自身に外させない層）
   ];
 
   # ── ユーザー層（home-manager）───────────────────────────

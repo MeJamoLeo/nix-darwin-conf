@@ -205,6 +205,13 @@
     # input.nix-darwin-conf.homeModules.forge として import する（tmux と同パターン）。
     homeModules.forge = import ./modules/base/forge/home.nix;
 
+    # Claude Code の managed settings（秘密読み出し禁止 hook。JSON 単一源は
+    # modules/apps/claude/managed-settings.nix）。mac 3台は profiles/
+    # mac-workstation.nix の darwin.nix 経由。NixOS はこの output を
+    # **configuration（システム層）の imports** に足す（homeModules と違い
+    # home-manager 側ではない点に注意。/etc/claude-code/ に root 所有で置く）。
+    nixosModules.claude-managed-settings = import ./modules/apps/claude/nixos.nix;
+
     # デバイス公開鍵台帳（単一源）。詳細は keys.nix のコメント参照。
     # NixOS(x1nano) からは inputs.nix-darwin-conf.sshKeys.<device> で参照して
     # authorizedKeys に選択する（homeModules.tmux と同じ共有パターン）。

@@ -46,6 +46,18 @@ in {
         force = true; # rebuild 前に手動配置した同名ファイルを上書きしてよい
       };
 
+      # PreToolUse(Bash) hook: 秘密の平文を stdout に出すコマンドを機械的に拒否。
+      # 2026-09-04 に `rbw get --full` の1行目（TXST campus password）がモデルの
+      # コンテキストと transcript に載った事故の再発防止。CLAUDE.md の散文では
+      # 止まらない種類の事故（判断ではなくうっかりで起きる）なので検知を自動経路に置く。
+      # settings.json 側の登録は手動（settings.json を所有しない決定は
+      # modules/apps/herdr/home.nix 参照）。
+      ".claude/hooks/deny-secret-reads.sh" = {
+        source = ./deny-secret-reads.sh;
+        executable = true;
+        force = true; # rebuild 前に手動配置した同名ファイルを上書きしてよい
+      };
+
       # hunk 同梱の review skill（`hunk skill path` の中身）。自作 skill と違い
       # パッケージから直接 link し、バイナリと skill のバージョンを常に一致させる
       ".claude/skills/hunk-review".source = "${hunkPkg}/skills/hunk-review";
