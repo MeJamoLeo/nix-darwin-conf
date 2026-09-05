@@ -55,10 +55,24 @@ in {
 
   # Remote Login(sshd)を宣言的に ON に保つ(有効済みなら no-op)。
   # systemsetup -setremotelogin は Full Disk Access を要求するので launchctl で。
+  #
+  # macOS application firewall も宣言的に ON に保つ（2026-09-05）。
+  # 経緯: ogasawara の有線化で en0 がグローバル IP 直付けになり
+  # （壁ジャックが 153.33.0.0/16 を DHCP で配る・NAT 無し）、全 IF 待受の
+  # サービスがインターネットに露出しうると判明。ALF は野良の待受
+  # （dev サーバ・未署名バイナリ）への inbound を落とす層。
+  # 限界も明記しておく: sshd / 画面共有等の**システムサービスは ALF を素通り**
+  # するので、22 は sshd 硬化（下の 200-remote-access.conf）が実防御、
+  # 5900 はサービス側を止めるか pf が必要（ALF では閉じない）。
   system.activationScripts.postActivation.text = ''
     if ! /bin/launchctl print system/com.openssh.sshd > /dev/null 2>&1; then
       echo "enabling Remote Login (sshd)..."
       /bin/launchctl load -w /System/Library/LaunchDaemons/ssh.plist
+    fi
+
+    if /usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate | grep -q "disabled"; then
+      echo "enabling macOS application firewall..."
+      /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on > /dev/null
     fi
   '';
 
