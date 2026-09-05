@@ -18,6 +18,15 @@
       # Claude Code を ACP 経由のエージェントとして使う
       agent_servers.claude-acp.type = "registry";
 
+      # 言語拡張。Zed が起動時にレジストリから取得して
+      # ~/.local/share/zed/extensions/installed/<id>/ へ入れる。そこは nix 管理外の
+      # 可変領域なので、settings.json が store への read-only symlink でも成立する。
+      # ID はそのディレクトリ名と同じ文字列。
+      # nix 拡張は tree-sitter による syntax highlighting を提供する。LSP（nil / nixd）は
+      # 含まれないので、補完や定義ジャンプが要るなら別途 home.packages に置いて
+      # lsp / language_servers で指名する。今は入れていない。
+      auto_install_extensions.nix = true;
+
       icon_theme = "Zed (Default)";
       ui_font_size = 16;
       buffer_font_size = 15;
