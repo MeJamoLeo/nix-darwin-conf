@@ -154,32 +154,31 @@
   ##########################################################################
   ##########################################################################
   #
-  #  フォーカス枠は JankyBorders（AeroSpace 時代からの継続）
+  #  フォーカス枠は OmniWM 内蔵に戻した（2026-09-05）
   #
-  #  OmniWM 内蔵の borders に描画の不具合があるため、枠だけ外部デーモンに出させる。
-  #  JankyBorders は WM 非依存（SkyLight でフォーカス窓を追うだけで、yabai や
-  #  AeroSpace への依存は無い）なので、AeroSpace が
-  #  `after-startup-command = ["exec-and-forget borders …"]` でやっていた起動を
-  #  launchd に移すだけで同じ枠が出る。色と幅は AeroSpace 時代の値そのまま
-  #  （modules/apps/aerospace/home.nix と一致させてある）。
+  #  JankyBorders（AeroSpace 時代からの継続）は退役させた。内蔵 borders の既定は
+  #  `enabled = true` / `width = 5.0` で、**実測で採取した素の settings.toml と
+  #  完全に一致する**——つまり以前の宣言は既定の書き写しだった。
   #
-  #  ⚠ 併用しないこと。OmniWM 側は settings.nix で `borders.enabled = false` に
-  #    してある。両方 on にすると枠が二重に出る。内蔵側が直ったらこの節と
-  #    launchd.agents.jankyborders を消して settings.nix を true に戻す。
+  #  ⚠ 復活させるなら launchd.agents.jankyborders と pkgs.jankyborders を戻したうえで、
+  #    settings に `borders.enabled = false` を足すこと。両方 on だと枠が二重に出る。
   #
   ##########################################################################
-  bordersBin = "${pkgs.jankyborders}/bin/borders";
-
   tomlFormat = pkgs.formats.toml {};
 
   # 宣言する設定。{} にすると activation ごと無効化され、settings.toml は GUI 任せに戻る。
+  #
+  # 2026-09-05：**OmniWM の素の既定 + 明示的な差分だけ**という形に全面リセットした。
+  #   以前の版（AeroSpace 由来の 3×3 グリッド・9ワークスペース宣言・独自キー配置）は
+  #   git 履歴にある。差分の一覧と採取の経緯は ./settings.nix の冒頭コメントが正。
+  #   `workspaces` と `appRules` は**宣言していない**＝ OmniWM の既定（7件 / 13件）が
+  #   そのまま live に残る。
   settings = import ./settings.nix;
 
   settingsFile = tomlFormat.generate "omniwm-settings.toml" settings;
 in {
   home.packages = [
     omniwm
-    pkgs.jankyborders
   ];
 
   # 常駐。AeroSpace の `start-at-login = true` に相当するものが nix 経由の
@@ -194,24 +193,6 @@ in {
       RunAtLoad = true;
       StandardOutPath = "${config.home.homeDirectory}/Library/Logs/omniwm.log";
       StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/omniwm.err.log";
-    };
-  };
-
-  # JankyBorders も常駐させる（AeroSpace の after-startup-command 相当）。
-  # borders は前面に居続けるフォアグラウンドプロセスなので KeepAlive で持つ。
-  launchd.agents.jankyborders = {
-    enable = true;
-    config = {
-      ProgramArguments = [
-        bordersBin
-        "active_color=0xff6d28d9"
-        "inactive_color=0x00000000"
-        "width=20.0"
-      ];
-      KeepAlive = true;
-      RunAtLoad = true;
-      StandardOutPath = "${config.home.homeDirectory}/Library/Logs/jankyborders.log";
-      StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/jankyborders.err.log";
     };
   };
 
