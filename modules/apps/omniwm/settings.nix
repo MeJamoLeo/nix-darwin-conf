@@ -10,7 +10,12 @@
 #     そのとき判明したこと：
 #       - appRules 13件（Chrome / Safari / Zed / Discord 等の最小サイズ）は
 #         **OmniWM の組み込み既定**。以前の宣言は既定の書き写しだった。
-#       - workspaces の既定は **7件**（1〜5 = main / 6〜7 = secondary）。
+#       - workspaces の既定は **9件**。公式 settings-reference が
+#         「`1`–`5` と `8`–`9` が main、`6`（❤️）と `7`（🚀）が secondary」と明記し、
+#         `omniwmctl query workspaces` の実測も 1,2,3,4,5,8,9,6,7 の順で一致する。
+#         ⚠ ただし **settings.toml には 7件しか永続化されない**（8 と 9 が書かれない）。
+#         ファイルとランタイムが食い違う。採取直後にファイルだけ見て「既定は7件」と
+#         誤読したが、8/9 は動的生成ではなく既定の一部である。
 #       - borders の既定は enabled = true / width = 5.0 / シアン。以前 JankyBorders に
 #         逃がしていた分はここへ戻した（home.nix の該当節を参照）。
 #       - `general.ipcEnabled` の既定は **false**。omniwmctl が全滅するので下で上書きする。
@@ -31,7 +36,7 @@
 #   `appRules` は**一切書かない**＝ live 側（＝ OmniWM の既定）がそのまま残る。
 #
 # ──────────────────────────────────────────────────────────────────────────
-#  素の既定からの差分は、下記の 7 つだけ。増やすときはここに追記すること。
+#  素の既定からの差分は、下記の 8 つだけ。増やすときはここに追記すること。
 #
 #   1. general.ipcEnabled = true
 #        既定 false。false だと ~/Library/Caches/com.barut.OmniWM/ipc.sock が
@@ -94,6 +99,23 @@
 #      ⚠ Overview は**画面収録の権限**が要る（アクセシビリティ・入力監視は必須、
 #        画面収録は Overview 用に任意）。tanegashima では許可済みだが、ogasawara の
 #        初回起動時に訊かれる可能性がある。
+#
+#   8. ワークスペースの上下移動を U/I に集約し、修飾キーで対象の粒度を表す
+#        moveWindowToWorkspaceDown  Ctrl+Opt+Shift+J        → Option+Shift+U
+#        moveWindowToWorkspaceUp    Ctrl+Opt+Shift+K        → Option+Shift+I
+#        moveColumnToWorkspaceDown  Ctrl+Opt+Shift+Page Down → Control+Option+Shift+U
+#        moveColumnToWorkspaceUp    Ctrl+Opt+Shift+Page Up   → Control+Option+Shift+I
+#      差分4の Option+U / Option+I（フォーカス移動）の派生として3段になる：
+#        Option+U / Option+I               フォーカスが下 / 上のワークスペースへ
+#        Option+Shift+U / I                **窓1枚**を下 / 上へ送る
+#        Control+Option+Shift+U / I        **カラムごと**下 / 上へ送る
+#      修飾が増えるほど動かす対象が大きくなる。`Option+Shift+H/J/K/L`（窓の移動）と
+#      同じく「Shift が付いたら動かす」で揃う。向きは U=Down / I=Up で統一。
+#      これで Ctrl+Opt+Shift+J / K / Page Up / Page Down の4つが空く。
+#      ⚠ 相対移動は「現在のモニタの巡回」内で閉じる（フォーカス切替では ws5 → ws1 に
+#        折り返すのを実測済み）。移動系が末尾でどう振る舞うかは**未確認**。
+#      ※ 窓を**番号指定**で送るのは既存の Option+Shift+1..9（moveToWorkspace.*）。
+#        こちらは絶対指定で、U/I の相対指定とは用途が分かれる。
 # ──────────────────────────────────────────────────────────────────────────
 {
   # hotkeys を1行1バインドに畳むヘルパ。Unassigned も全件残すこと（上の🔴）。
@@ -156,10 +178,10 @@
     (hk "focusWindowOrWorkspaceUp" "Unassigned")
     (hk "centerColumn" "Option+C")
     (hk "centerVisibleColumns" "Unassigned")
-    (hk "moveWindowToWorkspaceUp" "Control+Option+Shift+K")
-    (hk "moveWindowToWorkspaceDown" "Control+Option+Shift+J")
-    (hk "moveColumnToWorkspaceUp" "Control+Option+Shift+Page Up")
-    (hk "moveColumnToWorkspaceDown" "Control+Option+Shift+Page Down")
+    (hk "moveWindowToWorkspaceUp" "Option+Shift+I")
+    (hk "moveWindowToWorkspaceDown" "Option+Shift+U")
+    (hk "moveColumnToWorkspaceUp" "Control+Option+Shift+I")
+    (hk "moveColumnToWorkspaceDown" "Control+Option+Shift+U")
     (hk "moveColumnToWorkspace.0" "Unassigned")
     (hk "moveColumnToWorkspace.1" "Unassigned")
     (hk "moveColumnToWorkspace.2" "Unassigned")
