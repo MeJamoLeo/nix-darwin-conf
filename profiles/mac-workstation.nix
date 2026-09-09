@@ -48,9 +48,8 @@
       ../modules/apps/herdr/home.nix
       ../modules/apps/claude/home.nix
       ../modules/apps/bitwarden/home.nix # fleet 横断の秘密ストア(D1)の CLI = rbw
-      # WM は OmniWM を評価中（2026-08-30）。AeroSpace はモジュールごと残してあるので
-      # 戻すのは下の2行を入れ替えるだけ（設定 .aerospace.toml も無傷）。
-      # ../modules/apps/aerospace/home.nix
+      # WM は OmniWM（2026-08-30 に AeroSpace から移行、2026-09-09 に AeroSpace を退役）。
+      # 戻すなら modules/_archive/README.md の aerospace 節を参照。
       ../modules/apps/omniwm/home.nix # 設定は omniwm/settings.nix が正本（UUID 層だけ実機の GUI が正）
       ../modules/apps/handy/home.nix
       ../modules/apps/file-defaults/home.nix # IINA/Skim/Zed 関連付け + noTunes

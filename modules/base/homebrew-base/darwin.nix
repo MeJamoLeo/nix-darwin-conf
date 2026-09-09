@@ -26,9 +26,10 @@
       Xcode = 497799835; # Apple's IDE for macOS/iOS development
     };
 
-    # nikitabobko/tap (aerospace) と FelixKratz/formulae (borders) は
-    # nixpkgs 移行 (modules/apps/aerospace/home.nix) で不要に → 各機で手動
-    # `brew untap nikitabobko/tap felixkratz/formulae`
+    # nikitabobko/tap (aerospace) と FelixKratz/formulae (borders) は nixpkgs 移行で
+    # 不要になり、各機で手動 `brew untap nikitabobko/tap felixkratz/formulae` 済み
+    # （2026-09-09 に tanegashima / ogasawara の両機で不在を実測確認）。
+    # aerospace はさらに退役して modules/_archive/aerospace へ移した。
     taps = [
       "homebrew/services"
     ];
@@ -114,8 +115,9 @@
       # 2026-07-30 棚卸し：nix 未宣言のまま brew に居残っていた gitkraken / slack /
       # visualvm を削除した（起動履歴：gitkraken 2026-04-21 が最後、slack と visualvm は
       # 一度も起動なし）。意図的に採用しなかったので宣言は足さない。
-      # aerospace は nixpkgs 管理へ移行 (modules/apps/aerospace/home.nix 2026-07-08)。
-      # 旧 cask は手動 `brew uninstall --cask aerospace`（quit してから）
+      # aerospace は nixpkgs 管理へ移行 (2026-07-08) 後、WM ごと OmniWM へ置き換えて
+      # 退役した (2026-09-09, modules/_archive/aerospace)。旧 cask の手動 uninstall は
+      # 両機で完了済み（.app / cask / tap / launchd / 設定ファイルの不在を実測確認）。
       "raycast" # Productivity tool (HotKey: alt/option + space)
       # "stats" # 引退 2026-07-30。app は手動で Trash 済みなのに cask 宣言だけ残っていた
       #         ドリフト状態（login item も Trash 内の app を指したまま有効だった）。

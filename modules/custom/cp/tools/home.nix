@@ -33,8 +33,13 @@ in {
   #                 arms the STOPWATCH fast watch on invocation
   #   cp-login      paste REVEL_SESSION -> Keychain (stopwatch freeze detection)
   #
-  # alt-g binding lives in modules/apps/aerospace/home.nix and calls cp-go-launch via
-  # the user profile bin (config.home.profileDirectory).
+  # ⚠ alt-g は 2026-09-09 時点で **どこにもバインドされていない**。かつては
+  # modules/apps/aerospace/home.nix が profile bin 経由で cp-go-launch を叩いていたが、
+  # AeroSpace の退役（modules/_archive/aerospace）で消えた。後継の OmniWM は
+  # 「固定コマンド ID → binding」表で **任意コマンドを実行する hotkey ID を持たない**
+  # （169 ID を全走査して0件）ため、同じことを OmniWM 単体では表現できない。
+  # 復活させるなら skhd 等の外部ホットキーデーモンか、
+  # `omniwmctl watch --exec` へ逃がす。cp-go-launch 自体は生きているので CLI では叩ける。
   home.packages = [
     oj
     (pkgs.writeShellScriptBin "cp-go" (builtins.readFile ./scripts/cp-go))
