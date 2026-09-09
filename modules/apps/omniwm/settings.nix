@@ -160,6 +160,28 @@
 #        **omniwmctl から呼べない唯一の系**。キーを当てないと到達不能なので割り当てた。
 #      ⚠ モニタへの送りは**折り返さない**（方向指定のみで、端では無反応）。
 #        AeroSpace の `--wrap-around` に相当するものが無い。
+#
+#  10. focus.followsWindowToMonitor = true（キーは差分9のまま・設定1行のみ）
+#
+#      niri の `Mod+Ctrl+U/I`（move-column-to-workspace）は **既定でフォーカスが
+#      追従する**（niri-config/src/binds.rs: `property(name="focus"), default = true`）。
+#      OmniWM でこれに相当するのが本設定 ── 名前は "Monitor" だが upstream PR #489
+#      （issue #488、2026-07-17 merge、v0.6.4 に同梱）で**ワークスペース間の移動も
+#      この設定を見る**ようになった。つまり true にするだけで
+#      `Control+Option+U/I`（カラム送り）が niri の既定挙動と一致する。
+#
+#      実測（v0.6.4 / true にして）:
+#        move-column-to-workspace down/up  → **追従する** ✅（niri と同じ）
+#        move-to-workspace down/up（窓単位）→ **追従しない** ❌
+#      窓単位は upstream の取りこぼし ── #488 の本文は `moveWindowToAdjacentWorkspace`
+#      も直す前提なのに、0.6.4 ではカラム版しか追従しない。niri の既定バインドに
+#      窓単位の相対送りは無いので niri 準拠度には影響しないが、issue を出す価値は
+#      ある（v0.6.8 で直っている可能性があるので、版を上げてから再測すること。
+#      現在 v0.6.4 / 最新 v0.6.8）。
+#
+#      ※ 一度「追従の有無でキー段を分ける」案（Option+Shift+U/I をカラム送りに
+#        入れ替える）を実装しかけたが、niri 文法を崩すため**同日撤回**した。
+#        追従して送りたいときは `Control+Option+U/I` を使うこと。
 # ──────────────────────────────────────────────────────────────────────────
 {
   # hotkeys を1行1バインドに畳むヘルパ。Unassigned も全件残すこと（上の🔴）。
@@ -263,10 +285,14 @@
     (hk "focusMonitorNext" "Option+Shift+L")
     (hk "focusMonitorPrevious" "Option+Shift+H")
     (hk "focusMonitorLast" "Option+Shift+Grave")
-    (hk "moveWorkspaceToMonitor.left" "Control+Option+Shift+Left")
-    (hk "moveWorkspaceToMonitor.right" "Control+Option+Shift+Right")
-    (hk "moveWorkspaceToMonitor.up" "Control+Option+Shift+Up")
-    (hk "moveWorkspaceToMonitor.down" "Control+Option+Shift+Down")
+    # 🔴 矢印キーの正書法は "Left Arrow" 等（" Arrow" 必須）。"Left" だけの表記は
+    #   不正バインドとして**ファイル全体が拒否**され、settings.toml.corrupt.N へ隔離
+    #   →既定で書き直される（ipcEnabled=false に戻り omniwmctl ごと死ぬ）。
+    #   2026-09-09 に実際に踏んだ（corrupt.1）。既定の settings.toml の表記が正。
+    (hk "moveWorkspaceToMonitor.left" "Control+Option+Shift+Left Arrow")
+    (hk "moveWorkspaceToMonitor.right" "Control+Option+Shift+Right Arrow")
+    (hk "moveWorkspaceToMonitor.up" "Control+Option+Shift+Up Arrow")
+    (hk "moveWorkspaceToMonitor.down" "Control+Option+Shift+Down Arrow")
     (hk "moveWindowToMonitor.left" "Control+Option+Shift+H")
     (hk "moveWindowToMonitor.right" "Control+Option+Shift+L")
     (hk "moveWindowToMonitor.up" "Control+Option+Shift+K")
@@ -361,4 +387,8 @@
 
   # 既定は false。omniwmctl 用のソケットを開かせる（差分 1）。
   general.ipcEnabled = true;
+
+  # 既定 false。niri の move-column-to-workspace は既定で追従する（focus=true）ので、
+  # niri 準拠のためには true が正しい。経緯と実測は冒頭の差分10を参照。
+  focus.followsWindowToMonitor = true;
 }
