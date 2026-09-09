@@ -99,6 +99,38 @@
       inputs.home-manager.follows = "home-manager";
     };
 
+    # firefox-addons: Firefox 系拡張（xpi）のパッケージ集。Zen の拡張を宣言的に
+    #   固定するために要る（modules/apps/zen/home.nix の extensions）。
+    #
+    #   ★ nixpkgs には Firefox 拡張のパッケージ集が存在しない（`firefox-addons` も
+    #     `nur` も attr が無いことを実測で確認）。よって外から取るしかない。
+    #
+    #   ★ NUR 全体ではなく rycee の addon サブディレクトリだけを指している。NUR は
+    #     審査の無いコミュニティ meta リポジトリなので、全体を input にすると無関係な
+    #     他人のリポジトリまで評価対象に入る。`?dir=` で必要な1ディレクトリに絞る。
+    #
+    #   ★ rycee = Robert Helgesson。nixpkgs の lib.maintainers に登録された人物で
+    #     （GPG fingerprint 付き）、home-manager の中核メンテナ（公式 Matrix ルームが
+    #     #hm:rycee.net）。NixOS Discourse でもブログ記事でも、HM で拡張を宣言する
+    #     方法として一貫してこれが案内されている＝主流の選択。
+    #
+    #   ★ 中身は AMO の URL + sha256 の生成リストでしかない（実測確認済み）。
+    #     インストールされる xpi は AMO から手で落としたものとバイト同一で、
+    #     ハッシュで固定される。バージョンは flake.lock が pin するので
+    #     `nix flake update firefox-addons` を打たない限り動かない。
+    #
+    #   ⚠ nixpkgs の `fetchFirefoxAddon` を代わりに使ってはいけない。あれは xpi を
+    #     解凍して manifest.json を書き換えて再 zip するので **AMO 署名が壊れ**、
+    #     `xpinstall.signatures.required = false` が必要になる（＝プロファイル全体で
+    #     未署名拡張を許可する羽目になる）。nixpkgs のドキュメントも「Nix で入れた
+    #     addon は有効な署名を持たないので検証を無効化している」と明言している。
+    #     rycee の xpi は無改変コピーなので署名が保たれ、Zen の packageMode="signed"
+    #     とも噛み合う。
+    firefox-addons = {
+      url = "gitlab:rycee/nur-expressions?dir=pkgs/firefox-addons";
+      inputs.nixpkgs.follows = "nixpkgs-darwin";
+    };
+
     # hermes-agent: Nous Research の自律エージェント（永続メモリ＋自律スキル作成・MIT）。
     #   公式 flake は aarch64-darwin をビルド対象に含むが、出しているモジュールは
     #   nixosModules.default だけ。outputs を実測で列挙して確認済み（apps / checks /
@@ -168,7 +200,18 @@
       darwin.lib.darwinSystem {
         inherit system specialArgs;
         modules = [
-          {nixpkgs.overlays = [inputs.neru.overlays.default inputs.herdr.overlays.default];}
+          {
+            nixpkgs.overlays = [
+              inputs.neru.overlays.default
+              inputs.herdr.overlays.default
+              # ★ packages.<system> ではなく overlay を使う。前者は rycee の flake が
+              #   **自前の nixpkgs インスタンス**を立てるので、こちらの
+              #   nixpkgs.config.allowUnfree（modules/base/nix-core/darwin.nix）が届かず、
+              #   unfree ライセンスの拡張（Unhook = unhook-eula）が評価を拒否される。
+              #   overlay ならこちらの pkgs で組まれるので config が効く。
+              inputs.firefox-addons.overlays.default
+            ];
+          }
 
           # 機体ファイル（profile の import と機体固有差分はこの中）
           ./hosts/${hostname}.nix

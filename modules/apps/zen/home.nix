@@ -1,6 +1,4 @@
-{
-  ...
-}:
+{pkgs, ...}:
 # Zen（Firefox フォーク）— 既製品の設定値なので apps バケツ。
 #
 # ## なぜ homebrew cask から flake の home-manager モジュールへ移したか（2026-08-27）
@@ -218,6 +216,212 @@ in {
         "browser.shell.checkDefaultBrowser" = false;
         # Space を切り替えたとき、前回そこで見ていたタブに戻る（区画の記憶）。
         "zen.workspaces.continue-where-left-off" = true;
+        # 下の extensions.packages で置いた拡張を起動時に自動で有効化する。
+        #
+        # ⚠⚠ これは「プロファイルに置かれた拡張の承認プロンプト」を消す設定＝防御の弱体化。
+        #   当初「extensions ディレクトリが nix 管理になるから緩和される」と考えたが、
+        #   **2026-09-05 の実測でそれは成立しないと確定した**。`recursive = true` は
+        #   個別ファイルを symlink するだけで、ディレクトリ自体は書き込み可能なまま。
+        #   実際、初回 switch 後も宣言に無い xpi 3 つ（AdGuard / Obsidian Web Clipper /
+        #   DuckDuckGo）が実ファイルとして居残っていた。
+        #   → **宣言から外した拡張は自動では消えない。手で消す必要がある**（about:addons
+        #     から削除させるのが確実。Zen が extensions.json も併せて後始末するため）。
+        #   → ここに任意の xpi を置けば承認なしで有効化されうる、という状態は残る。
+        "extensions.autoDisableScopes" = 0;
+      };
+
+      # ── 拡張機能（2026-09-05 に宣言化）──────────────────────────────
+      #
+      # それまでは機体ごとに手で入れていた。宣言化した動機は「拡張のバージョンが
+      # 機体で割れない」ことと、下の permission canary を張れること。
+      #
+      # ## LibreWolf と共通化していない理由（重要）
+      #
+      # 一見すると modules/custom/youtube-gate/librewolf.nix と拡張が重なるので
+      # 共通モジュールに切り出したくなるが、**やってはいけない**：
+      #   - あちらは汎用ブラウザではなく youtube-gate の逃げ道（PAC を無視できる
+      #     唯一のアプリ・全ウィンドウがプライベート）。目的が違う
+      #   - あちらの拡張は `extraPolicies.ExtensionSettings` で入っており、
+      #     uBlock Origin と検索エンジンは**上流 LibreWolf の policies.json** 由来。
+      #     こちらの `extensions.packages`（プロファイルの extensions ディレクトリを
+      #     nix リンク化する）と経路が違い、混ぜると競合する
+      #   - `programs.librewolf` を足すと同じバンドル ID の .app が 2 つになり、
+      #     既定ブラウザの解決が不定になる（旧 zen cask 移行で踏んだのと同じ穴）
+      # よって「共通の定義を配る」のではなく、**Zen が LibreWolf の既存の選択に
+      # 合わせる**形にしてある（下の AdGuard → uBO がまさにそれ）。
+      #
+      # ## 落とした拡張（2026-09-05・本人判断）
+      #
+      #   - AdGuard AdBlocker → **uBlock Origin に置換**。youtube-gate 側が
+      #     「ブロッカーは uBO に固定した（2026-08-03）」と既に決めており、機体を
+      #     またいで 2 種類の広告ブロッカーを持つ理由が無い。副次的に、AdGuard は
+      #     rycee の set に存在せず自前パッケージ化が要るという事情もある
+      #   - Obsidian Web Clipper → 使っていない
+      #   - DuckDuckGo Privacy & Tracker Protection → 不要（uBO と重複気味）
+      #
+      # ## Tampermonkey を Zen だけに置く理由
+      #
+      # 競技プログラミング用（🏆Competitive Programming Space・Build Space の
+      # greasyfork route と対応）。実際に入っているスクリプトは 5 本すべて
+      # atcoder.jp / codeforces / yukicoder に `@match` が限定されている（2026-09-05 監査）。
+      #
+      # ⚠ ただし **Tampermonkey は権限が突出して重い**：`<all_urls>` に加えて
+      #   `cookies`（全サイトの Cookie）と `contextualIdentities`（コンテナ API）を持つ。
+      #   つまり**下の containers による School の隔離は、拡張に対しては成立しない**。
+      #   コンテナが隔離するのは Cookie であって拡張ではない。
+      # ⚠ ユーザースクリプトは greasyfork から自動更新される＝ここで xpi を pin しても
+      #   **実行されるコードはこの経路を迂回する**。nix で固めた供給網の外側にある入口。
+      extensions = {
+        # `pkgs.firefox-addons` は flake.nix で入れている rycee の overlay 由来
+        # （`packages.<system>` を直に使わない理由は flake.nix のコメント参照）。
+        packages = with pkgs.firefox-addons; [
+          ublock-origin # 広告・トラッカー遮断（LibreWolf 側と同一に揃えた）
+          vimium # キーボードナビ
+          videospeed # 動画の再生速度
+          youtube-recommended-videos # ＝ Unhook（おすすめ・Shorts を消す）
+          tampermonkey # ⚠ Zen 限定。CP 用。権限が重い（上のコメント参照）
+        ];
+
+        # ── permission canary ────────────────────────────────────────
+        #
+        # ★ これは**ランタイムの権限制限ではない**。mkFirefoxModule の assertion で、
+        #   ここに書いた一覧と拡張が実際に要求する meta.mozPermissions が食い違うと
+        #   **ビルドが落ちる**（mkFirefoxModule.nix の extensions.packages 走査部）。
+        #   拡張の権限は署名付き xpi の属性なので、設定で剥がすことはできない
+        #   （剥がすと manifest のハッシュが変わって AMO 署名が壊れる）。
+        #
+        # ★ 狙いは供給網の見張り：バージョンが上がって権限が増えたら気づける。
+        #   `exactPermissions = true` は増減の両方向を検出する（宣言に無い権限を
+        #   要求してきた場合も、宣言したのに要求されなくなった場合も落ちる）。
+        #
+        # ⚠ したがって `nix flake update firefox-addons` でビルドが落ちたら、それは
+        #   故障ではなく**検知**。落ちた差分を読んでから下の一覧を更新すること。
+        #   機械的に追記して黙らせるのは canary を殺すのと同じ。
+        exactPermissions = true;
+        settings = {
+          "uBlock0@raymondhill.net".permissions = [
+            "alarms"
+            "dns"
+            "menus"
+            "privacy"
+            "storage"
+            "tabs"
+            "unlimitedStorage"
+            "webNavigation"
+            "webRequest"
+            "webRequestBlocking"
+            "<all_urls>"
+            "http://*/*"
+            "https://*/*"
+            "file://*/*"
+            "https://easylist.to/*"
+            "https://*.fanboy.co.nz/*"
+            "https://filterlists.com/*"
+            "https://forums.lanik.us/*"
+            "https://github.com/*"
+            "https://*.github.io/*"
+            "https://github.com/uBlockOrigin/*"
+            "https://ublockorigin.github.io/*"
+            "https://*.reddit.com/r/uBlockOrigin/*"
+          ];
+          # ⚠ `clipboardRead` は Vimium の `p` / `P`（クリップボードの URL を開く）と
+          #   `yy`（現在の URL をコピー）に要る機能権限。外したくなるが、外す＝拡張を
+          #   捨てるということ。Vimium C も同じ権限を持つので乗り換えても解決しない
+          #   （2026-09-05 に rycee の set で確認）。受け入れて canary で見張る判断。
+          "{d7742d87-e61d-4b78-b8a1-b469842139fa}".permissions = [
+            "tabs"
+            "bookmarks"
+            "history"
+            "storage"
+            "sessions"
+            "notifications"
+            "scripting"
+            "webNavigation"
+            "search"
+            "clipboardRead"
+            "clipboardWrite"
+            "<all_urls>"
+            "file:///"
+            "file:///*/"
+          ];
+          "{7be2ba16-0f1e-4d93-9ebc-5164397477a9}".permissions = [
+            "storage"
+            "http://*/*"
+            "https://*/*"
+            "file:///*"
+          ];
+          # Unhook。YouTube 以外に触らない＝5 個の中で唯一ホストが絞られている。
+          "myallychou@gmail.com".permissions = [
+            "storage"
+            "webRequest"
+            "https://www.youtube.com/*"
+            "https://m.youtube.com/*"
+          ];
+          # ⚠ `cookies` と `contextualIdentities` に注目。この 2 つがあるので
+          #   School コンテナ（下の containers）の隔離は Tampermonkey には効かない。
+          "firefox@tampermonkey.net".permissions = [
+            "alarms"
+            "notifications"
+            "tabs"
+            "idle"
+            "webNavigation"
+            "webRequest"
+            "webRequestBlocking"
+            "unlimitedStorage"
+            "storage"
+            "contextMenus"
+            "clipboardWrite"
+            "cookies"
+            "contextualIdentities"
+            "downloads"
+            "<all_urls>"
+          ];
+        };
+      };
+
+      # ── 検索エンジン（2026-09-05 に宣言化）──────────────────────────
+      #
+      # 宣言前の実測（search.json.mozlz4 を decode）：`defaultEngineId = "ddg"` で
+      # プライベート側は未設定（通常既定に追従）、engines に Amazon / eBay / Bing /
+      # perplexity / wikipedia が居残っていた。使う 3 つに絞る。
+      #
+      # ★ `metaData` だけ書いたエンジンは組み込み扱いになるので、Amazon や Bing を
+      #   消すのに再定義は要らない（`hidden` を立てるだけ）。
+      # ★ Yandex は**組み込みではない**。Firefox が app-provided で配るのは RU/TR/BY/KZ
+      #   などのリージョンで、この機体は `browser.search.region = "US"`。実測でも
+      #   engines に存在しなかった。よって URL テンプレートごと定義する。
+      # ⚠ Yandex はロシア法の下でクエリがログされ当局への開示義務がかかる事業者。
+      #   既定には据えず（default / privateDefault とも ddg）、`@y` 経由の明示的な
+      #   呼び出しに限定してある。画像の逆引きと露語圏インデックスのための道具。
+      # ⚠ プライベートウィンドウに別エンジンを割り当てたくなったら
+      #   `browser.search.separatePrivateDefault = true` が要る（今は両方 ddg なので不要）。
+      search = {
+        force = true; # search.json.mozlz4 を nix 所有にする
+        default = "ddg";
+        privateDefault = "ddg";
+        order = ["ddg" "google" "yandex"];
+        engines = {
+          yandex = {
+            name = "Yandex";
+            urls = [
+              {
+                template = "https://yandex.com/search/";
+                params = [
+                  {
+                    name = "text";
+                    value = "{searchTerms}";
+                  }
+                ];
+              }
+            ];
+            definedAliases = ["@y"];
+          };
+          bing.metaData.hidden = true;
+          perplexity.metaData.hidden = true;
+          wikipedia.metaData.hidden = true;
+          amazondotcom-us.metaData.hidden = true;
+          ebay.metaData.hidden = true;
+        };
       };
 
       # ── コンテナ（Cookie 隔離）──────────────────────────────────────
