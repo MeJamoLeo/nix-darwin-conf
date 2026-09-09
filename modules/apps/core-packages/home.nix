@@ -50,6 +50,8 @@
     # productivity
     glow # markdown previewer in terminal
     fastfetch # system information tool
+    enscript # コード印刷（2段組 PS 化）。UTF-8 非対応＝日本語コメントは化ける（ASCII 用）
+    ghostscript # enscript の出力を PDF 化する ps2pdf を提供
 
     # compilers
     gcc
