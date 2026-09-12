@@ -27,6 +27,37 @@
       # lsp / language_servers で指名する。今は入れていない。
       auto_install_extensions.nix = true;
 
+      # C/C++ — clangd の実体は pkgs.clang-tools（今は modules/domain/school/cs4355/home.nix
+      # が供給）。Zed は PATH 上の clangd を見つけて引数なしで起動する。
+      #
+      # ⚠️ nixpkgs の clangd は macOS で **libc++ を二重に** include path へ入れる。
+      #    自前の /nix/store/...-libcxx-*/include/c++/v1 と、-isysroot 経由の
+      #    Xcode SDK の usr/include/c++/v1 が両方載り、<vector> や <type_traits> の
+      #    パースが途中で死ぬ。症状は「ファイル全体が赤い ＋ std:: の補完がゼロ」——
+      #    標準ヘッダが壊れると clangd が std のシンボルを1つも持てないので、
+      #    赤線と補完不能は同じ1つの原因。
+      #
+      #    2026-09-10 実測（zylab1 の main.cpp・clangd --check のエラー数）:
+      #      素の nix clangd                              5 errors
+      #      + --query-driver=<実コンパイラ>              0 errors
+      #      Xcode 付属の clangd（/usr/bin/clangd）        0 errors
+      #
+      # --query-driver は「clangd がシステム include を訊きに行ってよいドライバ」の
+      # ホワイトリスト。実コンパイラに訊いた結果が優先されるので二重載せが解消する。
+      #
+      # ★マッチ対象は **compile_commands.json に書いてある文字列そのもの**で、symlink を
+      #   解決した後のパスではない（実測：DB に /etc/profiles/... と書いて glob を
+      #   /nix/store/*/bin/g++ だけにすると効かず 7 errors）。だから
+      #   「安定パス」と「store 実体」の両方を許可しておく。
+      #
+      # g++ を並べているのは CS4355 の都合。採点環境（zyLab = Linux + g++ + libstdc++）に
+      # エディタの見え方を寄せるため、DB 側で g++ を名指ししている
+      # （modules/domain/school/cs4355/home.nix の compile_commands.json 種）。
+      # clang* を残すのは ZYG_SAN=1 のときと、DB の無い場所での素の C++ のため。
+      lsp.clangd.binary.arguments = [
+        "--query-driver=/etc/profiles/per-user/*/bin/g++,/nix/store/*/bin/g++,/usr/bin/clang*"
+      ];
+
       icon_theme = "Zed (Default)";
       ui_font_size = 16;
       buffer_font_size = 15;

@@ -18,6 +18,7 @@
 #
 # 学期が終わったら `git mv` で modules/_archive/ へ（cs3354 / cs3339 と同じ退役パス）。
 {
+  config,
   pkgs,
   lib,
   ...
@@ -98,6 +99,14 @@
 
   # Exercise ×9（20%・最低1本ドロップ）。ex01 … ex09。
   exerciseDirs = map (n: "exercises/ex${lib.fixedWidthNumber 2 n}") (lib.range 1 9);
+
+  # compile_commands.json を撒く先。courseDirs から派生させて二重管理を避ける。
+  zylabDirs = lib.filter (lib.hasPrefix "zylabs/") courseDirs;
+
+  # DB に書く g++。**store 実体ではなく profile 経由の安定パス**にする——store パスを
+  # 焼き込むと nix 更新で古い世代を指したまま腐る（種ファイルは「無ければ置く」ので
+  # 二度と更新されない）。profile パスなら世代が変わっても追従する。
+  gxxPath = "${config.home.profileDirectory}/bin/g++";
 in {
   home.packages = [
     zygxx
@@ -108,11 +117,20 @@ in {
     # なので、ここは補完・整形・静的解析の実体を PATH に置くぶん。
     # ⚠️ clangd の既定は GCC より新しい標準を仮定しがちなので、**通るかどうかの正本は
     #    clangd ではなく zyg++**。エディタが黙っていても提出前に zyg++ を通すこと。
+    #
+    # ⚠️ 素の nixpkgs clangd は macOS で libc++ を二重に読んで壊れる。修正は
+    #    modules/apps/zed/home.nix の --query-driver ＋ 下の activation が撒く
+    #    compile_commands.json の**2つ揃って**効く。片方だけでは直らない。
+    #
+    # 🔸 退役メモ：このモジュールを _archive/ へ動かすと clangd が PATH から消え、
+    #    Zed は自前ダウンロード版にフォールバックして挙動が変わる。学期末に
+    #    clang-tools を core-packages へ移すか、消える前提で受け入れるかを決めること。
     pkgs.clang-tools
 
-    # 単一ファイルの zyLab には要らないが、複数ファイルに割ったときの
-    # compile_commands.json 生成（= clangd がインクルードパスを解決できる状態）用。
-    # シラバスが例示する CLion もこれを前提にする。
+    # 複数ファイルに割ったとき（CMake で compile_commands.json を吐かせる）用。
+    # 単一ファイルの zyLab には不要——そちらは下の activation が
+    # compile_commands.json を直接書くので CMake を経由しない（2026-09-10 実測で確認）。
+    # シラバスが例示する CLion はこれを前提にする。
     pkgs.cmake
   ];
 
@@ -132,6 +150,33 @@ in {
       cp ${./gitignore-template} "$root/.gitignore"
       chmod u+w "$root/.gitignore"
     fi
+
+    # compile_commands.json — clangd に「zyg++ と同じドライバ・同じフラグ」を教える種。
+    #
+    # 目的は **エディタの見え方を採点環境に寄せる**こと。zyLab は Linux + g++ + libstdc++
+    # なので、clangd が Xcode の libc++ を読んでいると手元と採点側で標準ライブラリが
+    # 別物になる。ここで g++ を名指しすると、clangd が --query-driver でその g++ に
+    # システム include を訊きに行き、**libstdc++ を読むようになる**
+    # （2026-09-10 実測：<bits/stdc++.h> が解決する＝libstdc++ であることの決定的証拠。
+    #  clangd --check のエラーも 5 → 0）。--query-driver の指定は
+    # modules/apps/zed/home.nix 側にある（両方揃って初めて効く）。
+    #
+    # ⚠️ 一致するのは**ヘッダと標準ライブラリだけ**。clangd の実体は clang なので
+    #    GCC 固有の診断は再現しない。**提出可否の正本は今までどおり zyg++**。
+    #
+    # .gitignore には既に compile_commands.json が入っているのでコミットされない。
+    for d in ${lib.concatStringsSep " " zylabDirs}; do
+      f="$root/$d/compile_commands.json"
+      if [ ! -e "$f" ]; then
+        # heredoc を使わないのは、nix の多行文字列がインデントを剥がすせいで
+        # 終端子を列0に置くのが壊れやすいため。printf なら位置に依存しない。
+        # （ついでに：この多行文字列の中に単引用符2つを並べると、そこで文字列が
+        #  閉じてしまう。コメントであっても書けない）
+        printf '[{"directory": "%s", "command": "%s -std=%s %s -c main.cpp", "file": "main.cpp"}]\n' \
+          "$root/$d" "${gxxPath}" "${zyStd}" "${zyWarn}" > "$f"
+        chmod u+w "$f"
+      fi
+    done
   '';
 
   # ── 意図的に入れていないもの ─────────────────────────────
