@@ -92,8 +92,12 @@ in {
     theme.name = "tokyo-night-day";
   };
 
-  # Claude Code SessionStart hook: herdr pane 内で起動した Claude に
-  # workspace/tab の日本語 rename を促す（詳細はスクリプト冒頭コメント）。
+  # Claude Code UserPromptSubmit hook: herdr pane 内で動いているとき、workspace/tab の
+  # ラベルが未命名（ASCII のみ）なら、発話から日本語ラベルを背景の haiku で生成して
+  # rename する（詳細はスクリプト冒頭コメント）。
+  # 2026-09-11 に SessionStart（＝モデルへ指示文を注入する方式）から移設した。
+  # 指示注入の実測命中率は workspace 9個中1個（≒11%）。★ソフトな指示は累積で無視される
+  # ので、検知と実行を自動経路に降ろした。
   # herdr 外では HERDR_ENV 不在で無音 no-op なので、この herdr.nix を外せば
   # 挙動ごと消える。~/.claude/settings.json 側の登録は存在ガード付きの1行
   # （hook ファイルが消えても無害に空振りする）で、settings.json は Claude Code /
