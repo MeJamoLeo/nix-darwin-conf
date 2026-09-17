@@ -12,7 +12,7 @@
 // モード: （無フラグ）interactive=通常窓・ログイン用 / --wallpaper=常在面（アイコン裏・透過・全Space・無人）
 // 設定: ~/calendar-dashboard/caldash-config.json（env CALDASH_CONFIG で上書き）。
 //       gap / zoom / weekZoom / baseZoom / baseWeekZoom / referenceWidth /
-//       account(u/N) / tz / backgroundOpacity。
+//       leftColumnRatio / account(u/N) / tz / backgroundOpacity。
 // 日次: ローカル 00:01 に再ロード（各面を今日基準に再アンカー＋来週/来月 URL 再計算）。
 //       ※イベントデータ自体は本体 SPA が自前同期するので定期リロードはしない。
 // 終了 = プロセス kill のみ。システム状態は何も変えない。
@@ -108,6 +108,12 @@ let GCAL_WEEK_GUTTER_PX: CGFloat = 96
 var BASE_MONTH_ZOOM: CGFloat? = nil
 var BASE_WEEK_ZOOM: CGFloat? = nil
 var REFERENCE_WIDTH: CGFloat? = nil
+// 左カラム（月×2 の縦スタック）が usable 幅に占める比率（config: leftColumnRatio）。
+// nil = 旧来の 3 等幅（左 = (usable - extra)/3）。値を入れると左を痩せさせた分だけ
+// 週ペイン 2 枚が広がる＝1 日あたりの列幅が増える。月ビューは 7 列さえ保てば
+// 潰れないので、情報量の主戦場である週側に幅を寄せるための調整弁。
+// 2026-09-17: 0.25 で運用開始（2560 幅で 左 637px / 週 917px・994px）。
+var LEFT_COLUMN_RATIO: CGFloat? = nil
 // 背景 alpha（config: backgroundOpacity）。1.0=完全不透明、<1.0 で壁紙が透ける。
 // window.isOpaque + backgroundColor + GridView.layer + WKWebView.drawsBackground +
 // CSS 注入の全レイヤーに一貫適用する（どこか一箇所でも opaque だと透過は死ぬ）。
@@ -116,6 +122,7 @@ var BG_OPACITY: CGFloat = 1.0
 struct Config: Codable {
     var gap: Double?; var monthZoom: Double?; var weekZoom: Double?
     var baseMonthZoom: Double?; var baseWeekZoom: Double?; var referenceWidth: Double?
+    var leftColumnRatio: Double?
     var account: Int?; var tz: String?
     var backgroundOpacity: Double?
 }
@@ -140,10 +147,13 @@ func loadConfig() {
     if let v = c.baseMonthZoom { BASE_MONTH_ZOOM = CGFloat(v) }
     if let v = c.baseWeekZoom { BASE_WEEK_ZOOM = CGFloat(v) }
     if let v = c.referenceWidth { REFERENCE_WIDTH = CGFloat(v) }
+    // 0 や 1 を入れるとカラムが消える／週が潰れるので実用域に丸める。
+    if let v = c.leftColumnRatio { LEFT_COLUMN_RATIO = max(0.1, min(0.6, CGFloat(v))) }
     if let v = c.account { ACCOUNT = v }
     if let v = c.tz { TZ_ID = v }
     if let v = c.backgroundOpacity { BG_OPACITY = max(0, min(1, CGFloat(v))) }
     print("[caldash] config: gap=\(GAP) monthZoom=\(MONTH_ZOOM) weekZoom=\(WEEK_ZOOM) u/\(ACCOUNT) \(TZ_ID) opacity=\(BG_OPACITY)")
+    print("[caldash] layout: leftColumnRatio=\(LEFT_COLUMN_RATIO.map { "\($0)" } ?? "nil(3等幅)")")
     if let ref = REFERENCE_WIDTH {
         print("[caldash] formula: baseMonthZoom=\(BASE_MONTH_ZOOM ?? MONTH_ZOOM) baseWeekZoom=\(BASE_WEEK_ZOOM ?? WEEK_ZOOM) referenceWidth=\(ref)")
     }
@@ -349,18 +359,31 @@ func isGoogleHost(_ host: String?) -> Bool {
 // 左右 pane は残りを等分する（左 lw + 中央 lw+extra + 右 lw + gap*2 = W）。
 // extra は AppDelegate が「中央 pane の hour gutter を左右 pane と day col 幅で
 // 揃えるためのオフセット」として設定する。isFlipped=true で左上原点。
+//
+// leftColumnRatio（config）が入っていると 3 等幅をやめ、左カラムを usable*ratio に
+// 固定して、残り全部を週ペイン 2 枚で分ける。中央は依然 extra 分だけ広い
+// （= 週 2 枚の day col 幅が揃う）という不変条件は両モードで保つ。
 final class GridView: NSView {
     var panes: [NSView] = []
     var middleExtraWidth: CGFloat = 0
+    var leftColumnRatio: CGFloat? = nil
     override var isFlipped: Bool { true }
     override func layout() {
         super.layout()
         guard panes.count == 4 else { return }
         let W = bounds.width, H = bounds.height
         let usable = max(0, W - 2 * GAP)
-        let lw = max(0, (usable - middleExtraWidth) / 3)
-        let mw = lw + middleExtraWidth
-        let rw = lw
+        let lw: CGFloat, mw: CGFloat, rw: CGFloat
+        if let ratio = leftColumnRatio {
+            lw = max(0, min(usable, usable * ratio))
+            let rest = usable - lw                       // 週 2 枚の取り分
+            rw = max(0, (rest - middleExtraWidth) / 2)
+            mw = rest - rw                               // 差で出して丸め残りを消す
+        } else {
+            lw = max(0, (usable - middleExtraWidth) / 3)
+            mw = lw + middleExtraWidth
+            rw = lw
+        }
         let monthH = max(0, (H - GAP) / 2)
         panes[0].frame = NSRect(x: 0,                       y: 0,             width: lw, height: monthH) // 今月（左上）
         panes[1].frame = NSRect(x: 0,                       y: monthH + GAP,  width: lw, height: monthH) // 来月（左下）
@@ -503,6 +526,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         // 中央 pane (今週) の hour gutter 分を余分に幅取って左右と day col 幅を揃える。
         // pageZoom が掛かるので device px = CSS px * weekZoom。
         grid.middleExtraWidth = GCAL_WEEK_GUTTER_PX * weekZoom
+        grid.leftColumnRatio = LEFT_COLUMN_RATIO
         let zooms: [CGFloat] = [zoom, zoom, weekZoom, weekZoom]  // 今月/来月/今週/来週
         // 来週 (index 3) は時間ラベル gutter を完全に消去し、day headers も events grid
         // 本体も左端に寄せる。GCal 週ビュー DOM (2026-07-30 時点):
