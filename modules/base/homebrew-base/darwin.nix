@@ -137,6 +137,14 @@
       # 戻すのは `launchctl enable gui/501/<同ラベル>`。
       "surfshark"
       "handy" # Speech to text application
+
+      # Games
+      # Steam クライアントは今も Intel バイナリで、Apple Silicon では Rosetta 2 が要る
+      # （2026-09-23 実測：この機体は arm64・oahd 稼働済みなので追加作業は無い。
+      #   Rosetta 未導入の機体を足すときは `softwareupdate --install-rosetta` が先）。
+      # cask 側が auto_updates なので更新は Steam 自身が回す（この repo は
+      # onActivation.upgrade = false なのでどちらにせよ brew は触らない）。
+      "steam" # Game distribution platform
     ];
   };
 }
