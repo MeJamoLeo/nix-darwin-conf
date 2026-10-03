@@ -2,21 +2,47 @@
 // 本体アプリを WKWebView で"最上位"ロード（iframe でないので X-Frame-Options 回避）。
 // 全面が .default() データストア共有 → ログイン1回で全面認証・再起動で永続（実測済み）。
 //
-// レイアウト（4面）: 3 等幅カラム、左カラムは上下スタック。
+// レイアウト（4面）: 3 等幅カラム、右カラムだけ上下スタック（2026-10-02 ユーザー決定）。
 //   ┌────────┬────────┬────────┐
-//   │ 4週     │ 今週    │ 来週    │   ← 来週で「次の月曜」も見える（週ビュー日曜起点問題の解）
-//   ├────────┤        │        │
-//   │ 来月    │        │        │   ← 暫定。いずれ todo パネルに差し替える予定
+//   │ 4週     │ 今週    │ 来週    │   ← 来週は縮小 zoom（nextWeekZoomScale）。上段 rightTopRatio
+//   │ (全高)  │ (全高)  ├────────┤
+//   │         │         │ todo    │   ← 今日の todo md を leaf で描画（Google カレンダーではなくローカル面）
 //   └────────┴────────┴────────┘
+// WHY 右だけ分割: 4週ビューが既に「来週」を含むので、来週ペインは全高の大きさが要らない
+//      （縮小 zoom で十分）。空いた右下を todo に回すと、旧「左下の月ペイン半分」より広く取れる。
+// WHY 3 カラム等幅: ユーザー要望「幅は全て同じように」。leftColumnRatio=1/3 で左を固定し、
+//      残りを今週・来週で等分（中央だけ hour gutter 分 +extra＝日列幅を来週と揃える不変条件は維持）。
+// WHY 来週の zoom を縮める: 高さが半分になるので、同じ zoom だと 0-24h がスクロール無しで収まらない。
+//      週 zoom × nextWeekZoomScale（既定 0.75）。解像度スケール式は週 zoom 側に先に掛かるので、
+//      画面ごとの補正の上に乗る（式 → 来週だけ倍率）。
 // 左上は月ビューでなく Google カレンダーのカスタムビュー（4週・月曜始まり・本体設定済み）。
 // WHY: 月ビューは月末で打ち切られ、翌月に入った週が見えなくなる。4週カスタムビューは
 //      常に「今週」始まりなので、直近4週間が月境界に関係なく連続して見える（2026-10-02 ユーザー要望）。
 //
+// 右下は todo パネル: ~/Store/30_Work/todo/YYYY/YYYYMMDD-todo.md（当日）を
+//   `leaf --inline ansi:<cols> <file>` で描画し、ANSI(SGR) を HTML に変換して WKWebView に出す。
+// WHY leaf: ユーザーが todo の閲覧に `leaf -w` を選んだ。その描画（☐/☑・区切り線・配色）をそのまま使う。
+// WHY ターミナル窓にしない: 他社製ターミナルの窓は壁紙レイヤー（アイコンの裏）に置けない。
+//      caldash の窓は desktopWindow レベルなので、面として caldash の中に居る必要がある。
+// WHY --inline で描画: leaf 自前の描画を保ったまま caldash 内に収まる（ターミナルエミュ不要）。
+//      -w（常駐監視）は使わず、こちらでファイル変更を見て再実行する（leaf -w 相当）。
+// WHY 2 秒 mtime ポーリング: ファイル+ディレクトリの FS イベント監視は atomic rename 書き込みで
+//      fd が旧 inode を指して切れる・日付跨ぎでパスが変わる、の再接続処理が要る。ポーリングは
+//      パス・mtime・桁数・zoom の組を比べるだけで、これら全部（更新/rename/日付変更/リサイズ/
+//      今日のファイル出現）を同じ1箇所で拾える。stat 1回/2秒は無視できるコスト。
+// 当日ファイルが無い間（roll ジョブが 06:00 に作る＝00:01〜06:00）は、最新の過去ファイルを
+//   「showing M/D (today's file not created yet)」の注記付きで出す（空白にしない）。
+// leaf が失敗（バイナリ無し/非0終了）したらエラー文を淡色で面に出す（黙って古いまま、にしない）。
+// ※ leaf は nixpkgs に無い。手動で ~/.local/bin/leaf に置いたバイナリ（config: leafPath）。
+//
 // モード: （無フラグ）interactive=通常窓・ログイン用 / --wallpaper=常在面（アイコン裏・透過・全Space・無人）
 // 設定: ~/calendar-dashboard/caldash-config.json（env CALDASH_CONFIG で上書き）。
 //       gap / zoom / weekZoom / baseZoom / baseWeekZoom / referenceWidth /
-//       leftColumnRatio / account(u/N) / tz / backgroundOpacity。
-// 日次: ローカル 00:01 に再ロード（各面を今日基準に再アンカー＋来週/来月 URL 再計算。
+//       leftColumnRatio（左カラム幅比。等幅なら 0.3333）/ rightTopRatio（右カラム上段=来週の高さ比。既定 0.5）/
+//       nextWeekZoomScale（来週ペインだけ週 zoom に掛ける倍率。既定 0.75）/
+//       account(u/N) / tz / backgroundOpacity /
+//       leafPath（leaf バイナリ。既定 ~/.local/bin/leaf）。
+// 日次: ローカル 00:01 に再ロード（各面を今日基準に再アンカー＋来週 URL 再計算・todo 面は当日ファイルへ切替。
 //       4週ビューは本体側が「今週始まり」で描くので再ロードだけで当週に追随する）。
 //       ※イベントデータ自体は本体 SPA が自前同期するので定期リロードはしない。
 // 終了 = プロセス kill のみ。システム状態は何も変えない。
@@ -112,23 +138,32 @@ let GCAL_WEEK_GUTTER_PX: CGFloat = 96
 var BASE_MONTH_ZOOM: CGFloat? = nil
 var BASE_WEEK_ZOOM: CGFloat? = nil
 var REFERENCE_WIDTH: CGFloat? = nil
-// 左カラム（月×2 の縦スタック）が usable 幅に占める比率（config: leftColumnRatio）。
+// 左カラム（4週・全高）が usable 幅に占める比率（config: leftColumnRatio）。
 // nil = 旧来の 3 等幅（左 = (usable - extra)/3）。値を入れると左を痩せさせた分だけ
 // 週ペイン 2 枚が広がる＝1 日あたりの列幅が増える。月ビューは 7 列さえ保てば
 // 潰れないので、情報量の主戦場である週側に幅を寄せるための調整弁。
 // 2026-09-17: 0.25 で運用開始（2560 幅で 左 637px / 週 917px・994px）。
 var LEFT_COLUMN_RATIO: CGFloat? = nil
+// 右カラム（来週 / todo の縦スタック）の上段=来週が占める高さ比（config: rightTopRatio）。
+var RIGHT_TOP_RATIO: CGFloat = 0.5
+// 来週ペインだけに掛ける zoom 倍率（config: nextWeekZoomScale）。式適用後の週 zoom に乗る。
+var NEXT_WEEK_ZOOM_SCALE: CGFloat = 0.75
 // 背景 alpha（config: backgroundOpacity）。1.0=完全不透明、<1.0 で壁紙が透ける。
 // window.isOpaque + backgroundColor + GridView.layer + WKWebView.drawsBackground +
 // CSS 注入の全レイヤーに一貫適用する（どこか一箇所でも opaque だと透過は死ぬ）。
 var BG_OPACITY: CGFloat = 1.0
+// leaf バイナリのパス（config: leafPath）。nixpkgs に無いので手動配置の ~/.local/bin/leaf が既定。
+var LEAF_PATH = "~/.local/bin/leaf"
+// todo ファイルのルート。YYYY/YYYYMMDD-todo.md が下に並ぶ。
+let TODO_DIR = "~/Store/30_Work/todo"
 
 struct Config: Codable {
     var gap: Double?; var monthZoom: Double?; var weekZoom: Double?
     var baseMonthZoom: Double?; var baseWeekZoom: Double?; var referenceWidth: Double?
-    var leftColumnRatio: Double?
+    var leftColumnRatio: Double?; var rightTopRatio: Double?; var nextWeekZoomScale: Double?
     var account: Int?; var tz: String?
     var backgroundOpacity: Double?
+    var leafPath: String?
 }
 // 設定ファイル: 既定 ~/.config/caldash/config.json (XDG_CONFIG_HOME 準拠、
 // 環境変数 XDG_CONFIG_HOME が空でなければそちらを尊重)。CALDASH_CONFIG 環境変数で
@@ -153,11 +188,14 @@ func loadConfig() {
     if let v = c.referenceWidth { REFERENCE_WIDTH = CGFloat(v) }
     // 0 や 1 を入れるとカラムが消える／週が潰れるので実用域に丸める。
     if let v = c.leftColumnRatio { LEFT_COLUMN_RATIO = max(0.1, min(0.6, CGFloat(v))) }
+    if let v = c.rightTopRatio { RIGHT_TOP_RATIO = max(0.2, min(0.8, CGFloat(v))) }
+    if let v = c.nextWeekZoomScale { NEXT_WEEK_ZOOM_SCALE = max(0.2, min(1.5, CGFloat(v))) }
     if let v = c.account { ACCOUNT = v }
     if let v = c.tz { TZ_ID = v }
     if let v = c.backgroundOpacity { BG_OPACITY = max(0, min(1, CGFloat(v))) }
-    print("[caldash] config: gap=\(GAP) monthZoom=\(MONTH_ZOOM) weekZoom=\(WEEK_ZOOM) u/\(ACCOUNT) \(TZ_ID) opacity=\(BG_OPACITY)")
-    print("[caldash] layout: leftColumnRatio=\(LEFT_COLUMN_RATIO.map { "\($0)" } ?? "nil(3等幅)")")
+    if let v = c.leafPath, !v.isEmpty { LEAF_PATH = v }
+    print("[caldash] config: gap=\(GAP) monthZoom=\(MONTH_ZOOM) weekZoom=\(WEEK_ZOOM) u/\(ACCOUNT) \(TZ_ID) opacity=\(BG_OPACITY) leaf=\(LEAF_PATH)")
+    print("[caldash] layout: leftColumnRatio=\(LEFT_COLUMN_RATIO.map { "\($0)" } ?? "nil(3等幅)") rightTopRatio=\(RIGHT_TOP_RATIO) nextWeekZoomScale=\(NEXT_WEEK_ZOOM_SCALE)")
     if let ref = REFERENCE_WIDTH {
         print("[caldash] formula: baseMonthZoom=\(BASE_MONTH_ZOOM ?? MONTH_ZOOM) baseWeekZoom=\(BASE_WEEK_ZOOM ?? WEEK_ZOOM) referenceWidth=\(ref)")
     }
@@ -174,191 +212,269 @@ func cal() -> Calendar {
     c.timeZone = TimeZone(identifier: TZ_ID) ?? .current
     return c
 }
-func nextMonthYM() -> (Int, Int) {
-    let c = cal().dateComponents([.year, .month], from: Date())
-    var y = c.year!, m = c.month! + 1
-    if m > 12 { m = 1; y += 1 }
-    return (y, m)
-}
 func nextWeekYMD() -> (Int, Int, Int) {
     let d = cal().date(byAdding: .day, value: 7, to: Date())!
     let c = cal().dateComponents([.year, .month, .day], from: d)
     return (c.year!, c.month!, c.day!)
 }
-func thisMonthYM() -> (Int, Int) {
-    let c = cal().dateComponents([.year, .month], from: Date())
-    return (c.year!, c.month!)
-}
 // 4 pane（GridView.layout の panes[0..3] と順序を揃える）:
-//   [0] 4週カスタム (左上) / [1] 来月 (左下) / [2] 今週 (中央) / [3] 来週 (右)
+//   [0] 4週カスタム (左・全高) / [1] todo (右下・URL なし) / [2] 今週 (中央・全高) / [3] 来週 (右上)
 // [0] の /customweek は日付を持たず常に今週始まり（本体のカスタムビュー設定=4週・月曜始まり）。
-// 来月は明示日付 URL（月 JS が URL から対象月を読むため。日次 reanchor で再計算される）。
-func paneURLs() -> [String] {
+// [1] は Web でなくローカル描画なので nil（TodoPane が担当）。
+func paneURLs() -> [String?] {
     let base = "https://calendar.google.com/calendar/u/\(ACCOUNT)/r"
-    let (ny, nm) = nextMonthYM()
     let (wy, wm, wd) = nextWeekYMD()
     return [
         "\(base)/customweek",             // 4週（今週始まり）
-        "\(base)/month/\(ny)/\(nm)/1",     // 来月
-        "\(base)/week",                    // 今週
+        nil,                               // todo（TodoPane）
+        "\(base)/week",                   // 今週
         "\(base)/week/\(wy)/\(wm)/\(wd)"   // 来週
     ]
 }
 
-// 月ペインの pane 固有 JS（wallpaper 専用）。2つの仕事をする：
-//
-// ①境界週デデュープ。GCal 月ビューは常に完全週で描画するため、月境界が週の途中だと
-//   境界週（例: 8/31–9/6）が今月ペイン最下段と来月ペイン最上段の両方に出る。
-//   **週行数が多い方のペイン**から境界週を隠し、両ペインの行数（＝1週の縦幅）を
-//   揃える（同数のときは来月側を隠す＝今月を完全に保つ）。月初が週初めの月は
-//   重複自体が無いので何もしない。
-// ②today 強調。GCal の today marker class（.F262Ye）は週ビューの gridcell にしか
-//   付かない（月ビューの today セルには付かない。2026-08-07 スクショ実測）ため、
-//   CSS では当てられず、日付演算で today セルを特定して塗る。月ビューの gridcell は
-//   イベント欄のみで日付数字の帯をカバーしない（同日実測）ので、行に背面オーバーレイ
-//   （行の全高 × セルの列幅）を敷いて週ビューの today 列と同色 rgba(66,133,244,.15) で
-//   塗る＝週/月でトーンが揃う。デデュープで today の週が今月ペインから隠れている日は、
-//   来月ペイン側の境界週（行0）で同じ強調が光る。
-//
-// 週開始曜日・行数は DOM と Date から自己推論するので config（週開始設定）に
-// 非依存・毎月自動適応。Swift から渡すのはペインの役割（current/next）だけ。
-// class ハッシュに依存せず role（row/gridcell）だけで当てる。日番号は h2 の
-// 「N日」表記（日本語 locale の月初セル「9月1日」）を優先し、無ければ末尾の数値。
-// 4週ペインが入ったので今月ペアは消えた＝デデュープの相手がいない。dedupe=false で①を止め、
-// ②（today 強調）だけ残す（来月ペインの先頭行に today がいる日だけ光る）。
-func monthPaneJS(role: String, dedupe: Bool = true) -> String {
-    return #"""
-    (() => {
-      const ROLE = '\#(role)';   // 'current' | 'next'
-      const DEDUPE = \#(dedupe);
-
-      //---- DOM 読み取り -------------------------------------------------
-
-      // セルの日番号。「N日」（日本語 locale の月初セル）優先、無ければ末尾の数値
-      const dayNum = c => {
-        if (!c) return NaN;
-        const t = (c.querySelector('h2') || c).textContent || '';
-        const jp = t.match(/(\d+)日/);
-        if (jp) return +jp[1];
-        const all = t.match(/\d+/g);
-        return all ? +all[all.length - 1] : NaN;
-      };
-
-      // URL からペインの対象月を読む（/month/YYYY/M/D。paneURLs が明示日付で組む前提）
-      const paneMonth = () => {
-        const m = location.pathname.match(/\/month\/(\d+)\/(\d+)/);
-        return m ? { y: +m[1], mon: +m[2] } : null;
-      };
-
-      // 月グリッドの週行を収集。親要素ごとにグループ化し最大グループを本体とみなす
-      // （ビュー遷移アニメで旧ビューの grid が DOM に残る場合への防御）。
-      const weekRows = () => {
-        const cells = [...document.querySelectorAll("[role='main'] [role='gridcell']")];
-        const groups = new Map();
-        for (const c of cells) {
-          const r = c.closest("[role='row']");
-          if (!r || !r.parentElement) continue;
-          if (!groups.has(r.parentElement)) groups.set(r.parentElement, new Set());
-          groups.get(r.parentElement).add(r);
+// ---- ANSI → HTML BEGIN（単体テスト用に sed で切り出せるよう、この範囲は Foundation のみに依存）----
+// leaf --inline ansi の出力（SGR 主体）を <span style> 付き HTML に変換する。
+// 対応: 0 / 1 / 2 / 3 / 4 / 22 / 23 / 24 / 30-37 / 90-97 / 39 / 40-47 / 100-107 / 49 /
+//       38;5;n / 48;5;n / 38;2;r;g;b / 48;2;r;g;b。SGR 以外の CSI（カーソル移動等）と OSC は読み捨て。
+// 色は属性ごと保持して「状態が変わったら span を閉じて開き直す」素朴方式（出力が小さいので十分）。
+func ansi256(_ n: Int) -> String {
+    let std: [(Int, Int, Int)] = [
+        (0,0,0), (205,49,49), (13,188,121), (229,229,16), (36,114,200), (188,63,188), (17,168,205), (204,204,204),
+        (102,102,102), (241,76,76), (35,209,139), (245,245,67), (59,142,234), (214,112,214), (41,184,219), (255,255,255)]
+    var r = 0, g = 0, b = 0
+    if n < 16 { (r, g, b) = std[max(0, n)] }
+    else if n < 232 {
+        let i = n - 16, lv = [0, 95, 135, 175, 215, 255]
+        r = lv[i / 36]; g = lv[(i / 6) % 6]; b = lv[i % 6]
+    } else { let v = 8 + (min(n, 255) - 232) * 10; r = v; g = v; b = v }
+    return "rgb(\(r),\(g),\(b))"
+}
+func htmlEscape(_ s: String) -> String {
+    var o = ""
+    for ch in s {
+        switch ch {
+        case "&": o += "&amp;"
+        case "<": o += "&lt;"
+        case ">": o += "&gt;"
+        default: o.append(ch)
         }
-        let rows = [];
-        for (const g of groups.values()) {
-          const arr = [...g].filter(r => r.getBoundingClientRect().width > 0 || r.style.display === 'none');
-          if (arr.length > rows.length) rows = arr;
+    }
+    return o
+}
+func ansiToHTML(_ input: String) -> String {
+    var fg: String? = nil, bg: String? = nil
+    var bold = false, dim = false, italic = false, underline = false
+    var out = "", run = ""
+    func flush() {
+        if run.isEmpty { return }
+        var st: [String] = []
+        if let f = fg { st.append("color:\(f)") }
+        if let b = bg { st.append("background:\(b)") }
+        if bold { st.append("font-weight:bold") }
+        if dim { st.append("opacity:.55") }
+        if italic { st.append("font-style:italic") }
+        if underline { st.append("text-decoration:underline") }
+        let t = htmlEscape(run)
+        out += st.isEmpty ? t : "<span style=\"\(st.joined(separator: ";"))\">\(t)</span>"
+        run = ""
+    }
+    func sgr(_ ps: [Int]) {
+        var i = 0
+        let p = ps.isEmpty ? [0] : ps
+        while i < p.count {
+            let c = p[i]
+            switch c {
+            case 0: fg = nil; bg = nil; bold = false; dim = false; italic = false; underline = false
+            case 1: bold = true
+            case 2: dim = true
+            case 3: italic = true
+            case 4: underline = true
+            case 22: bold = false; dim = false
+            case 23: italic = false
+            case 24: underline = false
+            case 30...37: fg = ansi256(c - 30)
+            case 90...97: fg = ansi256(c - 90 + 8)
+            case 39: fg = nil
+            case 40...47: bg = ansi256(c - 40)
+            case 100...107: bg = ansi256(c - 100 + 8)
+            case 49: bg = nil
+            case 38, 48:
+                var col: String? = nil
+                if i + 2 < p.count, p[i + 1] == 5 { col = ansi256(p[i + 2]); i += 2 }
+                else if i + 4 < p.count, p[i + 1] == 2 {
+                    col = "rgb(\(min(255, p[i + 2])),\(min(255, p[i + 3])),\(min(255, p[i + 4])))"; i += 4
+                }
+                if let col = col { if c == 38 { fg = col } else { bg = col } }
+            default: break
+            }
+            i += 1
         }
-        return rows.length >= 4 ? rows : null;
-      };
-
-      //---- 暦の演算 -----------------------------------------------------
-      // 全材料を ctx にまとめる。組み立てられなければ null（→その回は no-op）。
-      // ctx = { rows, cy, cm, ny, nm, dup, offsetOf, rowsOf }
-      //   cy/cm = ペアの「今月」・ny/nm = ペアの「来月」（自ペインの role から復元）
-      const buildContext = () => {
-        const pane = paneMonth();
-        const rows = pane && weekRows();
-        if (!rows) return null;
-        // 2行目の先頭セルは必ず当月内（day 2..8）→ そこから列0の曜日を逆算
-        const k = dayNum(rows[1].querySelector("[role='gridcell']"));
-        if (!k || isNaN(k)) return null;
-        const col0Dow = new Date(pane.y, pane.mon - 1, k).getDay();
-        const daysIn = (yy, mm) => new Date(yy, mm, 0).getDate();
-        const offsetOf = (yy, mm) => ((new Date(yy, mm - 1, 1).getDay() - col0Dow) + 7) % 7;
-        const rowsOf = (yy, mm) => Math.ceil((offsetOf(yy, mm) + daysIn(yy, mm)) / 7);
-        let cy = pane.y, cm = pane.mon;
-        if (ROLE === 'next') { cm--; if (cm < 1) { cm = 12; cy--; } }
-        let ny = cy, nm = cm + 1; if (nm > 12) { nm = 1; ny++; }
-        const dup = offsetOf(ny, nm) !== 0;   // 月初＝週初なら境界週の重複なし
-        return { rows, cy, cm, ny, nm, dup, offsetOf, rowsOf };
-      };
-
-      //---- ① 境界週デデュープ（多い方が隠す・同数は来月側）--------------
-      const dedupeBoundaryWeek = ({ rows, cy, cm, ny, nm, dup, rowsOf }) => {
-        if (!dup) return;
-        const curHides = rowsOf(cy, cm) > rowsOf(ny, nm);
-        if (curHides !== (ROLE === 'current')) return;
-        const target = ROLE === 'current' ? rows[rows.length - 1] : rows[0];
-        // 隠す前の実測サニティチェック: 境界週は当月外の日番号を含むはず
-        const nums = [...target.querySelectorAll("[role='gridcell']")].map(dayNum);
-        const looksBoundary = ROLE === 'current' ? nums.some(n => n <= 7) : nums.some(n => n >= 8);
-        if (looksBoundary && target.style.display !== 'none') target.style.display = 'none';
-      };
-
-      //---- ② today 強調（行全高×列幅の背面オーバーレイ）------------------
-      const highlightToday = ({ rows, cy, cm, dup, offsetOf, rowsOf }) => {
-        const now = new Date();
-        if (now.getFullYear() !== cy || now.getMonth() + 1 !== cm) return;  // today は常にペアの「今月」側
-        const pos = offsetOf(cy, cm) + now.getDate() - 1;
-        const tRow = Math.floor(pos / 7), tCol = pos % 7;
-        let cellRow = null;
-        if (ROLE === 'current') {
-          cellRow = rows[tRow];                        // 境界行が隠れていれば下の可視チェックで弾く
-        } else if (dup && tRow === rowsOf(cy, cm) - 1) {
-          cellRow = rows[0];                           // 来月ペインの行0＝境界週に today がいる
+    }
+    let u = Array(input.unicodeScalars)
+    var i = 0
+    while i < u.count {
+        let ch = u[i]
+        if ch.value == 0x1B, i + 1 < u.count {
+            let n = u[i + 1]
+            if n == "[" {                       // CSI: ESC [ params final(0x40-0x7E)
+                var j = i + 2, params = ""
+                while j < u.count, !(u[j].value >= 0x40 && u[j].value <= 0x7E) { params.unicodeScalars.append(u[j]); j += 1 }
+                if j < u.count {
+                    if u[j] == "m" {
+                        flush()
+                        let ps = params.split(omittingEmptySubsequences: false, whereSeparator: { $0 == ";" || $0 == ":" })
+                            .map { Int($0) ?? 0 }
+                        sgr(params.isEmpty ? [] : ps)
+                    }
+                    i = j + 1
+                } else { i = u.count }
+                continue
+            } else if n == "]" {                // OSC: BEL か ST(ESC \) まで読み捨て
+                var j = i + 2
+                while j < u.count, u[j].value != 0x07, !(u[j].value == 0x1B && j + 1 < u.count && u[j + 1] == "\\") { j += 1 }
+                i = (j < u.count && u[j].value == 0x1B) ? j + 2 : j + 1
+                continue
+            } else { i += 2; continue }         // その他 2 バイト ESC 列
         }
-        if (!cellRow || cellRow.style.display === 'none') return;
-        const cell = cellRow.querySelectorAll("[role='gridcell']")[tCol];
-        if (!cell || dayNum(cell) !== now.getDate()) return;   // 位置演算と実測がズレたら塗らない
-        // gridcell はイベント欄のみ（日付数字の帯を含まない）ので、行の全高に
-        // 背面オーバーレイを敷く。行の先頭子として挿入し、GCal 側のセル・チップが
-        // どれも positioned（同じ stacking 層で DOM 順に描画される）なのを利用して
-        // 背面に置く＝週ビューの today 列と同じ見え方。position 依存を避けようと
-        // z-index:-1 を付けると、行自身の背景の裏に回って**塗りが見えなくなる**
-        // （2026-08-07 実測）。見え方が壊れたらここを疑う。
-        let ov = cellRow.querySelector(':scope > .caldash-today-ov');
-        if (!ov) {
-          ov = document.createElement('div');
-          ov.className = 'caldash-today-ov';
-          ov.style.position = 'absolute';
-          ov.style.top = '0';
-          ov.style.height = '100%';
-          ov.style.pointerEvents = 'none';
-          ov.style.backgroundColor = 'rgba(66, 133, 244, 0.15)';
-          if (getComputedStyle(cellRow).position === 'static') cellRow.style.position = 'relative';
-          cellRow.insertBefore(ov, cellRow.firstChild);
-        }
-        const rr = cellRow.getBoundingClientRect(), cr = cell.getBoundingClientRect();
-        ov.style.left = (cr.left - rr.left) + 'px';
-        ov.style.width = cr.width + 'px';
-      };
+        if ch == "\r" { i += 1; continue }
+        run.unicodeScalars.append(ch)
+        i += 1
+    }
+    flush()
+    return out
+}
+// ---- ANSI → HTML END ----
 
-      //---- 実行ループ ---------------------------------------------------
-      const apply = () => {
-        const ctx = buildContext();
-        if (!ctx) return;
-        if (DEDUPE) dedupeBoundaryWeek(ctx);
-        highlightToday(ctx);
-      };
-      apply();
-      setInterval(apply, 3000);   // SPA の DOM 再構築に追随（冪等・再適用）
-    })();
-    """#
+// todo パネル（pane [1]）。1 screen に 1 個。TodoWebView が自身の layout() で refresh を呼ぶので
+// リサイズにも追随（実処理は key 比較で冪等）。AppDelegate の 2 秒タイマーも同じ refresh を叩く。
+final class TodoWebView: WKWebView {
+    var onLayout: (() -> Void)?
+    override func layout() { super.layout(); onLayout?() }
+}
+
+let TODO_FONT_PX: CGFloat = 16     // CSS px（pageZoom が掛かる）
+let TODO_CHAR_W: CGFloat = 0.61    // 等幅の 1 字幅 ≒ 0.6em（SF Mono/Menlo は 0.602em。切れ防止に僅かに多め）
+let TODO_PAD: CGFloat = 8          // CSS px（左右）
+
+func expandTilde(_ p: String) -> String { (p as NSString).expandingTildeInPath }
+
+// 日付 → ~/Store/30_Work/todo/YYYY/YYYYMMDD-todo.md
+func todoPath(for date: Date) -> (path: String, stamp: String) {
+    let c = cal().dateComponents([.year, .month, .day], from: date)
+    let stamp = String(format: "%04d%02d%02d", c.year!, c.month!, c.day!)
+    return ("\(expandTilde(TODO_DIR))/\(String(format: "%04d", c.year!))/\(stamp)-todo.md", stamp)
+}
+// 当日ファイルが無いとき用: stamp 以下で最新の YYYYMMDD-todo.md（年ディレクトリ降順に探す）。
+func latestTodoFile(onOrBefore stamp: String) -> (path: String, stamp: String)? {
+    let fm = FileManager.default, root = expandTilde(TODO_DIR)
+    let years = ((try? fm.contentsOfDirectory(atPath: root)) ?? []).filter { $0.count == 4 && Int($0) != nil }.sorted(by: >)
+    for y in years {
+        let files = ((try? fm.contentsOfDirectory(atPath: "\(root)/\(y)")) ?? [])
+            .filter { $0.count == 16 && $0.hasSuffix("-todo.md") && Int($0.prefix(8)) != nil && String($0.prefix(8)) <= stamp }
+            .sorted(by: >)
+        if let f = files.first { return ("\(root)/\(y)/\(f)", String(f.prefix(8))) }
+    }
+    return nil
+}
+
+final class TodoPane {
+    let web: TodoWebView
+    private var lastKey = ""
+    private var lastErr = ""
+    private var gen = 0            // 古い描画結果が新しいのを上書きしないための世代
+    private let queue = DispatchQueue(label: "caldash.todo")
+
+    init(zoom: CGFloat) {
+        let cfg = WKWebViewConfiguration()
+        web = TodoWebView(frame: .zero, configuration: cfg)
+        web.pageZoom = zoom
+        if #available(macOS 13.3, *) { web.isInspectable = !WALLPAPER }
+        web.onLayout = { [weak self] in self?.refresh() }
+    }
+
+    // 今表示すべき (パス, 注記)。当日 → 無ければ最新の過去 → 無ければ nil。
+    private func target() -> (path: String, note: String?)? {
+        let today = todoPath(for: Date())
+        if FileManager.default.fileExists(atPath: today.path) { return (today.path, nil) }
+        if let l = latestTodoFile(onOrBefore: today.stamp) {
+            let m = Int(l.stamp.dropFirst(4).prefix(2))!, d = Int(l.stamp.suffix(2))!
+            return (l.path, "showing \(m)/\(d) (today's file not created yet)")
+        }
+        return nil
+    }
+
+    func refresh() {
+        let zoom = web.pageZoom
+        let width = web.bounds.width
+        guard width > 0 else { return }
+        let cols = max(20, Int(floor((width / zoom - 2 * TODO_PAD) / (TODO_FONT_PX * TODO_CHAR_W))))
+        guard let t = target() else {
+            let key = "none|\(zoom)"
+            if key != lastKey { lastKey = key; gen += 1; show(body: "", note: "no todo file for today") }
+            return
+        }
+        let mtime = ((try? FileManager.default.attributesOfItem(atPath: t.path))?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+        let key = "\(t.path)|\(mtime)|\(cols)|\(zoom)"
+        if key == lastKey { return }
+        lastKey = key; gen += 1
+        let g = gen, leaf = expandTilde(LEAF_PATH), note = t.note, path = t.path
+        queue.async { [weak self] in
+            let r = TodoPane.runLeaf(leaf: leaf, cols: cols, file: path)
+            DispatchQueue.main.async {
+                guard let self = self, g == self.gen else { return }
+                switch r {
+                case .ok(let ansi):
+                    self.lastErr = ""
+                    print("[caldash] todo re-render \(path) cols=\(cols)")
+                    self.show(body: ansiToHTML(ansi), note: note)
+                case .fail(let msg):
+                    self.lastKey = ""      // 失敗は次の tick で再試行（leaf を後から置いた場合に復帰）
+                    if msg != self.lastErr { print("[caldash] todo leaf error: \(msg)"); self.lastErr = msg }
+                    self.show(body: "", note: "leaf error: \(msg)")
+                }
+            }
+        }
+    }
+
+    enum LeafResult { case ok(String), fail(String) }
+    static func runLeaf(leaf: String, cols: Int, file: String) -> LeafResult {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: leaf)
+        p.arguments = ["--inline", "ansi:\(cols)", file]
+        let out = Pipe(), err = Pipe()
+        p.standardOutput = out; p.standardError = err
+        do { try p.run() } catch { return .fail("cannot run \(leaf): \(error.localizedDescription)") }
+        // 万一ハングしても面が固まらないよう 10 秒で打ち切る。
+        DispatchQueue.global().asyncAfter(deadline: .now() + 10) { if p.isRunning { p.terminate() } }
+        let o = out.fileHandleForReading.readDataToEndOfFile()
+        let e = err.fileHandleForReading.readDataToEndOfFile()
+        p.waitUntilExit()
+        if p.terminationStatus != 0 {
+            let m = String(decoding: e, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            return .fail("exit \(p.terminationStatus)" + (m.isEmpty ? "" : ": \(m)"))
+        }
+        return .ok(String(decoding: o, as: UTF8.self))
+    }
+
+    private func show(body: String, note: String?) {
+        let n = note.map { "<div class=\"dim\">\(htmlEscape($0))</div>" } ?? ""
+        let html = """
+        <!doctype html><meta charset="utf-8"><style>
+        html,body{margin:0;background:#0f1117;overflow:hidden}
+        body{padding:\(Int(TODO_PAD))px}
+        pre{margin:0;font:\(Int(TODO_FONT_PX))px/1.35 "SF Mono",Menlo,monospace;color:#d0d2da;white-space:pre}
+        .dim{font:\(Int(TODO_FONT_PX))px/1.35 "SF Mono",Menlo,monospace;color:#646470}
+        </style><body>\(n)<pre>\(body)</pre>
+        """
+        web.loadHTMLString(html, baseURL: nil)
+    }
 }
 
 // 4週カスタムビュー（pane [0]）専用 JS（wallpaper 専用）。today 強調だけ行う。
 // 月ビュー同様 today セルに .F262Ye が付く保証が無い（CSS では当てられない）ので、
 // 「today は先頭の週行にいる・列＝月曜からの日数（本体設定=月曜始まり）」という
-// 構造から特定し、monthPaneJS ②と同じ背面オーバーレイ方式・同色で塗る。
-// 週行は month と同様 role=row 配下の gridcell 7 個で拾う（行数は 4 前後・親ごと最大グループ）。
+// 構造から特定し、背面オーバーレイ（行の全高×セルの列幅）を敷き、週ビューの today 列と同色 rgba(66,133,244,.15) で塗る。
+// 週行は role=row 配下の gridcell 7 個で拾う（行数は 4 前後・親ごと最大グループ）。
 // 位置演算と実測の日番号が合わない（ビューがまだ今週始まりでない等）ときは塗らない。
 func customWeekPaneJS() -> String {
     return #"""
@@ -418,18 +534,20 @@ func isGoogleHost(_ host: String?) -> Bool {
     return owned.contains { h == $0 || h.hasSuffix("." + $0) }
 }
 
-// 3 カラム、左は月を縦スタック。middleExtraWidth が >0 なら中央 pane がその分広く、
+// 3 カラム、右は 来週(上)+todo(下) を縦スタック。左 4週・中央 今週は全高。middleExtraWidth が >0 なら中央 pane がその分広く、
 // 左右 pane は残りを等分する（左 lw + 中央 lw+extra + 右 lw + gap*2 = W）。
 // extra は AppDelegate が「中央 pane の hour gutter を左右 pane と day col 幅で
 // 揃えるためのオフセット」として設定する。isFlipped=true で左上原点。
 //
 // leftColumnRatio（config）が入っていると 3 等幅をやめ、左カラムを usable*ratio に
-// 固定して、残り全部を週ペイン 2 枚で分ける。中央は依然 extra 分だけ広い
+// 固定して、残り全部を週ペイン 2 枚で分ける（0.3333 なら実質 3 等幅）。中央は依然 extra 分だけ広い
 // （= 週 2 枚の day col 幅が揃う）という不変条件は両モードで保つ。
 final class GridView: NSView {
     var panes: [NSView] = []
     var middleExtraWidth: CGFloat = 0
     var leftColumnRatio: CGFloat? = nil
+    var rightTopRatio: CGFloat = 0.5
+    private var lastLayoutLog = ""
     override var isFlipped: Bool { true }
     override func layout() {
         super.layout()
@@ -447,21 +565,33 @@ final class GridView: NSView {
             mw = lw + middleExtraWidth
             rw = lw
         }
-        let monthH = max(0, (H - GAP) / 2)
-        panes[0].frame = NSRect(x: 0,                       y: 0,             width: lw, height: monthH) // 4週（左上）
-        panes[1].frame = NSRect(x: 0,                       y: monthH + GAP,  width: lw, height: monthH) // 来月（左下）
-        panes[2].frame = NSRect(x: lw + GAP,                y: 0,             width: mw, height: H)      // 今週（中央、+extra）
-        panes[3].frame = NSRect(x: lw + GAP + mw + GAP,     y: 0,             width: rw, height: H)      // 来週（右）
+        let topH = max(0, (H - GAP) * rightTopRatio)
+        let botH = max(0, H - GAP - topH)
+        let rx = lw + GAP + mw + GAP
+        panes[0].frame = NSRect(x: 0,           y: 0,          width: lw, height: H)    // 4週（左・全高）
+        panes[1].frame = NSRect(x: rx,          y: topH + GAP, width: rw, height: botH) // todo（右下）
+        panes[2].frame = NSRect(x: lw + GAP,    y: 0,          width: mw, height: H)    // 今週（中央・全高、+extra）
+        panes[3].frame = NSRect(x: rx,          y: 0,          width: rw, height: topH) // 来週（右上）
+        // 幾何の証跡: rect/zoom が変わったときだけ 1 行（毎 layout では出さない）
+        let names = ["4wk", "todo", "this", "next"]
+        let line = panes.enumerated().map { (i, v) -> String in
+            let z = (v as? WKWebView)?.pageZoom ?? 0
+            let f = v.frame
+            return "\(names[i])=(\(Int(f.minX)),\(Int(f.minY)) \(Int(f.width))x\(Int(f.height)) z=\(String(format: "%.3f", Double(z))))"
+        }.joined(separator: " ")
+        if line != lastLayoutLog { lastLayoutLog = line; print("[caldash] layout \(Int(W))x\(Int(H)): \(line)") }
     }
 }
 
 class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDelegate {
     // wallpaper mode: 各 NSScreen に 1 window ずつ描画（cp-dash と同型）。
     // interactive mode: windows.count == 1（中央窓 1 本のみ）。
-    // 3 配列は screen index で揃える（webs[i] は screen i の 5 pane）。
+    // 3 配列は screen index で揃える（webs[i] は screen i の 4 pane）。
     var windows: [NSWindow] = []
     var grids: [GridView] = []
     var webs: [[WKWebView]] = []
+    var todoPanes: [TodoPane] = []      // screen ごとに 1 個（pane [1]）
+    var todoTimer: Timer?               // 2 秒ポーリング（TodoPane.refresh は key 比較で冪等）
     let store = WKWebsiteDataStore.default()   // ログイン共有＆永続（実測済み）
 
     // desktop-switch からの信号ハンドラ（wallpaper mode 限定）。retain 必須。
@@ -557,7 +687,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
             // 読んで各 window の visibility を復元。state 無い（初回）なら全 screen 見せる。
             applyPersistedState()
         } else {
-            // Interactive: 中央 1 窓に 5 pane grid。login/デバッグ用。
+            // Interactive: 中央 1 窓に 4 pane grid。login/デバッグ用。
             let initialScreen = NSScreen.main ?? NSScreen.screens[0]
             let (z, wz) = computeEffectiveZooms(for: initialScreen)
             let (grid, paneWebs) = makeGrid(screenFrame: NSRect(x: 0, y: 0, width: 1800, height: 1050),
@@ -565,7 +695,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
             let w = NSWindow(contentRect: grid.frame,
                              styleMask: [.titled, .closable, .resizable, .miniaturizable],
                              backing: .buffered, defer: false)
-            w.title = "caldash — 4週/今週/来週/来月（--wallpaper で常在面化）"
+            w.title = "caldash — 4週/todo/今週/来週（--wallpaper で常在面化）"
             w.contentView = grid
             w.center()
             w.makeKeyAndOrderFront(nil)
@@ -575,9 +705,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
             webs = [paneWebs]
         }
         scheduleDailyReanchor()
+        todoTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+            self?.todoPanes.forEach { $0.refresh() }
+        }
     }
 
-    // GridView + 5 WKWebView を組み立てて (grid, webs) を返す。呼び出し側で
+    // GridView + 4 pane を組み立てて (grid, webs) を返す。呼び出し側で
     // self.grids/self.webs に append（screen index を揃えるため）。
     private func makeGrid(screenFrame: NSRect, zoom: CGFloat, weekZoom: CGFloat) -> (GridView, [WKWebView]) {
         let grid = GridView(frame: screenFrame)
@@ -590,7 +723,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         // pageZoom が掛かるので device px = CSS px * weekZoom。
         grid.middleExtraWidth = GCAL_WEEK_GUTTER_PX * weekZoom
         grid.leftColumnRatio = LEFT_COLUMN_RATIO
-        let zooms: [CGFloat] = [zoom, zoom, weekZoom, weekZoom]  // 4週/来月/今週/来週（多週グリッドは月 zoom）
+        grid.rightTopRatio = RIGHT_TOP_RATIO
+        let zooms: [CGFloat] = [zoom, zoom, weekZoom, weekZoom * NEXT_WEEK_ZOOM_SCALE]  // 4週/todo/今週/来週（todo は月 zoom・来週は縮小）
         // 来週 (index 3) は時間ラベル gutter を完全に消去し、day headers も events grid
         // 本体も左端に寄せる。GCal 週ビュー DOM (2026-07-30 時点):
         //   .UqLcs  = 上部 Texas/Japan チップコンテナ（.sS0sZd + .kL3bhb 内包）
@@ -602,19 +736,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         //             .lqYlwe を消せば .mDPmMe が全幅（96px 分左へ）に広がる。
         // NOTE: Google の class 名はハッシュで release 毎に変わる可能性あり（fragile）。
         //       壊れたら wallpaper mode で isInspectable=true にして再インスペクト。
-        // 来月ペインは曜日ヘッダー行（MON TUE …）を隠す。縦スタックで今月ペインの
-        // ヘッダーと重複するため。:has() で columnheader を含む行だけ落とす
-        // （macOS 13+/Safari 15.4+ の WebKit で利用可。today 強調は CSS では当てられず
-        // JS 側 = monthPaneJS ②参照）。
-        let nextMonthCSS = "[role='row']:has([role='columnheader']) { display: none !important; }"
-        let extraCSSs: [String] = ["", nextMonthCSS, WEEK_EVENT_FONT_CSS,
+        // 4週ペインは today 強調のみ（customWeekPaneJS）。todo ペイン（[1]）は Web 注入なし。
+        let extraCSSs: [String] = ["", "", WEEK_EVENT_FONT_CSS,
             WEEK_EVENT_FONT_CSS + "\n.lqYlwe, .UqLcs, .FDbe8b, .EDDeke { display: none !important; }"]
-        // 4週ペインは today 強調のみ（customWeekPaneJS）。来月ペインは相手がいないので
-        // デデュープ無効（monthPaneJS 冒頭コメント参照）。
-        let extraJSs: [String] = [customWeekPaneJS(), monthPaneJS(role: "next", dedupe: false), "", ""]
+        let extraJSs: [String] = [customWeekPaneJS(), "", "", ""]
         let urls = paneURLs()
-        let paneWebs = urls.indices.map { i in
-            makeWeb(urls[i], zoom: zooms[i], extraCSS: extraCSSs[i], extraJS: extraJSs[i])
+        let paneWebs: [WKWebView] = urls.indices.map { i in
+            if let u = urls[i] { return makeWeb(u, zoom: zooms[i], extraCSS: extraCSSs[i], extraJS: extraJSs[i]) }
+            let tp = TodoPane(zoom: zooms[i])
+            todoPanes.append(tp)
+            return tp.web
         }
         grid.panes = paneWebs
         paneWebs.forEach { grid.addSubview($0) }
@@ -655,7 +786,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         }
     }
 
-    // 日次アンカー更新：ローカル 00:01 に全面を再ロード。DST でずれないよう Calendar で厳密算出。
+    // 日次アンカー更新：ローカル 00:01 に全面を再ロード（todo 面は当日ファイルへ切替）。DST でずれないよう Calendar で厳密算出。
     func scheduleDailyReanchor() {
         guard let next = cal().nextDate(after: Date(),
                                         matching: DateComponents(hour: 0, minute: 1, second: 0),
@@ -668,12 +799,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         print("[caldash] next re-anchor at \(next)")
     }
     func reanchor() {
-        let urls = paneURLs()   // 来週/来月 URL は当日基準で再計算（4週は固定 URL＝再ロードで今週始まりに戻る）
+        let urls = paneURLs()   // 来週 URL は当日基準で再計算（4週は固定 URL＝再ロードで今週始まりに戻る）
         for screenWebs in webs {
             for (i, wv) in screenWebs.enumerated() where i < urls.count {
-                if let u = URL(string: urls[i]) { wv.load(URLRequest(url: u)) }
+                if let s = urls[i], let u = URL(string: s) { wv.load(URLRequest(url: u)) }
             }
         }
+        todoPanes.forEach { $0.refresh() }   // 日付が変わっていれば key（パス）が変わり再描画される
         print("[caldash] re-anchored across \(webs.count) screen(s)")
     }
 
@@ -686,7 +818,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         if screens.count != windows.count {
             print("[caldash] screen count \(windows.count) → \(screens.count), rebuilding")
             for w in windows { w.orderOut(nil); w.close() }
-            windows.removeAll(); grids.removeAll(); webs.removeAll()
+            windows.removeAll(); grids.removeAll(); webs.removeAll(); todoPanes.removeAll()
             setupWallpaperWindows()
             return
         }
@@ -696,7 +828,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
             if w.frame != area { w.setFrame(area, display: true) }
             guard formulaMode, i < webs.count else { continue }
             let (nz, nwz) = computeEffectiveZooms(for: screen)
-            let zooms: [CGFloat] = [nz, nz, nwz, nwz]  // 4週/来月/今週/来週
+            let zooms: [CGFloat] = [nz, nz, nwz, nwz * NEXT_WEEK_ZOOM_SCALE]  // 4週/todo/今週/来週
             for (j, wv) in webs[i].enumerated() where j < zooms.count {
                 if wv.pageZoom != zooms[j] { wv.pageZoom = zooms[j] }
             }

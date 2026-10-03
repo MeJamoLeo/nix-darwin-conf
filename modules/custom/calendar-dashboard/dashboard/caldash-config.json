@@ -3,8 +3,11 @@
   "baseMonthZoom": 0.75,
   "baseWeekZoom": 0.8,
   "referenceWidth": 2560,
-  "leftColumnRatio": 0.25,
+  "leftColumnRatio": 0.3333,
   "account": 0,
   "tz": "America/Chicago",
-  "backgroundOpacity": 0.5
+  "backgroundOpacity": 0.5,
+  "leafPath": "~/.local/bin/leaf",
+  "rightTopRatio": 0.5,
+  "nextWeekZoomScale": 0.75
 }
