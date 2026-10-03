@@ -56,6 +56,9 @@ in {
       "## If time allows" = spare capacity, pull ahead.
       A line you tick [x] is remembered, so it is not planned again before Canvas/mail catches up.
       Open Today tasks are copied to the next day; the old line is kept as [>] with "→ M/D".
+      Subtasks: indent a line under a task (2 spaces or a tab). An unfinished task OR subtask carries the whole block
+      to the next day (done subtasks come along as "(done M/D)"). The "# Today" heading shows "✓ N done · time".
+      "## Done today" lists items submitted/resolved today that were not on the list (appended by the hourly sync).
       Someday ideas expire after 14 days (moved to # Expired in the backlog).
       USAGE
           exit 0 ;;

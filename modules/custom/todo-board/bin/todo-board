@@ -22,6 +22,14 @@
   - Today 行の繰り越しは「移動ではなくコピー」（前日側に `[>] → M/D` を残す）。
   - 日中に機械が日次ファイルへ触るのは「提出済みに [x] ✓canvas」と状態フッタだけ（行の増減はしない）。
 
+★ 1段のネスト（2026-10-02 本人決定）:
+  - 子タスク（人が書く。機械は生成しない）は 2 スペース（タブも可・正規化）の `  - [ ] ...`。深い字下げも子（レベル1）として扱う。
+  - 繰り越しは「トップレベルのブロック丸ごと」。親か子のどれかが未完なら親＋全子をコピー。
+    終わった子は `  - [x] ... (done M/D)`（▶■ は落とす・新しい日の集計に数えない）。前日側は未完の親と子だけ `[>] → M/D`。
+  - 見出しの集計 `# Today 10/2   ✓ 3 done · 1h 45m` は、そのファイルの `[x]`（`(done M/D)` と `[>]` を除く）と
+    `■hh:mm (Nm)` の所要の合計から毎回作り直す（pick／sync／roll）。nvim が直接書いた分は次の毎時 sync で追いつく。
+  - `## Done today`（状態フッタの直上）: 今日提出された Canvas／解決済みメールで、今日のファイルに行が無いものを sync が1回だけ追記する。
+
 ★ 行末マーカー `⟨a:12345⟩`（a=assignment q=quiz d=discussion h=倉庫の Dated 行のハッシュ）:
   `<!-- -->` は leaf --inline で行内だとそのまま文字として出る（単独行だけ隠れる）ため、
   最も短く読みやすい形を選んだ。ID で突き合わせるので本文を人が編集しても壊れにくい。
@@ -53,6 +61,9 @@ STARTED = re.compile(r"▶(\d+):(\d+)")
 # 自分が書く括弧だけに一致させる（Canvas の題名に "(due 10/3 as an uploaded ...)" のような括弧があるため）
 PAREN = re.compile(r"\((was due|late OK until|due|on|exam) ((?:[A-Za-z]{3} )?\d+/\d+(?: \d+:\d+)?(?: · [^)]*)?)\)")
 LATE = re.compile(r"\(late until (\d+)/(\d+)(?: (\d+):(\d+))?\)")
+DONE_MARK = re.compile(r"\(done (\d+)/(\d+)\)")  # 繰り越された完了済みの子／親（今日の集計に入れない）
+HEAD_TODAY = re.compile(r"^(# Today \d+/\d+)(?:[ \t]+✓ .*?)?(\r?)$")
+DUR_DONE = re.compile(r"■\d+:\d+ \((\d+)m\)")
 
 RATIO = 1.5  # 実績で更新する想定の倍率（初期値）
 CAPACITY = 120  # 1日の作業可能分（record-blocks は膨らむので控えめ）
@@ -61,6 +72,7 @@ EXPIRE_DAYS = 14
 EXAM_PREP_MIN = 30
 EXAM_LEAD_DAYS = 7
 IF_TIME = "If time allows"
+DONE_TODAY = "Done today"
 OVERDUE = "Overdue"
 CHECK_PREFIX = "Check if still submittable:"
 CHECK_MIN = 10
@@ -215,7 +227,7 @@ def norm_text(body):
     b = STAMP.sub("", body)
     b = ORIGIN.sub("", b)
     b = MARKER.sub("", b)
-    b = b.replace("✓canvas", "")
+    b = b.replace("✓canvas", "").replace("✓mail", "")
     return re.sub(r"\s+", " ", b).strip()
 
 
@@ -447,13 +459,14 @@ def plan_today(today, blocks, carried):
     load = 0.0
     for ln in carried:
         m = TASK_ANY.match(ln)
-        if not m:
-            continue
+        if not m or m[1]:
+            continue  # 子は親の作業量に含まれる（二重に数えない・計画照合にも使わない）
         mm = MARKER.search(m[3])
         if mm:
             present_markers.add(f"{mm[1]}:{mm[2]}")
         present_text.add(norm_text(m[3]))
-        load += line_size(m[3]) * RATIO
+        if m[2] == " ":
+            load += line_size(m[3]) * RATIO  # 完了済みの親（子だけ未完）は負荷に入れない
     cands = []
     for it in candidates(blocks, today):
         if it["marker"] in present_markers:
@@ -531,7 +544,7 @@ def load_state():
         st = {}
     if not isinstance(st, dict):
         st = {}
-    for k in ("done_ids", "checked_ids"):
+    for k in ("done_ids", "checked_ids", "done_seen"):
         if not isinstance(st.get(k), dict):
             st[k] = {}
     return st
@@ -576,7 +589,7 @@ def prune_state(prefixes, alive):
     """Canvas／digest がもう返さない項目の記憶を忘れる。prefixes の種類だけが対象。"""
     st = load_state()
     changed = False
-    for bucket in ("done_ids", "checked_ids"):
+    for bucket in ("done_ids", "checked_ids", "done_seen"):
         for k in list(st[bucket]):
             if k[0] in prefixes and k not in alive:
                 del st[bucket][k]
@@ -747,6 +760,12 @@ def normalize_item(raw):
     ov = raw.get("planner_override") or {}
     if ov.get("marked_complete"):
         done = True
+    submitted_at = None
+    if isinstance(sub, dict) and sub.get("submitted_at"):
+        try:
+            submitted_at = to_chicago(sub["submitted_at"]).date()  # 実データの planner には無いことが多い
+        except (ValueError, TypeError):
+            pass
     course = course_label(raw.get("context_name"))
     exam = is_exam(title, ptype)
     if title.upper().startswith(course.upper()):
@@ -765,6 +784,7 @@ def normalize_item(raw):
         "id": raw["plannable_id"],
         "course_id": raw.get("course_id") or pl.get("course_id"),
         "lock_raw": pl.get("lock_at"),
+        "submitted_at": submitted_at,
     }
 
 
@@ -891,6 +911,11 @@ def fetch_canvas(today, now=None):
                 if (sub.get("workflow_state") in ("submitted", "pending_review", "graded")
                         or sub.get("submitted_at") or sub.get("score") is not None):
                     it["done"] = True
+                    try:
+                        if sub.get("submitted_at"):
+                            it["submitted_at"] = to_chicago(sub["submitted_at"]).date()
+                    except (ValueError, TypeError):
+                        pass
             except CanvasError:
                 pass  # 確かめられなければ planner の判定のまま
         if it["due"] < now and not it["done"] and not it["exam"]:
@@ -1008,6 +1033,49 @@ def sync_done(daily_text, blocks):
     return changed
 
 
+def canvas_done_today(items, today, prev_open):
+    """今日提出された Canvas 項目（正規化済み）→ [(marker, label, "canvas")]。
+
+    提出日は submissions/self の submitted_at（Chicago）があればそれ。planner 経由の提出済みには日付が無いので、
+    「sync が初めて完了と見た日」を .state.json の done_seen に記録して使う。ただし初見が最初から完了だった項目
+    （導入前・1週間前の提出など）は日付不明＝"old" として出さない（直前の倉庫か今日のファイルで未完に見えていた
+    ＝未完→完了の遷移を見た項目だけが今日扱い）。
+    """
+    st = load_state()
+    seen = st["done_seen"]
+    changed = False
+    out = []
+    for it in items:
+        if not it["done"] or it["exam"]:
+            continue
+        mk = it["marker"]
+        sd = it.get("submitted_at")
+        if sd is None:
+            if mk not in seen:
+                seen[mk] = today.isoformat() if mk in prev_open else "old"
+                changed = True
+            try:
+                sd = dt.date.fromisoformat(seen[mk])
+            except ValueError:
+                sd = None
+        if sd == today:
+            out.append((mk, it["label"], "canvas"))
+    if changed:
+        save_state(st)
+    return out
+
+
+def open_markers(text):
+    """テキスト中の未完行（`- [ ]`）のマーカー集合。"""
+    out = set()
+    for ln in text.split("\n"):
+        m = TASK_OPEN.match(ln)
+        mm = MARKER.search(m[2]) if m else None
+        if mm:
+            out.add(f"{mm[1]}:{mm[2]}")
+    return out
+
+
 def canvas_refresh(today, now):
     """取得して倉庫の Canvas 欄・状態・今日のファイルを更新。(ok, 提出済み ID 集合) を返す。"""
     try:
@@ -1020,16 +1088,82 @@ def canvas_refresh(today, now):
         save_status(False, f"Canvas fetch failed: {type(e).__name__}", now)
         refresh_today(today, None, now)
         return False, set()
-    text = rewrite_canvas_section(load_backlog(), items, today)
+    old_bl = load_backlog()
+    prev_open = open_markers(old_bl)
+    if os.path.exists(day_path(today)):
+        prev_open |= open_markers(read_raw(day_path(today)))
+    text = rewrite_canvas_section(old_bl, items, today)
     write_if_changed(backlog_path(), text)
     save_status(True, None, now)
     done_ids = {i["marker"] for i in items if i["done"] and not i["exam"]}
-    refresh_today(today, done_ids, now)  # 先に今日の [x] を記憶し、そのあと Canvas に無い項目を忘れる
+    done_today = canvas_done_today(items, today, prev_open)
+    refresh_today(today, done_ids, now, done_today)  # 先に今日の [x] を記憶し、そのあと Canvas に無い項目を忘れる
     prune_state("aqd", {i["marker"] for i in items})
     return True, done_ids
 
 
-def refresh_today(today, done_ids, now=None):
+def tally(text):
+    """今日完了した行の (件数, 所要分)。`(done M/D)`（繰り越された完了）と `[>]` は数えない。"""
+    n = mins = 0
+    for ln in text.split("\n"):
+        m = TASK_ANY.match(ln)
+        if not m or m[2] != "x" or DONE_MARK.search(m[3]):
+            continue
+        n += 1
+        mins += sum(int(x) for x in DUR_DONE.findall(m[3]))  # 所要の無い行は件数だけ（0分）
+    return n, mins
+
+
+def apply_tally(text):
+    """`# Today M/D` 見出しに `   ✓ N done · 1h 45m` を付け直す（0件なら付けない）。"""
+    n, mins = tally(text)
+    lines = text.split("\n")
+    for i, ln in enumerate(lines):
+        m = HEAD_TODAY.match(ln)
+        if m:
+            t = ""
+            if n:
+                t = f"   ✓ {n} done" + (f" · {fmt_hm(mins)}" if mins else "")
+            lines[i] = m[1] + t + m[2]
+            break
+    return "\n".join(lines)
+
+
+def add_done_today(text, entries):
+    """`## Done today`（状態フッタの直上）へ、今日のファイルに無い完了を `- [x] <label> ✓<tag>` で足す。冪等。"""
+    lines = text.split("\n")
+    have_m = {f"{a}:{b}" for ln in lines for a, b in MARKER.findall(ln)}
+    have_t = {norm_text(m[3]) for m in map(TASK_ANY.match, lines) if m}
+    new = []
+    for marker, label, tag in entries:
+        key = norm_text(label)
+        if marker in have_m or key in have_t:
+            continue
+        have_t.add(key)
+        new.append(f"- [x] {label} ✓{tag}")
+    if not new:
+        return text
+    for i, ln in enumerate(lines):
+        if ln.strip() == f"## {DONE_TODAY}":
+            j = i + 1
+            last = i
+            while j < len(lines) and not lines[j].startswith("#") and lines[j].strip() != STATUS_MARK:
+                if lines[j].strip():
+                    last = j
+                j += 1
+            lines[last + 1:last + 1] = new
+            return "\n".join(lines)
+    block = [f"## {DONE_TODAY}"] + new + [""]
+    for i, ln in enumerate(lines):
+        if ln.strip() == STATUS_MARK:
+            lines[i:i] = block
+            return "\n".join(lines)
+    while lines and lines[-1] == "":
+        lines.pop()
+    return "\n".join(lines + [""] + block)
+
+
+def refresh_today(today, done_ids, now=None, done_today=None):
     p = day_path(today)
     if not os.path.exists(p):
         return
@@ -1038,7 +1172,9 @@ def refresh_today(today, done_ids, now=None):
     if done_ids:
         text, _ = mark_canvas_done(text, done_ids)
     text = set_footer(text, footer_line(today))
-    write_if_changed(p, text)
+    if done_today:
+        text = add_done_today(text, done_today)
+    write_if_changed(p, apply_tally(text))
 
 
 # ---------------------------------------------------------------- メール（digest 取り込み）
@@ -1144,6 +1280,36 @@ def mail_lines(digest_date, data, done):
     return lines, alive
 
 
+def mail_resolved(today, digest_date, data):
+    """今日の digest で resolved: true と明示された action 項目 → [(marker, label, "mail")]。
+
+    digest が今日のものでなければ日付が分からないので出さない。初めて見た日を done_seen に記録し、今日のものだけ返す。
+    """
+    if digest_date != today:
+        return []
+    items = data.get("items")
+    items = items[:300] if isinstance(items, list) else []
+    st = load_state()
+    seen = st["done_seen"]
+    changed = False
+    out = []
+    for it in items:
+        if not isinstance(it, dict) or it.get("category") != "action" or it.get("resolved") is not True:
+            continue
+        subj = mail_clean(it.get("subject"), 60)
+        if not subj:
+            continue
+        mid = f"m:{mail_id(it)}"
+        if mid not in seen:
+            seen[mid] = today.isoformat()
+            changed = True
+        if seen[mid] == today.isoformat():
+            out.append((mid, f"Mail: {mail_sender(it)} — {subj}", "mail"))
+    if changed:
+        save_state(st)
+    return out
+
+
 def rewrite_mail_section(text, lines):
     blocks = split_blocks(text)
     b = ensure_block(blocks, "Mail")
@@ -1154,24 +1320,27 @@ def rewrite_mail_section(text, lines):
 def mail_refresh(today, now):
     """倉庫の `# Mail` 欄を直近 digest から作り直す。TODO_BOARD_MAIL_DIR 未設定なら何もしない。"""
     if not os.environ.get("TODO_BOARD_MAIL_DIR"):
-        return
+        return []
     d, data = latest_digest(today)
+    resolved = []
     if data is None:
         lines = []
         save_mail_status({"state": "none", "last": d.isoformat() if d else None})
     else:
         lines, alive = mail_lines(d, data, set(load_state()["done_ids"]))
         save_mail_status({"state": "ok", "date": d.isoformat(), "n": len(lines)})
+        resolved = mail_resolved(today, d, data)
         prune_state("m", alive)
     write_if_changed(backlog_path(), rewrite_mail_section(load_backlog(), lines))
+    return resolved
 
 
 def sync_all(today, now):
     """毎時の同期＝Canvas ＋ メール。(Canvas の ok, 提出済み ID 集合) を返す。"""
     harvest_file(day_path(today), now)
     ok, done = canvas_refresh(today, now)
-    mail_refresh(today, now)
-    refresh_today(today, None, now)  # フッタ（メール状態）を反映
+    mail_done = mail_refresh(today, now)
+    refresh_today(today, None, now, mail_done)  # フッタ（メール状態）と解決済みメールを反映
     return ok, done
 
 
@@ -1183,6 +1352,29 @@ def section_of(line, cur):
     if line.startswith("# "):
         return "Today" if line.startswith("# Today") else line[2:].strip()
     return cur
+
+
+def child_map(lines):
+    """{子の行 index: 親の行 index}。親＝字下げ無しのタスク行、子＝その直後に続く字下げ付きのタスク行。
+
+    深い字下げも子（レベル1）として扱う（壊さない）。タスク以外の行（空行含む）でブロックは切れる。
+    親の無い字下げ行（孤児）は従来どおり単独のタスクとして扱う。
+    """
+    out = {}
+    parent = None
+    for i, ln in enumerate(lines):
+        m = TASK_ANY.match(ln)
+        if not m:
+            parent = None
+        elif not m[1]:
+            parent = i
+        elif parent is not None:
+            out[i] = parent
+    return out
+
+
+def child_line(status, text):
+    return f"  - [{status}] {text}"  # 字下げは2スペースに正規化（タブ・深い字下げも）
 
 
 def migrate_inbox_in_place(path, d, blocks):
@@ -1252,6 +1444,23 @@ def expire_someday(blocks, today):
             append_line(blocks, "Expired", ln)
 
 
+def carry_children(plines, ch, carried, out, prev, d):
+    """子を新しい日へ。未完は `[ ]`（印を落とす）、完了済みは `[x] ... (done M/D)`（▶■ を落とす）。
+
+    前日側は未完の子だけ `[>] ... → M/D`（完了済みの子は触らない）。`[>]` など他の状態の子は持ち越さない。
+    """
+    for c in ch:
+        cm = TASK_ANY.match(plines[c])
+        cbody = STAMP.sub("", cm[3]).rstrip()
+        if cm[2] == " ":
+            carried.append(child_line(" ", cbody))
+            out[c] = f"{cm[1]}- [>] {cm[3]} → {md(d)}"
+        elif cm[2] == "x":
+            if not DONE_MARK.search(cbody):
+                cbody += f" (done {md(prev)})"
+            carried.append(child_line("x", cbody))
+
+
 def roll(d, fetch=False, now=None):
     now = now or dt.datetime.now()
     path = day_path(d)
@@ -1266,7 +1475,7 @@ def roll(d, fetch=False, now=None):
         if out != bl_before:
             write_if_changed(backlog_path(), out)
         if res:
-            atomic_write(path, res)
+            atomic_write(path, apply_tally(res))
         return path
     done_ids = set()
     if fetch:
@@ -1286,31 +1495,51 @@ def roll(d, fetch=False, now=None):
         st = load_state()
         remembered = set(st["done_ids"]) | set(st["checked_ids"])
         overdue_markers = {c["marker"] for c in candidates(blocks, d) if c["overdue"]}
+        plines = ptext.split("\n")
+        parent_of = child_map(plines)
+        kids = {}
+        for c, par in parent_of.items():
+            kids.setdefault(par, []).append(c)
         cur = "Today"
-        out = []
-        for ln in ptext.split("\n"):
+        out = list(plines)
+        for i, ln in enumerate(plines):
             cur = section_of(ln, cur)
-            m = TASK_OPEN.match(ln)
-            if m and cur == "Inbox":
-                add_someday(blocks, m[2], prev)
-                ln = f"{m[1]}- [>] {m[2]} → backlog"
-            elif m and cur in (IF_TIME, OVERDUE):
-                pass  # 翌朝に再導出するので繰り越さない
-            elif m:
-                mm = MARKER.search(m[2])
-                if mm and mm[1] in "aqd" and f"{mm[1]}:{mm[2]}" in done_ids and "Plan prep:" not in m[2]:
-                    ln = f"{m[1]}- [x] {m[2]} ✓canvas"  # 取得で提出済みと分かった行は繰り越さない
+            if i in parent_of:
+                continue  # 子は親の処理で一括（親だけが繰り越しを決める）
+            m = TASK_ANY.match(ln)
+            if not m:
+                continue
+            ind, stt, body = m[1], m[2], m[3]
+            ch = kids.get(i, [])
+            todo_kids = [c for c in ch if TASK_ANY.match(plines[c])[2] == " "]
+            skip_sec = cur in (IF_TIME, OVERDUE, DONE_TODAY)
+            if stt == " ":
+                mm = MARKER.search(body)
+                if cur == "Inbox":
+                    add_someday(blocks, body, prev)
+                    out[i] = f"{ind}- [>] {body} → backlog"
+                elif skip_sec:
+                    pass  # 翌朝に再導出するので繰り越さない
+                elif mm and mm[1] in "aqd" and f"{mm[1]}:{mm[2]}" in done_ids and "Plan prep:" not in body:
+                    out[i] = f"{ind}- [x] {body} ✓canvas"  # 取得で提出済みと分かった行は繰り越さない
                 elif mm and f"{mm[1]}:{mm[2]}" in remembered:
                     pass  # 手で [x]／確認済みと記憶している項目は繰り越さない
                 elif mm and f"{mm[1]}:{mm[2]}" in overdue_markers:
-                    ln = f"{m[1]}- [>] {m[2]} → {md(d)}"  # 締切超過は Today ではなく Overdue 欄で出し直す
+                    out[i] = f"{ind}- [>] {body} → {md(d)}"  # 締切超過は Today ではなく Overdue 欄で出し直す
                 else:
-                    body = STAMP.sub("", m[2]).rstrip()
-                    if not mm and not ORIGIN.search(body):
-                        body += f" (since {md(prev)})"  # 起票印は初回だけ（マーカー付きは倉庫が出所）
-                    carried.append(f"{m[1]}- [ ] {body}")
-                    ln = f"{m[1]}- [>] {m[2]} → {md(d)}"
-            out.append(ln)
+                    pbody = STAMP.sub("", body).rstrip()
+                    if not mm and not ORIGIN.search(pbody):
+                        pbody += f" (since {md(prev)})"  # 起票印は初回だけ（マーカー付きは倉庫が出所）
+                    carried.append(f"{ind}- [ ] {pbody}")
+                    out[i] = f"{ind}- [>] {body} → {md(d)}"
+                    carry_children(plines, ch, carried, out, prev, d)
+            elif stt == "x" and todo_kids and not skip_sec and cur != "Inbox" and "✓canvas" not in body:
+                # 親は終わっているが子が未完＝ブロックは未完。親は完了のまま（done 印付き）で子と一緒に持ち越す
+                pbody = STAMP.sub("", body).rstrip()
+                if not DONE_MARK.search(pbody):
+                    pbody += f" (done {md(prev)})"
+                carried.append(f"{ind}- [x] {pbody}")
+                carry_children(plines, ch, carried, out, prev, d)
         new_prev_text = "\n".join(out)
     expire_someday(blocks, d)
     warn, must, over, later = plan_today(d, blocks, carried)
@@ -1324,6 +1553,7 @@ def roll(d, fetch=False, now=None):
     if later:
         text += f"## {IF_TIME}\n" + "".join(l + "\n" for l in later) + "\n"
     text += f"{STATUS_MARK}\n{footer_line(d)}\n"
+    text = apply_tally(text)
     # 書く順: 倉庫（移行は重複許容）→ 新ファイル → 前日。途中で落ちても欠落しない
     bl_after = join_blocks(blocks)
     if bl_after != bl_before or not os.path.exists(backlog_path()):
@@ -1348,6 +1578,35 @@ def label_of(body):
     else:
         hint = ""
     return f"{clean}  {hint}".rstrip(), clean
+
+
+def short_title(body, cap=28):
+    """親の見出し用の短い名前（括弧以降・印を落として cap 字）。"""
+    t = label_of(body)[1]
+    pm = last_paren(t)
+    if pm and t[:pm.start()].strip():
+        t = t[:pm.start()].strip()
+    return t if len(t) <= cap else t[:cap - 1].rstrip() + "…"
+
+
+def pick_items(lines):
+    """fzf に出す [(行 index, ラベル)]。子は `<親の短い名前> › <子>`、親も選べる。"""
+    parent_of = child_map(lines)
+    items = []
+    cur = "Today"
+    for i, ln in enumerate(lines):
+        cur = section_of(ln, cur)
+        m = TASK_OPEN.match(ln)
+        if not m:
+            continue
+        lab = label_of(m[2])[0]
+        if i in parent_of:
+            pm = TASK_ANY.match(lines[parent_of[i]])
+            lab = f"{short_title(pm[3])} › {lab}"
+        if cur == IF_TIME:
+            lab += "  (if time allows)"
+        items.append((i, lab))
+    return items
 
 
 def toggle_line(line, now):
@@ -1378,16 +1637,7 @@ def pick(d, now=None):
     path = roll(d)
     text = read_raw(path)
     lines = text.split("\n")
-    items = []  # (idx, label)
-    cur = "Today"
-    for i, ln in enumerate(lines):
-        cur = section_of(ln, cur)
-        m = TASK_OPEN.match(ln)
-        if m:
-            lab = label_of(m[2])[0]
-            if cur == IF_TIME:
-                lab += "  (if time allows)"
-            items.append((i, lab))
+    items = pick_items(lines)
     if not items:
         print("All done for today.")
         return 0
@@ -1419,7 +1669,7 @@ def pick(d, now=None):
         print(msg)
         return 0
     fresh[idx] = new
-    atomic_write(path, "\n".join(fresh))
+    atomic_write(path, apply_tally("\n".join(fresh)))
     print(msg)
     return 0
 

@@ -465,4 +465,199 @@ fixture([litem(7, "zyBook Ex LTI", PAST)])
 tb.canvas_refresh(T, NOW); bl = rd(tb.backlog_path())
 check("LTI pending_review counts as done", "zyBook Ex LTI" not in bl, bl)
 tb.http_get_json = real_get
+# ======================= v3: nesting / block carry / tally / Done today =======================
+# --- parse: child_map（2スペース・タブ・深い字下げ・孤児・空行で切れる）
+L = ["# Today 10/1", "- [ ] P", "  - [ ] c1", "\t- [x] c2", "      - [ ] deep", "", "  - [ ] orphan", "- [ ] Q", "  - [ ] q1"]
+cm = tb.child_map(L)
+check("nesting parse: 2sp/tab/deep are children of P", cm == {2: 1, 3: 1, 4: 1, 8: 7}, cm)
+check("nesting parse: orphan after blank is not a child", 6 not in cm)
+
+# --- carry block: mixed children, fully-done block, prev markings, tally exclusion
+b = newbase()
+T0 = D(2026, 10, 1)
+wr(tb.day_path(T0), """# Today 10/1   ✓ 1 done · 25m
+- [ ] CS2315 paper3draft (due Thu 10/8 · 6h) ⟨a:1⟩ ▶14:00
+  - [x] gather 3 sources ▶20:10 ■20:35 (25m)
+\t- [ ] write outline
+      - [ ] deep one
+- [x] ALLDONE block
+  - [x] sub a ▶1:00 ■1:10 (10m)
+  - [x] sub b
+- [x] parent done but kid open
+  - [ ] leftover kid
+- [ ] OPENP parent open, kids done
+  - [x] only kid
+- [ ] plain
+
+## If time allows
+- [ ] CS9 later (due Mon 10/12 23:59 · 2h) ⟨a:9⟩
+  - [ ] later kid
+
+<!-- status -->
+Canvas: ok 05:00
+""")
+wr(tb.backlog_path(), """# Canvas
+<!-- m -->
+- [ ] CS2315 paper3draft (due 10/8 · 6h) ⟨a:1⟩
+- [ ] CS1 C (due 10/2 23:59 · 15m) ⟨a:3⟩
+
+# Dated
+
+# Someday
+""")
+t = rd(tb.roll(T)); print(t)
+pv = rd(tb.day_path(T0))
+check("carry block: parent + all kids, normalized 2sp, section Today",
+      "- [ ] CS2315 paper3draft (due Thu 10/8 · 6h) ⟨a:1⟩\n  - [x] gather 3 sources (done 10/1)\n  - [ ] write outline\n  - [ ] deep one\n" in t, t)
+check("carried done kid: stamps stripped", "▶20:10" not in t and "■20:35" not in t and "(25m)" not in t)
+check("carry: fully-done block NOT carried", "ALLDONE" not in t and "sub a" not in t)
+check("carry: done parent + open kid -> carried as (done) with kid", "- [x] parent done but kid open (done 10/1)\n  - [ ] leftover kid\n" in t, t)
+check("carry: no tally for carried-done lines (heading plain)", t.split("\n")[0] == "# Today 10/2", t.split("\n")[0])
+check("carry: open parent with all-done kids IS carried", "- [ ] OPENP parent open, kids done (since 10/1)\n  - [x] only kid (done 10/1)\n" in t, t)
+check("carry: if-time block (parent+kid) not carried", "later kid" not in t.split("## If time allows")[0])
+check("dedupe vs planner: carried Canvas parent not planned again", t.count("⟨a:1⟩") == 1 and t.count("paper3draft") == 1, t)
+check("planner still adds others", "CS1 C" in t)
+check("prev: parent+open kids [>] → 10/2",
+      "- [>] CS2315 paper3draft (due Thu 10/8 · 6h) ⟨a:1⟩ ▶14:00 → 10/2\n" in pv
+      and "  - [x] gather 3 sources ▶20:10 ■20:35 (25m)\n" in pv
+      and "\t- [>] write outline → 10/2" in pv
+      and "      - [>] deep one → 10/2" in pv, pv)
+check("prev: fully-done block untouched", "- [x] ALLDONE block\n  - [x] sub a ▶1:00 ■1:10 (10m)\n  - [x] sub b\n" in pv)
+check("prev: done parent untouched, open kid [>]", "- [x] parent done but kid open\n  - [>] leftover kid → 10/2" in pv)
+check("prev: if-time block untouched", "- [ ] CS9 later" in pv and "  - [ ] later kid" in pv)
+a1 = t; tb.roll(T); check("block carry: roll idempotent", rd(tb.day_path(T)) == a1 and rd(tb.day_path(T0)) == pv)
+w, must, over, later_ = tb.plan_today(T, tb.split_blocks(rd(tb.backlog_path())), ["- [ ] X (due Sun 10/4 · 30m) ⟨a:50⟩", "  - [ ] kid1", "  - [ ] kid2", "  - [x] kid3 (done 10/1)"])
+check("plan_today: kids not counted in load", w is None, w)
+
+# third day: carried-done kids keep original (done 10/1), still no tally
+t3 = rd(tb.roll(D(2026, 10, 3))); print(t3)
+check("2nd carry keeps (done 10/1) once", "  - [x] gather 3 sources (done 10/1)\n" in t3 and t3.count("(done 10/1)") >= 1 and "(done 10/1) (done" not in t3, t3)
+# finishing an unfinished kid on day 2 then roll: becomes (done 10/2)
+b = newbase()
+wr(tb.day_path(T0), "# Today 10/1\n- [ ] Big thing\n  - [ ] k1\n  - [ ] k2\n\n<!-- status -->\nCanvas: x\n")
+tb.roll(T)
+txt = rd(tb.day_path(T)).replace("  - [ ] k1", "  - [x] k1 ▶10:00 ■10:10 (10m)")
+wr(tb.day_path(T), txt)
+t3 = rd(tb.roll(D(2026, 10, 3)))
+check("kid done on day2 -> (done 10/2) on day3, open kid carried", "- [ ] Big thing (since 10/1)\n  - [x] k1 (done 10/2)\n  - [ ] k2\n" in t3, t3)
+check("... and heading has no tally", t3.split("\n")[0] == "# Today 10/3")
+# all kids + parent done -> not carried
+b = newbase()
+wr(tb.day_path(T0), "# Today 10/1\n- [x] Fin\n  - [x] k\n\n<!-- status -->\nx\n")
+check("done parent + done kids: not carried", "Fin" not in rd(tb.roll(T)))
+
+# --- picker labels
+lines = ["# Today 10/2", "- [ ] CS2315 paper3draft (due Thu 10/8 · 6h) ⟨a:1⟩", "  - [x] gather ▶1:00 ■1:10 (10m)", "  - [ ] write outline ▶10:00",
+         "- [x] done parent", "  - [ ] kid of done", "", "## If time allows", "- [ ] solo (due Mon 10/12 23:59 · 2h) ⟨a:9⟩", "  - [ ] a very long child label here"]
+pi = tb.pick_items(lines)
+labs = dict(pi)
+check("picker: parent pickable", labs[1].startswith("CS2315 paper3draft (due Thu 10/8 · 6h)"), labs)
+check("picker: child label `<parent short> › <child>`", labs[3] == "CS2315 paper3draft › write outline  ▶10:00 in progress", labs)
+check("picker: done kid not listed, done-parent's kid listed w/ parent", 2 not in labs and labs[5] == "done parent › kid of done", labs)
+check("picker: if-time suffix on child", labs[9] == "solo › a very long child label here  (if time allows)", labs)
+check("toggle on child line", tb.toggle_line("  - [ ] write outline", dt.datetime(2026,10,2,10,0))[0] == "  - [ ] write outline ▶10:00"
+      and tb.toggle_line("  - [ ] write outline ▶10:00", dt.datetime(2026,10,2,10,25))[0] == "  - [x] write outline ▶10:00 ■10:25 (25m)")
+long_parent = "- [ ] " + "W" * 50 + " (due Thu 10/8) ⟨a:2⟩"
+check("picker: parent short capped", tb.short_title(long_parent[6:]) == "W" * 27 + "…")
+
+# --- pick end-to-end on a child (fake fzf selects the 'write outline' child), tally updated
+b = newbase()
+wr(tb.day_path(T), "# Today 10/2\n- [ ] Paper (due Thu 10/8 · 6h) ⟨a:1⟩\n  - [ ] write outline ▶10:00\n\n<!-- status -->\nCanvas: x\n")
+fz = script("fake-fzf", 'grep "write outline" | head -1\n')
+os.environ["TODO_BOARD_FZF"] = fz
+rc = tb.pick(T, dt.datetime(2026, 10, 2, 10, 45))
+tp = rd(tb.day_path(T))
+check("pick toggles child + tally in heading", rc == 0 and "  - [x] write outline ▶10:00 ■10:45 (45m)\n" in tp and tp.startswith("# Today 10/2   ✓ 1 done · 45m\n"), tp)
+os.environ.pop("TODO_BOARD_FZF")
+
+# --- tally
+tt = """# Today 10/2   ✓ 99 done
+- [x] a ▶10:00 ■10:25 (25m)
+- [x] b no duration
+- [x] carried (done 10/1)
+- [>] moved → 10/3
+- [ ] open ▶9:00
+  - [x] kid ▶11:00 ■12:20 (80m)
+  - [x] kid carried (done 10/1)
+- [x] canvas thing ✓canvas
+
+<!-- status -->
+Canvas: ok
+"""
+check("tally: count excludes (done M/D) and [>]; time sums (Nm)", tb.tally(tt) == (4, 105), tb.tally(tt))
+ta = tb.apply_tally(tt)
+check("tally heading `✓ 4 done · 1h 45m`", ta.startswith("# Today 10/2   ✓ 4 done · 1h 45m\n"), ta.split("\n")[0])
+check("tally idempotent", tb.apply_tally(ta) == ta)
+check("tally: zero -> plain heading", tb.apply_tally("# Today 10/2   ✓ 3 done\n- [ ] x\n").startswith("# Today 10/2\n"))
+check("tally: count only, no time", tb.apply_tally("# Today 10/2\n- [x] z\n").startswith("# Today 10/2   ✓ 1 done\n"))
+check("tally: only first heading", tb.apply_tally("# Today 10/2\n- [x] z\n# Today 9/9\n").count("✓") == 1)
+# sync recomputes the tally in a file edited directly
+b = newbase(); fixture([])
+wr(tb.day_path(T), "# Today 10/2\n- [x] edited in nvim ▶10:00 ■10:30 (30m)\n\n<!-- status -->\nCanvas: x\n")
+tb.canvas_refresh(T, NOW)
+check("sync recomputes tally", rd(tb.day_path(T)).startswith("# Today 10/2   ✓ 1 done · 30m\n"), rd(tb.day_path(T)))
+
+# --- Done today (Canvas)
+b = newbase()
+fixture([item(1, "A one", "2026-10-04T04:59:00Z"), item(2, "B two", "2026-10-04T04:59:00Z"), item(3, "Never planned", "2026-10-06T04:59:00Z")])
+tb.canvas_refresh(T, NOW)
+wr(tb.day_path(T), "# Today 10/2\n- [ ] CS4355 A one (due Sun 10/4 23:59 · 2h) ⟨a:1⟩\n\n<!-- status -->\nCanvas: x\n")
+# 1 (in today's file) and 3 (not) get submitted; 2 unchanged
+fixture([item(1, "A one", "2026-10-04T04:59:00Z", sub={"submitted": True}), item(2, "B two", "2026-10-04T04:59:00Z"),
+         item(3, "Never planned", "2026-10-06T04:59:00Z", sub={"submitted": True})])
+tb.canvas_refresh(T, dt.datetime(2026, 10, 2, 10, 0)); t1 = rd(tb.day_path(T)); print(t1)
+check("done-today: existing line gets ✓canvas, not duplicated", "- [x] CS4355 A one (due Sun 10/4 23:59 · 2h) ⟨a:1⟩ ✓canvas" in t1 and t1.count("A one") == 1, t1)
+check("done-today: unplanned submitted item appended in section above footer",
+      "## Done today\n- [x] CS4355 Never planned ✓canvas\n\n<!-- status -->" in t1, t1)
+check("done-today: counted in tally", t1.startswith("# Today 10/2   ✓ 2 done\n"), t1.split("\n")[0])
+tb.canvas_refresh(T, dt.datetime(2026, 10, 2, 11, 0)); t2 = rd(tb.day_path(T))
+check("done-today: idempotent", t2.replace("ok 11:00", "ok 10:00") == t1 or t2.count("Never planned") == 1, t2)
+check("done-today: seen date recorded", json.load(open(os.path.join(b, ".state.json")))["done_seen"].get("a:3") == "2026-10-02")
+# second new submission joins the same section (no second heading)
+fixture([item(1, "A one", "2026-10-04T04:59:00Z", sub={"submitted": True}), item(2, "B two", "2026-10-04T04:59:00Z", sub={"submitted": True}),
+         item(3, "Never planned", "2026-10-06T04:59:00Z", sub={"submitted": True})])
+tb.canvas_refresh(T, dt.datetime(2026, 10, 2, 12, 0)); t3 = rd(tb.day_path(T))
+check("done-today: second item same section", t3.count("## Done today") == 1 and "✓canvas\n- [x] CS4355 B two ✓canvas\n" in t3, t3)
+# next day: carried nothing, done_seen=10/2 so not 'today'
+tn = rd(tb.roll(D(2026, 10, 3), fetch=False)); check("done-today: not in next day's file", "Never planned" not in tn and "B two" not in tn)
+tb.canvas_refresh(D(2026, 10, 3), dt.datetime(2026, 10, 3, 9, 0))
+check("done-today: yesterday's submission not re-added tomorrow", "Never planned" not in rd(tb.day_path(D(2026, 10, 3))))
+# already-done on first sight (no transition) is not 'today'
+b = newbase(); fixture([item(8, "Old submitted", "2026-10-04T04:59:00Z", sub={"submitted": True})])
+wr(tb.day_path(T), "# Today 10/2\n\n<!-- status -->\nx\n"); tb.canvas_refresh(T, NOW)
+check("done-today: first-seen-done is not appended", "Old submitted" not in rd(tb.day_path(T)))
+# submitted_at via submissions/self decides the date
+b = newbase()
+def fake_sub(path):
+    if path.endswith("/submissions/self"):
+        return {"workflow_state": "submitted", "submitted_at": "2026-10-02T15:00:00Z"}  # 10/2 10:00 CDT
+    return {"lock_at": None}
+tb.http_get_json = fake_sub
+fixture([litem(5, "LTI today", "2026-10-06T04:59:00Z")])
+wr(tb.day_path(T), "# Today 10/2\n\n<!-- status -->\nx\n"); tb.canvas_refresh(T, NOW)
+check("done-today: submitted_at (Chicago) today -> appended", "- [x] CS4355 LTI today ✓canvas" in rd(tb.day_path(T)), rd(tb.day_path(T)))
+def fake_sub2(path):
+    if path.endswith("/submissions/self"):
+        return {"workflow_state": "submitted", "submitted_at": "2026-10-01T15:00:00Z"}
+    return {"lock_at": None}
+tb.http_get_json = fake_sub2
+b = newbase(); fixture([litem(5, "LTI yesterday", "2026-10-06T04:59:00Z")])
+wr(tb.day_path(T), "# Today 10/2\n\n<!-- status -->\nx\n"); tb.canvas_refresh(T, NOW)
+check("done-today: submitted_at yesterday -> not appended", "LTI yesterday" not in rd(tb.day_path(T)))
+tb.http_get_json = real_get
+
+# --- Done today (mail resolved)
+shutil.rmtree(md_dir, ignore_errors=True); os.makedirs(md_dir)
+digest("2026-10-02", [mi("a@x.edu", "Sign the form", resolved=True, name="Registrar"), mi("b@x.edu", "Open one", name="Bob"),
+                      mi("c@x.edu", "Info only", cat="info", resolved=True)])
+os.environ["TODO_BOARD_MAIL_DIR"] = md_dir
+b = newbase(); fixture([]); wr(tb.day_path(T), "# Today 10/2\n\n<!-- status -->\nx\n")
+tb.sync_all(T, NOW); tm = rd(tb.day_path(T))
+check("done-today: resolved action mail appended once", "- [x] Mail: Registrar — Sign the form ✓mail" in tm and "Open one" not in tm and "Info only" not in tm, tm)
+tb.sync_all(T, NOW); check("done-today: mail idempotent", rd(tb.day_path(T)).count("Sign the form") == 1)
+b = newbase(); fixture([]); wr(tb.day_path(D(2026, 10, 3)), "# Today 10/3\n\n<!-- status -->\nx\n")
+tb.sync_all(D(2026, 10, 3), NOW)
+check("done-today: older digest's resolved not appended", "Sign the form" not in rd(tb.day_path(D(2026, 10, 3))))
+os.environ.pop("TODO_BOARD_MAIL_DIR")
+
 print("\nFAILS:", fails); sys.exit(1 if fails else 0)
