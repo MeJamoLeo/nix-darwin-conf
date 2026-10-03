@@ -9,5 +9,6 @@
   "backgroundOpacity": 0.5,
   "leafPath": "~/.local/bin/leaf",
   "rightTopRatio": 0.5,
-  "nextWeekZoomScale": 0.75
+  "nextWeekZoomScale": 0.75,
+  "todoZoomScale": 1.3333
 }

@@ -40,11 +40,28 @@
 //       gap / zoom / weekZoom / baseZoom / baseWeekZoom / referenceWidth /
 //       leftColumnRatio（左カラム幅比。等幅なら 0.3333）/ rightTopRatio（右カラム上段=来週の高さ比。既定 0.5）/
 //       nextWeekZoomScale（来週ペインだけ週 zoom に掛ける倍率。既定 0.75）/
+//       todoZoomScale（todo ペインだけ月 zoom に掛ける倍率。既定 1.3333）/
 //       account(u/N) / tz / backgroundOpacity /
 //       leafPath（leaf バイナリ。既定 ~/.local/bin/leaf）。
 // 日次: ローカル 00:01 に再ロード（各面を今日基準に再アンカー＋来週 URL 再計算・todo 面は当日ファイルへ切替。
 //       4週ビューは本体側が「今週始まり」で描くので再ロードだけで当週に追随する）。
 //       ※イベントデータ自体は本体 SPA が自前同期するので定期リロードはしない。
+//
+// 週ペインの時間グリッド高さ伸縮（2026-10-02 追加。pageZoom は固定のまま）:
+//   今週[2]・来週[3]の 0-24h グリッドを「ペインの利用可能高さ」にちょうど収まるよう、
+//   1 時間行の高さだけを伸縮する（ページ内 JS = WEEK_STRETCH_JS。zoom=baseWeekZoom×解像度式×nextWeekZoomScale は不変）。
+//   WHY: 固定 zoom だとペイン高と 24h グリッド高が画面ごとに噛み合わず、グリッドが 3/4 で終わって下が
+//        空白になった（ユーザー指摘）。最初は pageZoom で高さを合わせたが、zoom を変えると文字が大きくなり
+//        情報密度が下がる（ユーザー指摘）。文字サイズ＝zoom は固定し、時間行の高さ（px/時）だけを動かす。
+//        文字を縦に歪ませない（scaleY 等の transform は使わない）。来週ペイン（高さ半分）は k<1 で圧縮され、
+//        短い予定は文字が切れるが許容。
+//   DOM 実測（2026-10-02・class 名はハッシュなので log 用途のみ）: 時間行 = 24 個の等高 div（1 個 48px）で
+//        罫線は ::after。時刻ラベル gutter も 24 個の 48px セル。イベント/現在時刻線は inline の `top: Npx; height: Npx`
+//        絶対配置（% ではない）。→ 時間行の高さは CSS で上書き、イベント/現在時刻線の top/height は
+//        JS が k 倍に書き換える（元値は data 属性に保存＝冪等。GCal の再描画で値が変われば新値を元値として採り直す）。
+//   選択は landmark / 構造（role=main 内の overflow-y スクローラ・role=row・24 個の等高子）だけ。ハッシュ class は使わない。
+//   JS は MutationObserver + 1.5 秒周期 + resize で追随。差が 4 device px 以下なら動かさない（flapping 防止）。
+//   Swift 側は 2 秒周期で状態を読み、変化時だけ log: `[caldash] stretch week pane=.. screen=WxH k=.. natural=.. avail=..`。
 // 終了 = プロセス kill のみ。システム状態は何も変えない。
 //
 // セキュリティ（監査 2026-07-27 反映）:
@@ -122,6 +139,142 @@ let WEEK_EVENT_FONT_CSS = """
 }
 """
 
+// 週ペイン用: 0-24h グリッドの 1 時間行の高さを伸縮して、スクローラの高さにちょうど合わせるページ内 JS。
+// pageZoom は触らない（文字サイズ不変）。詳細・WHY はファイル冒頭「週ペインの時間グリッド高さ伸縮」。
+// window.__caldashZoom は Swift が 2 秒毎に書く pageZoom（deadband を device px で評価するため）。
+// window.__caldashStretch = {k, hour, h0, natural, avail, row, cells, events} を Swift が読んで log する。
+let WEEK_STRETCH_JS = """
+(() => {
+  if (window.__caldashStretchInstalled) return;
+  window.__caldashStretchInstalled = true;
+  const STYLE_ID = 'caldash-stretch-style';
+  const MARK = 'data-caldash-hour';                       // 時間セルの印（CSS が height を当てる）
+  const OT = 'data-caldash-ot', OH = 'data-caldash-oh';   // 元の top / height（px 数値）
+  const ST = 'data-caldash-st', SH = 'data-caldash-sh';   // 自分が最後に書いた top / height 文字列
+  const DEADBAND_DEV_PX = 4, K_MIN = 0.3, K_MAX = 4;
+  const st = { k: 1, hour: 0, h0: 0, natural: 0, avail: 0, row: 0, cells: 0, events: 0, applied: false };
+  window.__caldashStretch = st;
+  const rectH = el => el.getBoundingClientRect().height;
+
+  // 時間グリッドのスクローラ = role=main 内で overflow-y が scroll|auto、role=row>gridcell を含む最大の要素。
+  const findScroller = () => {
+    const root = document.querySelector("[role='main']");
+    if (!root) return null;
+    let best = null, bh = 0;
+    root.querySelectorAll('div').forEach(el => {
+      const cs = getComputedStyle(el);
+      if (cs.overflowY !== 'scroll' && cs.overflowY !== 'auto') return;
+      const h = rectH(el);
+      if (h < 150 || h <= bh) return;
+      if (!el.querySelector("[role='row'] [role='gridcell']")) return;
+      best = el; bh = h;
+    });
+    return best;
+  };
+
+  // 時間セル群 = 子が 23〜26 個の親のうち、先頭の子（>=20px）と同じ高さの子がちょうど 23〜25 個あるもの。
+  // （gutter 列は末尾にタイムゾーン一覧用の別高さの子が 1 個付くので「全員等高」ではなく「等高が 23〜25 個」で見る）
+  // スクローラ内（罫線行）と、スクローラの兄弟（時刻ラベル gutter）の両方から探す。
+  const findHourGroups = (sc) => {
+    const groups = [];
+    const scan = base => base.querySelectorAll('div').forEach(par => {
+      const n = par.children.length;
+      if (n < 23 || n > 26 || par.closest('[data-eventid]')) return;
+      const hs = [...par.children].map(rectH);
+      const h = hs[0];
+      if (!(h >= 20)) return;
+      const same = [...par.children].filter((c, i) => Math.abs(hs[i] - h) < 0.6);
+      if (same.length >= 23 && same.length <= 25) groups.push(same);
+    });
+    scan(sc);
+    for (const sib of sc.parentElement.children) if (sib !== sc) scan(sib);
+    return groups;
+  };
+
+  const ensureStyle = h => {
+    let s = document.getElementById(STYLE_ID);
+    if (!s) { s = document.createElement('style'); s.id = STYLE_ID; (document.head || document.documentElement).appendChild(s); }
+    const txt = `[${MARK}] { height: ${h}px !important; min-height: 0 !important; max-height: none !important; }`;
+    if (s.textContent !== txt) s.textContent = txt;
+  };
+
+  const num = v => { const x = parseFloat(v); return isFinite(x) ? x : null; };
+  // イベント/現在時刻線: スクローラ内で inline に px の top を持つ絶対配置要素。top/height を k 倍。
+  const rescaleAbs = (sc, k) => {
+    let n = 0;
+    sc.querySelectorAll("[style*='top']").forEach(el => {
+      const t = el.style.top;
+      if (!t || !t.endsWith('px') || getComputedStyle(el).position !== 'absolute') return;
+      // top: GCal が書き換えていれば（現在値 ≠ 自分が書いた値）新しい値を元値として採り直す。
+      if (el.getAttribute(ST) !== t) el.setAttribute(OT, String(num(t)));
+      const ot = num(el.getAttribute(OT));
+      const nt = (ot * k).toFixed(2) + 'px';
+      if (el.style.top !== nt) el.style.top = nt;
+      el.setAttribute(ST, el.style.top);
+      const hh = el.style.height;
+      if (hh && hh.endsWith('px')) {
+        if (el.getAttribute(SH) !== hh) el.setAttribute(OH, String(num(hh)));
+        const oh = num(el.getAttribute(OH));
+        const nh = (oh * k).toFixed(2) + 'px';
+        if (el.style.height !== nh) el.style.height = nh;
+        el.setAttribute(SH, el.style.height);
+      }
+      n++;
+    });
+    return n;
+  };
+
+  let running = false;
+  const pass = () => {
+    if (running) return;
+    running = true;
+    try {
+      const sc = findScroller();
+      if (!sc) return;
+      const row = sc.querySelector("[role='row']");
+      const A = rectH(sc), R = rectH(row);
+      const groups = findHourGroups(sc);
+      if (!groups.length) return;
+      // 印の無い（＝新規/再描画で素の）セル群があれば、その高さが自然な 1 時間高 h0。
+      let fresh = false;
+      groups.forEach(g => { if (!g[0].hasAttribute(MARK)) { fresh = true; st.h0 = rectH(g[0]); } });
+      if (st.h0 <= 0) return;
+      const cur = rectH(groups[0][0]);           // 現在の 1 時間行の実高さ
+      const cnt = groups[0].length;
+      const extra = R - cnt * cur;               // グリッド行のうち時間行以外（罫線 1px 等）
+      const natural = extra + cnt * st.h0;
+      const zoom = window.__caldashZoom || 1;
+      const deadband = DEADBAND_DEV_PX / zoom;   // device px → CSS px
+      st.avail = A; st.natural = natural; st.row = R; st.cells = cnt;
+      if (fresh || !st.applied || Math.abs(R - A) > deadband) {
+        let hour = (A - extra) / cnt;
+        const k = Math.max(K_MIN, Math.min(K_MAX, hour / st.h0));
+        hour = k * st.h0;
+        // 目標が現状と deadband 内に収まる（＝すでに合っている）なら hour を据え置いて flapping を防ぐ。
+        if (!st.applied || fresh || Math.abs(hour - st.hour) * cnt > deadband) { st.hour = hour; st.k = k; }
+      }
+      ensureStyle(st.hour);
+      groups.forEach(g => g.forEach(c => { if (!c.hasAttribute(MARK)) c.setAttribute(MARK, '1'); }));
+      st.events = rescaleAbs(sc, st.k);
+      st.applied = true;
+    } catch (e) { st.err = String(e); }
+    finally { running = false; }
+  };
+
+  let timer = 0;
+  const schedule = () => { if (timer) return; timer = setTimeout(() => { timer = 0; pass(); }, 60); };
+  const start = () => {
+    const root = document.querySelector("[role='main']");
+    if (!root) { setTimeout(start, 500); return; }
+    new MutationObserver(schedule).observe(root, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+    window.addEventListener('resize', schedule);
+    setInterval(pass, 1500);
+    pass();
+  };
+  start();
+})();
+"""
+
 // ---- 設定（既定値。config で上書き）----
 var ACCOUNT = 0
 var TZ_ID   = "America/Chicago"
@@ -148,6 +301,9 @@ var LEFT_COLUMN_RATIO: CGFloat? = nil
 var RIGHT_TOP_RATIO: CGFloat = 0.5
 // 来週ペインだけに掛ける zoom 倍率（config: nextWeekZoomScale）。式適用後の週 zoom に乗る。
 var NEXT_WEEK_ZOOM_SCALE: CGFloat = 0.75
+// todo ペインだけに掛ける zoom 倍率（config: todoZoomScale）。月 zoom に乗る。
+// 既定 1.3333＝本人指定で todo を月 zoom 0.75 から zoom 1.0 相当に（2026-10-02）。
+var TODO_ZOOM_SCALE: CGFloat = 1.3333
 // 背景 alpha（config: backgroundOpacity）。1.0=完全不透明、<1.0 で壁紙が透ける。
 // window.isOpaque + backgroundColor + GridView.layer + WKWebView.drawsBackground +
 // CSS 注入の全レイヤーに一貫適用する（どこか一箇所でも opaque だと透過は死ぬ）。
@@ -160,7 +316,7 @@ let TODO_DIR = "~/Store/30_Work/todo"
 struct Config: Codable {
     var gap: Double?; var monthZoom: Double?; var weekZoom: Double?
     var baseMonthZoom: Double?; var baseWeekZoom: Double?; var referenceWidth: Double?
-    var leftColumnRatio: Double?; var rightTopRatio: Double?; var nextWeekZoomScale: Double?
+    var leftColumnRatio: Double?; var rightTopRatio: Double?; var nextWeekZoomScale: Double?; var todoZoomScale: Double?
     var account: Int?; var tz: String?
     var backgroundOpacity: Double?
     var leafPath: String?
@@ -190,6 +346,7 @@ func loadConfig() {
     if let v = c.leftColumnRatio { LEFT_COLUMN_RATIO = max(0.1, min(0.6, CGFloat(v))) }
     if let v = c.rightTopRatio { RIGHT_TOP_RATIO = max(0.2, min(0.8, CGFloat(v))) }
     if let v = c.nextWeekZoomScale { NEXT_WEEK_ZOOM_SCALE = max(0.2, min(1.5, CGFloat(v))) }
+    if let v = c.todoZoomScale { TODO_ZOOM_SCALE = max(0.5, min(2.5, CGFloat(v))) }
     if let v = c.account { ACCOUNT = v }
     if let v = c.tz { TZ_ID = v }
     if let v = c.backgroundOpacity { BG_OPACITY = max(0, min(1, CGFloat(v))) }
@@ -705,6 +862,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
             webs = [paneWebs]
         }
         scheduleDailyReanchor()
+        startStretchTimer()
         todoTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             self?.todoPanes.forEach { $0.refresh() }
         }
@@ -724,7 +882,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         grid.middleExtraWidth = GCAL_WEEK_GUTTER_PX * weekZoom
         grid.leftColumnRatio = LEFT_COLUMN_RATIO
         grid.rightTopRatio = RIGHT_TOP_RATIO
-        let zooms: [CGFloat] = [zoom, zoom, weekZoom, weekZoom * NEXT_WEEK_ZOOM_SCALE]  // 4週/todo/今週/来週（todo は月 zoom・来週は縮小）
+        let zooms: [CGFloat] = [zoom, zoom * TODO_ZOOM_SCALE, weekZoom, weekZoom * NEXT_WEEK_ZOOM_SCALE]  // 4週/todo/今週/来週（todo は月 zoom・来週は縮小）
         // 来週 (index 3) は時間ラベル gutter を完全に消去し、day headers も events grid
         // 本体も左端に寄せる。GCal 週ビュー DOM (2026-07-30 時点):
         //   .UqLcs  = 上部 Texas/Japan チップコンテナ（.sS0sZd + .kL3bhb 内包）
@@ -739,7 +897,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         // 4週ペインは today 強調のみ（customWeekPaneJS）。todo ペイン（[1]）は Web 注入なし。
         let extraCSSs: [String] = ["", "", WEEK_EVENT_FONT_CSS,
             WEEK_EVENT_FONT_CSS + "\n.lqYlwe, .UqLcs, .FDbe8b, .EDDeke { display: none !important; }"]
-        let extraJSs: [String] = [customWeekPaneJS(), "", "", ""]
+        let extraJSs: [String] = [customWeekPaneJS(), "", WEEK_STRETCH_JS, WEEK_STRETCH_JS]
         let urls = paneURLs()
         let paneWebs: [WKWebView] = urls.indices.map { i in
             if let u = urls[i] { return makeWeb(u, zoom: zooms[i], extraCSS: extraCSSs[i], extraJS: extraJSs[i]) }
@@ -786,6 +944,42 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         }
     }
 
+    // ---- 週ペイン時間グリッド伸縮の状態読み出し（log 専用。pageZoom は触らない）----
+    // ページ内 JS（WEEK_STRETCH_JS）が伸縮を自走する。ここは 2 秒毎に pageZoom を JS へ渡し（deadband の
+    // device px 換算用）、状態を読んで「変化したときだけ」log する（同じ値の繰り返しは出さない）。
+    var stretchTimer: Timer?
+    var lastStretchKey: [String: String] = [:]
+    func startStretchTimer() {
+        guard WALLPAPER else { return }
+        stretchTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.pollStretch() }
+    }
+    func pollStretch() {
+        for (si, screenWebs) in webs.enumerated() where si < grids.count {
+            for pi in [2, 3] where pi < screenWebs.count {
+                let wv = screenWebs[pi]
+                if wv.isLoading { continue }
+                let z = wv.pageZoom
+                let js = "window.__caldashZoom = \(z); JSON.stringify(window.__caldashStretch || null)"
+                wv.evaluateJavaScript(js) { [weak self, weak wv] res, _ in
+                    guard let self = self, let wv = wv, let str = res as? String,
+                          let d = try? JSONSerialization.jsonObject(with: Data(str.utf8)) as? [String: Any],
+                          (d["applied"] as? Bool) == true,
+                          let k = (d["k"] as? NSNumber)?.doubleValue,
+                          let nat = (d["natural"] as? NSNumber)?.doubleValue,
+                          let avail = (d["avail"] as? NSNumber)?.doubleValue else { return }
+                    let zz = Double(wv.pageZoom)
+                    let sz = self.grids[si].frame.size
+                    let line = "[caldash] stretch week pane=\(pi) screen=\(si) \(Int(sz.width))x\(Int(sz.height)) k=\(String(format: "%.3f", k)) natural=\(Int((nat * zz).rounded())) avail=\(Int((avail * zz).rounded()))"
+                    let key = "\(si)-\(pi)"
+                    // 同じ k / 高さなら再出力しない（device px・k 3 桁で比較）
+                    if self.lastStretchKey[key] == line { return }
+                    self.lastStretchKey[key] = line
+                    print(line)
+                }
+            }
+        }
+    }
+
     // 日次アンカー更新：ローカル 00:01 に全面を再ロード（todo 面は当日ファイルへ切替）。DST でずれないよう Calendar で厳密算出。
     func scheduleDailyReanchor() {
         guard let next = cal().nextDate(after: Date(),
@@ -828,7 +1022,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
             if w.frame != area { w.setFrame(area, display: true) }
             guard formulaMode, i < webs.count else { continue }
             let (nz, nwz) = computeEffectiveZooms(for: screen)
-            let zooms: [CGFloat] = [nz, nz, nwz, nwz * NEXT_WEEK_ZOOM_SCALE]  // 4週/todo/今週/来週
+            let zooms: [CGFloat] = [nz, nz * TODO_ZOOM_SCALE, nwz, nwz * NEXT_WEEK_ZOOM_SCALE]  // 4週/todo/今週/来週
             for (j, wv) in webs[i].enumerated() where j < zooms.count {
                 if wv.pageZoom != zooms[j] { wv.pageZoom = zooms[j] }
             }
