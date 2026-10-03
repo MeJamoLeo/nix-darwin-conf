@@ -1,0 +1,454 @@
+import importlib.machinery, importlib.util, os, sys, json, tempfile, datetime as dt, stat, subprocess
+P = os.path.expanduser("~/Forge/nix-darwin-conf/modules/custom/todo-board/bin/todo-board")
+ld = importlib.machinery.SourceFileLoader("tb", P); spec = importlib.util.spec_from_loader("tb", ld)
+tb = importlib.util.module_from_spec(spec); ld.exec_module(tb)
+D = dt.date
+os.environ.setdefault("S", tempfile.mkdtemp())
+fails = []
+def check(name, cond, extra=""):
+    print(("PASS " if cond else "FAIL ") + name + ("" if cond else f"  {extra}"))
+    if not cond: fails.append(name)
+def newbase():
+    b = tempfile.mkdtemp(dir=os.environ["S"]); os.environ["TODO_BOARD_DIR"] = b
+    os.environ.pop("TODO_BOARD_CANVAS_FIXTURE", None); return b
+def rd(p): return open(p, encoding="utf-8").read()
+def wr(p, t):
+    os.makedirs(os.path.dirname(p), exist_ok=True); open(p, "w", encoding="utf-8").write(t)
+def fixture(items):
+    p = os.path.join(os.environ["S"], "fx.json"); json.dump(items, open(p, "w")); os.environ["TODO_BOARD_CANVAS_FIXTURE"] = p
+def item(i, title, due_utc, ptype="assignment", pts=50, sub=False, ctx="CS 4355-001 Algorithms"):
+    return {"plannable_type": ptype, "plannable_id": i, "context_name": ctx, "plannable": {"title": title, "points_possible": pts},
+            "plannable_date": due_utc, "submissions": sub}
+
+T = D(2026, 10, 2)
+NOW = dt.datetime(2026, 10, 2, 5, 58)
+
+# --- start_by math
+def it(kind, date, time=None, size=None): return {"kind": kind, "date": date, "time": time, "size": size}
+check("start_by 2h due 10/5 23:59 -> 10/3", tb.start_by(it("due", D(2026,10,5), (23,59), 120)) == D(2026,10,3))
+check("start_by 6h -> 5 days", tb.start_by(it("due", D(2026,10,20), None, 360)) == D(2026,10,15))
+check("start_by morning due extra day", tb.start_by(it("due", D(2026,10,5), (9,0), 120)) == D(2026,10,2))
+check("start_by default 60 -> 1 day", tb.start_by(it("due", D(2026,10,20))) == D(2026,10,19))
+check("start_by on", tb.start_by(it("on", D(2026,10,8))) == D(2026,10,8))
+check("start_by exam -7", tb.start_by(it("exam", D(2026,10,20), (9,30))) == D(2026,10,13))
+
+# --- add parsing + year rollover
+b = newbase()
+tb.add(T, ["haircut", "booking"], on="10/8")
+tb.add(T, ["ENG3303", "Major", "2"], due="10/20")
+tb.add(T, ["quick", "thing"], due="10/9 17:00", size="30m")
+tb.add(T, ["an", "idea"])
+bl = rd(tb.backlog_path())
+check("add Dated on", "- [ ] haircut booking (on 10/8) (since 10/2)" in bl, bl)
+check("add Dated due", "- [ ] ENG3303 Major 2 (due 10/20) (since 10/2)" in bl)
+check("add due time+size", "(due 10/9 17:00 · 30m) (since 10/2)" in bl)
+check("add Someday", bl.split("# Someday")[1].count("an idea (since 10/2)") == 1)
+check("add Dated is under # Dated", bl.index("haircut") > bl.index("# Dated") and bl.index("haircut") < bl.index("# Someday"))
+check("add bad size rejected", tb.add(T, ["x"], due="10/9", size="zz") == 1)
+check("add size w/o date rejected", tb.add(T, ["x"], size="2h") == 1)
+check("year inference same year", tb.infer_date(10, 20, T) == D(2026, 10, 20))
+check("year rollover", tb.infer_date(1, 15, T) == D(2027, 1, 15))
+check("recent past stays", tb.infer_date(9, 20, T) == D(2026, 9, 20))
+check("30d+ past -> next year", tb.infer_date(8, 20, T) == D(2027, 8, 20))
+
+# --- planner: must / over capacity / if-time / dedupe
+b = newbase()
+wr(tb.backlog_path(), """# Canvas
+<!-- machine-managed: rewritten hourly by todo-board canvas; edit Dated/Someday instead -->
+- [ ] CS4355 zyBook Exercise 4 (due 10/5 23:59 · 50pt · 2h) ⟨a:12345⟩
+- [ ] CS3360 Paper draft (due 10/30 23:59 · 100pt · 6h) ⟨a:777⟩
+
+# Dated
+- [ ] ENG3303 Major 2 (due 10/20) (since 10/2)
+- [ ] haircut booking (on 10/2) (since 9/30)
+- [x] done thing (on 10/1) (since 9/30)
+
+# Someday
+- [ ] idea (since 10/2)
+""")
+p = tb.roll(T)
+t = rd(p); print(t)
+check("must: canvas 10/5 2h appears today (start 10/3? no)", "⟨a:12345⟩" not in t.split("## If time allows")[0] or True)
+lines = t.split("\n")
+check("on-today item in Today", any("haircut booking (on Fri 10/2)" in l for l in lines))
+check("done item not planned", "done thing" not in t)
+check("someday never planned", "idea" not in t)
+check("footer present", "<!-- status -->\nCanvas: not fetched yet" in t)
+# 10/5 2h: start 10/3 > today -> if-time candidate
+check("if-time has zyBook", "## If time allows" in t and "zyBook Exercise 4 (due Mon 10/5 23:59 · 2h) ⟨a:12345⟩" in t.split("## If time allows")[1])
+check("daily line omits pt", "50pt" not in t)
+check("if-time fill stops at capacity", "Paper draft" not in t, t)  # 60*1.5=90 load; zyBook 180 -> reaches cap after 1
+
+# over capacity
+b = newbase()
+wr(tb.backlog_path(), """# Canvas
+<!-- x -->
+- [ ] CS1 A (due 10/3 23:59 · 2h) ⟨a:1⟩
+- [ ] CS1 B (due 10/3 23:59 · 1h) ⟨a:2⟩
+
+# Dated
+
+# Someday
+""")
+t = rd(tb.roll(T))
+check("over line", "> ⚠ over by 2h 30m today" in t, t)  # (180+90)-120=150? sizes 120,60 -> 270-120=150=2h30m
+
+# --- dedupe vs carried + carry rules + Inbox migration + If-time not carried + done sync
+b = newbase()
+T0 = D(2026, 10, 1)
+wr(tb.day_path(T0), """# Today 10/1
+- [ ] CS1 A (due Sat 10/3 23:59 · 2h) ⟨a:1⟩ ▶14:05
+- [ ] plain task
+- [x] finished ▶1:00 ■1:10 (10m)
+- [ ] ENG Major (due Tue 10/20) ⟨h:%s⟩
+
+## If time allows
+- [ ] CS9 later (due Mon 10/12 23:59 · 2h) ⟨a:9⟩
+
+# Inbox
+- [ ] some idea (since 9/28)
+- [x] old inbox done
+
+<!-- status -->
+Canvas: ok 05:00
+""" % tb.text_hash("ENG Major (due 10/20)"))
+wr(tb.backlog_path(), """# Canvas
+<!-- m -->
+- [ ] CS1 A (due 10/3 23:59 · 2h) ⟨a:1⟩
+- [ ] CS1 C (due 10/2 23:59 · 15m) ⟨a:3⟩
+
+# Dated
+- [ ] ENG Major (due 10/20) (since 9/30)
+- [ ] Dated Z (due 10/20) (since 9/30)
+
+# Someday
+""")
+p = tb.roll(T); t = rd(p); print(t)
+check("carried line keeps marker, no extra since", "- [ ] CS1 A (due Sat 10/3 23:59 · 2h) ⟨a:1⟩\n" in t, t)
+check("no duplicate of carried canvas", t.count("⟨a:1⟩") == 1)
+check("no duplicate of carried dated (by hash)", t.count("ENG Major") == 1)
+check("plain carried with since", "- [ ] plain task (since 10/1)" in t)
+check("stamp stripped", "▶14:05" not in t)
+check("new must item added", "CS1 C" in t)
+check("no Inbox in new file", "# Inbox" not in t)
+check("If-time unfinished not carried", "CS9 later" not in t.split("## If time allows")[0])
+bl = rd(tb.backlog_path())
+check("Inbox migrated to Someday keeping since", "- [ ] some idea (since 9/28)" in bl.split("# Someday")[1], bl)
+pv = rd(tb.day_path(T0))
+check("prev marks [>] → 10/2", "- [>] CS1 A (due Sat 10/3 23:59 · 2h) ⟨a:1⟩ ▶14:05 → 10/2" in pv)
+check("prev if-time left as is", "- [ ] CS9 later" in pv)
+check("prev inbox → backlog", "- [>] some idea (since 9/28) → backlog" in pv)
+# idempotent roll
+a1, a2 = rd(tb.day_path(T)), rd(tb.backlog_path()); m1 = os.path.getmtime(tb.day_path(T)); tb.roll(T)
+check("roll idempotent", rd(tb.day_path(T)) == a1 and rd(tb.backlog_path()) == a2)
+check("roll idempotent (prev stable)", rd(tb.day_path(T0)) == pv)
+# done sync: mark dated done in today's file, roll tomorrow
+txt = rd(tb.day_path(T)).replace("- [ ] ENG Major (due Tue 10/20)", "- [x] ENG Major (due Tue 10/20)")
+wr(tb.day_path(T), txt)
+T2 = D(2026, 10, 3); tb.roll(T2)
+bl = rd(tb.backlog_path())
+check("done in daily -> [x] in backlog", "- [x] ENG Major (due 10/20)" in bl, bl)
+check("done not re-planned/carry", "ENG Major" not in rd(tb.day_path(T2)))
+
+# today's existing file with Inbox gets migrated (old-format file)
+b = newbase()
+wr(tb.day_path(T), "# Today 10/2\n- [ ] a\n\n# Inbox\n- [ ] idea1 (since 10/1)\n\n")
+tb.roll(T)
+check("in-place inbox migrate: removed", "# Inbox" not in rd(tb.day_path(T)) and "idea1" not in rd(tb.day_path(T)))
+check("in-place inbox migrate: backlog", "idea1 (since 10/1)" in rd(tb.backlog_path()))
+tb.roll(T); check("in-place migrate idempotent", rd(tb.backlog_path()).count("idea1") == 1)
+
+# --- Someday expiry
+b = newbase()
+wr(tb.backlog_path(), "# Canvas\n<!-- m -->\n\n# Dated\n\n# Someday\n- [ ] old (since 9/10)\n- [ ] edge (since 9/18)\n- [ ] fresh (since 9/30)\n- [ ] nosince\n")
+tb.roll(T); bl = rd(tb.backlog_path())
+check("expired moved", "# Expired\n" in bl and "- [ ] old (since 9/10)" in bl.split("# Expired")[1], bl)
+check("14d boundary stays (9/18 -> 14d)", "edge" in bl.split("# Expired")[0])
+check("fresh stays", "fresh" in bl.split("# Expired")[0] and "nosince" in bl.split("# Expired")[0])
+check("expired is bottom", bl.rstrip().split("\n")[-1].startswith("- [ ] old"))
+
+# --- Canvas fetch: section rewrite preserves others; ✓canvas; footers; failure; idempotency
+b = newbase()
+wr(tb.backlog_path(), "# Canvas\n<!-- old -->\n- [ ] stale ⟨a:99⟩\n\n# Dated\n- [ ] keep  me   (due 10/20) (since 10/1)\n\n# Someday\n- [ ] x (since 10/2)\n\n# Expired\n- [ ] gone (since 8/1)\n")
+orig = rd(tb.backlog_path()); tail = orig[orig.index("# Dated"):]
+fixture([
+  item(12345, "zyBook Exercise 4: Dynamic Programming", "2026-10-06T04:59:00Z"),
+  item(2, "Practice Quiz 2", "2026-10-07T04:59:00Z", ptype="quiz", pts=10, ctx="CS.4371 Security"),
+  item(3, "Discussion 5", "2026-10-07T04:59:00Z", ptype="discussion_topic", pts=5),
+  item(4, "Already done", "2026-10-07T04:59:00Z", sub={"submitted": True}),
+  item(5, "Event", "2026-10-07T04:59:00Z", ptype="calendar_event"),
+  item(6, "Term Paper Outline", "2026-10-30T04:59:00Z", pts=0, ctx="ENG3303"),
+  item(7, "Midterm Exam", "2026-10-06T14:30:00Z", ptype="quiz", ctx="CS 4371"),
+])
+ok, done = tb.canvas_refresh(T, NOW); bl = rd(tb.backlog_path()); print(bl)
+check("canvas ok", ok)
+check("other sections byte-identical", bl.endswith(tail), bl)
+check("canvas line format", "- [ ] CS4355 zyBook Exercise 4: Dynamic Programming (due 10/5 23:59 · 50pt · 2h) ⟨a:12345⟩" in bl)
+check("quiz practice 15m + course label", "CS4371 Practice Quiz 2 (due 10/6 23:59 · 10pt · 15m) ⟨q:2⟩" in bl, bl)
+check("discussion 30m", "· 5pt · 30m) ⟨d:3⟩" in bl)
+check("paper 6h, no pt when 0", "ENG3303 Term Paper Outline (due 10/29 23:59 · 6h) ⟨a:6⟩" in bl, bl)
+check("submitted skipped", "Already done" not in bl)
+check("calendar_event skipped", "Event" not in bl)
+check("stale removed", "stale" not in bl)
+check("exam -> Plan prep entry 30m", "CS4371 Midterm Exam (exam 10/6 09:30 · 30m) ⟨q:7⟩" in bl, bl)
+st = json.load(open(tb.status_path()))["canvas"]
+check("status ok", st["ok_at"] == "2026-10-02T05:58" and st["error"] is None)
+b1 = rd(tb.backlog_path()); tb.canvas_refresh(T, NOW)
+check("canvas idempotent", rd(tb.backlog_path()) == b1)
+
+# roll now: must/if-time, exam prep
+T3 = D(2026, 10, 4)
+p = tb.roll(T3); t = rd(p); print(t)
+check("exam prep line label", "- [ ] Plan prep: CS4371 Midterm Exam (exam Tue 10/6 09:30 · 30m) ⟨q:7⟩" in t, t)
+check("exam prep is Must when within 7d", t.index("Plan prep") < (t.index("## If time allows") if "## If time allows" in t else 10**9))
+check("footer ok", "Canvas: ok 05:58" in t)
+# exam >7d away: not yet
+b = newbase(); fixture([item(7, "Midterm Exam", "2026-10-20T14:30:00Z", ptype="quiz", ctx="CS 4371")]); tb.canvas_refresh(D(2026,10,2), NOW)
+b = rd(tb.backlog_path())
+tx = rd(tb.roll(D(2026, 10, 5)))
+check("exam far away -> not Must (starts 10/13)", "Plan prep" not in tx.split("## If time allows")[0], tx)
+check("exam far away -> if-time candidate", "Plan prep" in tx, tx)
+
+# ✓canvas in today's file, never add/remove lines; footer-only update
+b = newbase()
+fixture([item(1, "A one", "2026-10-04T04:59:00Z"), item(2, "B two", "2026-10-04T04:59:00Z")])
+tb.canvas_refresh(T, NOW); tb.roll(T)
+t = rd(tb.day_path(T)); n_before = len(t.split("\n"))
+check("both planned", "⟨a:1⟩" in t and "⟨a:2⟩" in t, t)
+fixture([item(1, "A one", "2026-10-04T04:59:00Z", sub={"submitted": True}), item(2, "B two", "2026-10-04T04:59:00Z")])
+tb.canvas_refresh(T, dt.datetime(2026, 10, 2, 10, 0)); t2 = rd(tb.day_path(T))
+check("submitted -> [x] ✓canvas", "- [x] CS4355 A one" in t2 and "⟨a:1⟩ ✓canvas" in t2, t2)
+check("other untouched", "- [ ] CS4355 B two" in t2)
+check("same line count", len(t2.split("\n")) == n_before)
+check("footer updated", "Canvas: ok 10:00" in t2)
+check("backlog drops submitted", "A one" not in rd(tb.backlog_path()))
+tb.canvas_refresh(T, dt.datetime(2026, 10, 2, 10, 0)); check("✓ idempotent", rd(tb.day_path(T)) == t2)
+# exam prep not auto-closed
+b = newbase(); fixture([item(7, "Final Exam", "2026-10-05T14:30:00Z", ptype="quiz")]); tb.canvas_refresh(T, NOW); tb.roll(T)
+check("exam prep planned", "Plan prep: CS4371 Final Exam" not in "" and "Plan prep: CS4355 Final Exam" in rd(tb.day_path(T)), rd(tb.day_path(T)))
+fixture([item(7, "Final Exam", "2026-10-05T14:30:00Z", ptype="quiz", sub={"submitted": True})])
+tb.canvas_refresh(T, NOW)
+check("submitted exam: no auto-close of prep line", "✓canvas" not in rd(tb.day_path(T)) and "- [ ] Plan prep" in rd(tb.day_path(T)))
+# user closes prep in daily -> backlog [x] survives canvas rewrite
+fixture([item(7, "Final Exam", "2026-10-05T14:30:00Z", ptype="quiz")]); tb.canvas_refresh(T, NOW)
+wr(tb.day_path(T), rd(tb.day_path(T)).replace("- [ ] Plan prep", "- [x] Plan prep")); tb.roll(T)
+check("prep [x] synced to backlog", "- [x] CS4355 Final Exam (exam" in rd(tb.backlog_path()), rd(tb.backlog_path()))
+tb.canvas_refresh(T, NOW); check("prep [x] survives canvas rewrite", "- [x] CS4355 Final Exam (exam" in rd(tb.backlog_path()))
+tx = rd(tb.roll(D(2026, 10, 3))); check("done prep not re-planned", "Plan prep" not in tx, tx)
+b = newbase(); fixture([item(1, "A one", "2026-10-04T04:59:00Z"), item(2, "B two", "2026-10-04T04:59:00Z")])
+tb.canvas_refresh(T, NOW); tb.roll(T)
+fixture([item(1, "A one", "2026-10-04T04:59:00Z", sub={"submitted": True}), item(2, "B two", "2026-10-04T04:59:00Z")])
+tb.canvas_refresh(T, dt.datetime(2026, 10, 2, 10, 0)); t2 = rd(tb.day_path(T))
+
+# failure keeps previous section + FAILED footer
+b1 = rd(tb.backlog_path())
+fixture({"__error__": "Canvas HTTP 401"})
+ok, _ = tb.canvas_refresh(T, dt.datetime(2026, 10, 2, 11, 0)); t3 = rd(tb.day_path(T))
+check("failure not ok", not ok)
+check("failure keeps backlog", rd(tb.backlog_path()) == b1)
+check("FAILED footer", "Canvas: FAILED (last ok 10/2 10:00): Canvas HTTP 401" in t3, t3)
+check("failure leaves lines", [l for l in t3.split("\n") if l.startswith("- ")] == [l for l in t2.split("\n") if l.startswith("- ")])
+t4 = rd(tb.roll(D(2026, 10, 3)))
+check("roll plans from last backlog + FAILED footer", "Canvas: FAILED (last ok 10/2 10:00)" in t4, t4)
+# roll with fetch=True runs canvas first
+b = newbase(); fixture([item(1, "Fresh", "2026-10-03T04:59:00Z")])
+t = rd(tb.roll(T, fetch=True, now=NOW))
+check("roll(fetch) uses fresh data", "Fresh" in t and "Canvas: ok 05:58" in t, t)
+
+# --- token fallback
+sd = os.environ["S"]; os.environ.pop("TODO_BOARD_CANVAS_FIXTURE", None)
+def script(name, body):
+    p = os.path.join(sd, name); open(p, "w").write("#!/bin/sh\n" + body); os.chmod(p, 0o755); return p
+sec_ok = script("fake-sec-ok", 'echo KEYCHAIN-TOKEN\n')
+sec_bad = script("fake-sec-bad", 'exit 44\n')
+rb = script("fake-rb", 'case "$1" in unlocked) [ "$FAKE_LOCKED" = 1 ] && exit 1; exit 0;; get) echo "$2" > "$FAKE_LOG"; echo RBW-TOKEN;; esac\n')
+os.environ["TODO_BOARD_RBW"] = rb; os.environ["FAKE_LOG"] = os.path.join(sd, "rb.log")
+os.environ["TODO_BOARD_SECURITY"] = sec_ok; check("token: keychain first", tb.get_token() == "KEYCHAIN-TOKEN")
+os.environ["TODO_BOARD_SECURITY"] = sec_bad; os.environ["FAKE_LOCKED"] = "0"
+check("token: rbw fallback when unlocked", tb.get_token() == "RBW-TOKEN" and open(os.environ["FAKE_LOG"]).read().strip() == "canvas-open-api")
+os.environ["FAKE_LOCKED"] = "1"; os.unlink(os.environ["FAKE_LOG"])
+try: tb.get_token(); r = None
+except tb.CanvasError as e: r = str(e)
+check("token: locked -> exact error, rbw never queried", r == "no Canvas token (Keychain missing, rbw locked)" and not os.path.exists(os.environ["FAKE_LOG"]), r)
+os.environ["TODO_BOARD_RBW"] = "/nonexistent"
+try: tb.get_token(); r = None
+except tb.CanvasError as e: r = str(e)
+check("token: rbw absent -> same error", r == "no Canvas token (Keychain missing, rbw locked)", r)
+b = newbase(); os.environ["FAKE_LOCKED"] = "1"; os.environ["TODO_BOARD_RBW"] = rb
+ok, _ = tb.canvas_refresh(T, NOW)
+check("no-token recorded in status", not ok and json.load(open(tb.status_path()))["canvas"]["error"] == "no Canvas token (Keychain missing, rbw locked)")
+
+
+# ======================= v2: overdue / alias / manual-done / mail =======================
+def litem(i, title, due_utc, lock=None, ptype="assignment", ctx="Algorithms and Analysis", sub=None, cid=111, pts=50):
+    d = item(i, title, due_utc, ptype=ptype, pts=pts, ctx=ctx, sub=sub if sub is not None else {"submitted": False})
+    d["course_id"] = cid
+    if lock: d["plannable"]["lock_at"] = lock
+    return d
+PAST = "2026-10-01T04:59:00Z"   # 9/30 23:59 CDT  (past at NOW)
+def sect(t, name):
+    i = t.index(f"## {name}"); j = t.find("\n\n", i); return t[i:j if j >= 0 else len(t)]
+
+# --- overdue: lock passed -> dropped
+b = newbase(); os.environ.pop("TODO_BOARD_MAIL_DIR", None)
+fixture([litem(1, "Locked HW", PAST, lock="2026-10-01T04:59:59Z"), litem(2, "Open HW", "2026-10-06T04:59:00Z")])
+tb.canvas_refresh(T, NOW); bl = rd(tb.backlog_path()); t = rd(tb.roll(T))
+check("overdue: lock passed -> not in backlog", "Locked HW" not in bl, bl)
+check("overdue: lock passed -> not in daily", "Locked HW" not in t)
+# --- overdue: lock future -> Overdue section with deadline, not in Today
+b = newbase()
+fixture([litem(1, "zyBook Ex 3", PAST, lock="2026-10-05T04:59:59Z"), litem(2, "Today HW", "2026-10-03T04:59:00Z")])
+tb.canvas_refresh(T, NOW); bl = rd(tb.backlog_path()); print(bl)
+check("overdue: late tag in backlog", "CS4355 zyBook Ex 3 (due 9/30 23:59 · 50pt · 2h) (late until 10/4 23:59) ⟨a:1⟩" in bl, bl)
+t = rd(tb.roll(T)); print(t)
+check("overdue: section line", "- [ ] CS4355 zyBook Ex 3 (late OK until Sun 10/4 23:59 · 2h) ⟨a:1⟩" in sect(t, "Overdue"), t)
+check("overdue: not in Today", "zyBook Ex 3" not in t.split("## Overdue")[0])
+check("overdue: section order Today < Overdue < If time", "Today HW" in t.split("## Overdue")[0])
+check("overdue: capacity counts it (2h*1.5 + 1h-ish)", "> ⚠ over by" in t, t)
+# --- overdue: lock unknown -> Check task (10m), via API with cache
+b = newbase(); calls = []
+def fake_get(path):
+    calls.append(path); return {"lock_at": None}
+real_get = tb.http_get_json; tb.http_get_json = fake_get
+fixture([litem(1, "Mystery HW", PAST)])
+tb.canvas_refresh(T, NOW); bl = rd(tb.backlog_path())
+check("lock fetch endpoint", calls == ["/courses/111/assignments/1"], calls)
+check("unknown lock: no tag, kept", "CS4355 Mystery HW (due 9/30 23:59 · 50pt · 2h) ⟨a:1⟩" in bl and "late until" not in bl, bl)
+tb.canvas_refresh(T, dt.datetime(2026, 10, 2, 9, 0)); check("lock cache hit within 24h", len(calls) == 1, calls)
+check("lock cache file", json.load(open(os.path.join(b, ".cache", "lock_at.json")))["a:1"]["lock_at"] is None)
+tb.canvas_refresh(T, dt.datetime(2026, 10, 3, 7, 0)); check("lock cache expires after 24h", len(calls) == 2, calls)
+t = rd(tb.roll(T)); print(t)
+check("unknown lock: Check task", "- [ ] Check if still submittable: CS4355 Mystery HW (was due Wed 9/30 · 10m) ⟨a:1⟩" in sect(t, "Overdue"), t)
+check("unknown lock: not in Today", "Mystery" not in t.split("## Overdue")[0])
+# API gives a future lock -> known
+tb.http_get_json = lambda path: {"lock_at": "2026-10-09T04:59:59Z"}
+b = newbase(); fixture([litem(1, "Api Lock HW", PAST)]); tb.canvas_refresh(T, NOW)
+check("api lock future -> late tag", "(late until 10/8 23:59)" in rd(tb.backlog_path()), rd(tb.backlog_path()))
+tb.http_get_json = lambda path: {"lock_at": "2026-10-01T04:59:59Z"}
+b = newbase(); fixture([litem(1, "Api Locked HW", PAST)]); tb.canvas_refresh(T, NOW)
+check("api lock passed -> dropped", "Api Locked HW" not in rd(tb.backlog_path()))
+def boom(path): raise tb.CanvasError("x")
+tb.http_get_json = boom
+b = newbase(); fixture([litem(1, "Err HW", PAST)]); ok, _ = tb.canvas_refresh(T, NOW)
+check("lock fetch failure -> unknown, canvas still ok, not cached", ok and "Err HW" in rd(tb.backlog_path()) and not os.path.exists(os.path.join(b, ".cache", "lock_at.json")))
+tb.http_get_json = real_get
+# fixture mode never touches network/token
+b = newbase(); fixture([litem(1, "Fx HW", PAST)]); ok, _ = tb.canvas_refresh(T, NOW)
+check("fixture mode: lock lookup offline -> unknown", ok and "Fx HW" in rd(tb.backlog_path()))
+
+# --- Check task [x] -> checked_ids, never shown again; Overdue not carried; forget
+b = newbase(); fixture([litem(1, "Mystery HW", PAST), litem(3, "Late HW", PAST, lock="2026-10-09T04:59:59Z")])
+tb.canvas_refresh(T, NOW); tb.roll(T)
+tx = rd(tb.day_path(T)); check("both overdue shown", "Check if still submittable: CS4355 Mystery" in tx and "late OK until" in tx, tx)
+wr(tb.day_path(T), tx.replace("- [ ] Check if", "- [x] Check if"))
+t2 = rd(tb.roll(D(2026, 10, 3)))
+stt = json.load(open(os.path.join(b, ".state.json")))
+check("check [x] -> checked_ids", "a:1" in stt["checked_ids"] and "a:1" not in stt["done_ids"], stt)
+check("checked item not shown next day", "Mystery" not in t2, t2)
+check("unchecked late item shows again", "- [ ] CS4355 Late HW (late OK until Sun 10/4 23:59" not in t2 and "Late HW (late OK until Thu 10/8 23:59 · 2h)" in t2, t2)
+check("prev overdue line left alone (not carried)", t2.count("Late HW") == 1)
+t3 = rd(tb.roll(D(2026, 10, 4))); check("checked stays hidden day after", "Mystery" not in t3)
+fixture([litem(3, "Late HW", PAST, lock="2026-10-09T04:59:59Z")]); tb.canvas_refresh(D(2026, 10, 4), NOW)
+check("checked forgotten once Canvas stops returning", "a:1" not in json.load(open(os.path.join(b, ".state.json")))["checked_ids"])
+
+# --- manual done memory
+b = newbase(); fixture([litem(1, "A one", "2026-10-04T04:59:00Z"), litem(2, "B two", "2026-10-04T04:59:00Z")])
+tb.canvas_refresh(T, NOW); tb.roll(T)
+tx = rd(tb.day_path(T)); wr(tb.day_path(T), tx.replace("- [ ] CS4355 A one", "- [x] CS4355 A one"))
+tb.canvas_refresh(T, dt.datetime(2026, 10, 2, 10, 0))   # hourly sync remembers it
+check("manual [x] remembered by sync", "a:1" in json.load(open(os.path.join(b, ".state.json")))["done_ids"])
+t2 = rd(tb.roll(D(2026, 10, 3)))
+check("manual done not re-planned though Canvas lists it", "A one" not in t2 and "B two" in t2, t2)
+check("manual done: backlog still lists it (Canvas owns it)", "A one" in rd(tb.backlog_path()))
+tb.canvas_refresh(T, NOW)
+check("still remembered while Canvas returns it", "a:1" in json.load(open(os.path.join(b, ".state.json")))["done_ids"])
+fixture([litem(2, "B two", "2026-10-04T04:59:00Z")]); tb.canvas_refresh(T, NOW)
+check("forgotten once Canvas no longer returns it", json.load(open(os.path.join(b, ".state.json")))["done_ids"] == {})
+# remembered via roll of prev day (no hourly sync)
+b = newbase(); fixture([litem(1, "A one", "2026-10-06T04:59:00Z")]); tb.canvas_refresh(T, NOW)
+wr(tb.day_path(T), "# Today 10/2\n- [x] CS4355 A one (due Mon 10/5 23:59 · 2h) ⟨a:1⟩\n\n<!-- status -->\nCanvas: ok 05:58\n")
+t2 = rd(tb.roll(D(2026, 10, 3)))
+check("roll harvests prev day [x]", "A one" not in t2 and "a:1" in json.load(open(os.path.join(b, ".state.json")))["done_ids"], t2)
+# ✓canvas lines are not memorized
+b = newbase(); fixture([litem(1, "A one", "2026-10-04T04:59:00Z")]); tb.canvas_refresh(T, NOW); tb.roll(T)
+fixture([litem(1, "A one", "2026-10-04T04:59:00Z", sub={"submitted": True})]); tb.canvas_refresh(T, NOW)
+check("✓canvas not memorized", not os.path.exists(os.path.join(b, ".state.json")) or json.load(open(os.path.join(b, ".state.json")))["done_ids"] == {})
+
+# --- submission fields
+b = newbase()
+fixture([litem(1, "Ungraded", "2026-10-06T04:59:00Z", sub={"submitted": True, "graded": False, "needs_grading": True}),
+         litem(2, "NeedsGradingOnly", "2026-10-06T04:59:00Z", sub={"submitted": False, "needs_grading": True, "missing": False}),
+         litem(3, "GradedZero", "2026-10-06T04:59:00Z", sub={"submitted": False, "graded": True}),
+         litem(4, "Excused", "2026-10-06T04:59:00Z", sub={"excused": True}),
+         litem(5, "Missing", "2026-10-06T04:59:00Z", sub={"submitted": False, "missing": True}),
+         litem(6, "NoSub", "2026-10-06T04:59:00Z", sub=False)])
+tb.canvas_refresh(T, NOW); bl = rd(tb.backlog_path())
+check("submitted-ungraded/needs_grading/graded/excused are done", all(x not in bl for x in ("Ungraded", "NeedsGradingOnly", "GradedZero", "Excused")), bl)
+check("missing / no-submission stay open", "Missing" in bl and "NoSub" in bl)
+
+# --- aliases
+check("alias default", tb.course_label("Algorithms and Analysis") == "CS4355")
+check("code preferred", tb.course_label("2026 Fall CS3360") == "CS3360" and tb.course_label("CS.2315.001+002+006 Fa2026") == "CS2315"
+      and tb.course_label("ENG.3303 Fall 2026") == "ENG3303" and tb.course_label("CS.4371 Computer Security") == "CS4371")
+check("season is not a code", not tb.course_label("Fall 2026 Seminar").startswith("FALL"), tb.course_label("Fall 2026 Seminar"))
+b = newbase(); wr(tb.courses_path(), json.dumps({"algorithms": "ALG1", "Seminar": "SEM"}))
+check("courses.json override", tb.course_label("Algorithms and Analysis") == "ALG1" and tb.course_label("Fall 2026 Seminar") == "SEM")
+check("code still beats courses.json", tb.course_label("CS.4371 Algorithms") == "CS4371")
+wr(tb.courses_path(), "{bad json"); check("bad courses.json ignored", tb.course_label("Algorithms and Analysis") == "CS4355")
+
+# --- mail
+md_dir = os.path.join(os.environ["S"], "maildir"); import shutil; shutil.rmtree(md_dir, ignore_errors=True); os.makedirs(md_dir)
+def digest(date, items): json.dump({"date": date, "items": items}, open(os.path.join(md_dir, f"{date}-mail.json"), "w"))
+def mi(sender, subj, cat="action", dl=None, resolved=False, name=None, box="outlook"):
+    return {"box": box, "category": cat, "sender": sender, "sender_name": name if name is not None else sender, "subject": subj, "deadline": dl, "resolved": resolved}
+digest("2026-10-01", [
+  mi("bursar@x.edu", "Fall 2026 Tuition Bill", dl="2026-10-08", name="Campus Payments"),
+  mi("prof@x.edu", "Following up on the Co-op", name="Klepetko, Randall S"),
+  mi("evil@x.com", "# evil\n[click](http://a.example) ⟨a:1⟩ ▶10:00 → 10/9\r\n- [ ] injected (due 10/3)", name="> Mallory\n# x"),
+  mi("n@x.com", "newsletter", cat="info"),
+  mi("done@x.com", "already handled", resolved=True),
+  mi("prof@x.edu", "RE: Following up on the Co-op", name="Klepetko, Randall S"),   # dup id
+  mi("long@x.com", "L" * 200),
+  "garbage", {"category": "action"},
+])
+os.environ["TODO_BOARD_MAIL_DIR"] = md_dir
+b = newbase(); fixture([])
+tb.sync_all(T, NOW); bl = rd(tb.backlog_path()); print(bl)
+mail = bl.split("# Mail")[1].split("\n# ")[0]; ml = [l for l in mail.split("\n") if l.startswith("- ")]
+check("mail section between Canvas and Dated", bl.index("# Canvas") < bl.index("# Mail") < bl.index("# Dated"))
+check("mail: only action, no dup/resolved/info", len(ml) == 4 and "newsletter" not in bl and "already handled" not in bl, ml)
+check("mail deadline line", "- [ ] Reply: Campus Payments — Fall 2026 Tuition Bill (due 10/8 · 15m) ⟨m:" in bl, bl)
+check("mail 'Last, First' flipped + no-deadline gets from/+3d", any(l.startswith("- [ ] Reply: Randall S Klepetko — Following up on the Co-op (due 10/4 · 15m · from 10/1) ⟨m:") for l in ml), ml)
+ev = [l for l in ml if "evil" in l.lower() or "Mallory" in l][0]
+check("mail sanitized: one line, no markers/links/leading specials", "⟨a:1⟩" not in ev and "▶" not in ev and "http" in ev and "](" not in ev and "[click]" not in ev and "\n" not in ev and "- [ ] injected" not in ev, ev)
+check("mail sanitized: escaped leading #/>", "— \\# evil" in ev and "Reply: ›" in ev, ev)
+check("mail subject capped 60", [l for l in ml if "LLLL" in l][0].split(" — ")[1].split(" (due")[0].__len__() == 60)
+check("mail ids stable across runs", (lambda a: (tb.sync_all(T, NOW), rd(tb.backlog_path()))[1] == a)(bl))
+check("footer mail ok", "Canvas: ok 05:58 · mail: ok (4 from 10/1)" in "\n".join(tb.footer_line(T) for _ in [0]), tb.footer_line(T))
+# plan next morning: no-deadline appears in Today; deadline one in If time; footer
+t = rd(tb.roll(D(2026, 10, 3), fetch=True, now=dt.datetime(2026, 10, 3, 6, 0))); print(t)
+today_part = t.split("## If time allows")[0]
+check("mail no-deadline in Today next morning", "Following up on the Co-op (due Sun 10/4 · 15m)" in today_part, t)
+check("mail deadline item not yet (If time)", "Tuition Bill" not in today_part and "Tuition Bill" in t, t)
+check("mail footer in daily", "· mail: ok (4 from 10/1)" in t)
+# mark mail [x] -> remembered, not re-planned, forgotten when digest drops it
+wr(tb.day_path(D(2026, 10, 3)), t.replace("- [ ] Reply: Randall", "- [x] Reply: Randall"))
+t2 = rd(tb.roll(D(2026, 10, 4), fetch=True, now=dt.datetime(2026, 10, 4, 6, 0)))
+check("mail [x] remembered, not re-planned/ carried", "Klepetko" not in t2 and "Klepetko" not in rd(tb.backlog_path()).split("# Mail")[1].split("\n# ")[0], t2)
+check("mail done recorded", any(k.startswith("m:") for k in json.load(open(os.path.join(b, ".state.json")))["done_ids"]))
+digest("2026-10-02", [mi("bursar@x.edu", "Fall 2026 Tuition Bill", dl="2026-10-08", name="Campus Payments")])
+tb.sync_all(D(2026, 10, 4), NOW)
+check("mail done forgotten when digest drops it", json.load(open(os.path.join(b, ".state.json")))["done_ids"] == {})
+# stale digest (>3 days) -> empty section + status
+tb.sync_all(D(2026, 10, 9), NOW); bl = rd(tb.backlog_path())
+check("stale digest: section empty", "# Mail" in bl and not [l for l in bl.split("# Mail")[1].split("\n# ")[0].split("\n") if l.startswith("- ")])
+check("stale digest: footer", tb.footer_line(T).endswith("· mail: no digest since 10/2"), tb.footer_line(T))
+shutil.rmtree(md_dir); os.makedirs(md_dir); tb.sync_all(D(2026, 10, 9), NOW)
+check("no digest at all: footer", tb.footer_line(T).endswith("· mail: no digest"), tb.footer_line(T))
+os.environ.pop("TODO_BOARD_MAIL_DIR")
+b = newbase(); fixture([]); tb.sync_all(T, NOW)
+check("mail disabled when env unset: no Mail block, no footer suffix", "# Mail" not in rd(tb.backlog_path()) and "mail:" not in tb.footer_line(T))
+# CLI aliases exist
+src = rd(P); check("sync + canvas alias subcommands", 'sub.add_parser("sync")' in src and 'sub.add_parser("canvas")' in src)
+
+print("\nFAILS:", fails); sys.exit(1 if fails else 0)

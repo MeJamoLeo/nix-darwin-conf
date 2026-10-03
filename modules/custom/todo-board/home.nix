@@ -2,14 +2,17 @@
   config,
   pkgs,
   ...
-}: {
+}: let
+  # メール triage の日次 digest（YYYY-MM-DD-mail.json）。todo-board sync が直近3日以内のものを読む。
+  mailDir = "${config.home.homeDirectory}/Forge/claude-obsidian/vault/wiki/2_Areas/anjin-operations/mail-digests";
+in {
   # todo-board — 日次 Todo ファイル（~/Store/30_Work/todo/YYYY/YYYYMMDD-todo.md）の
   # 繰り越しと、fzf での ▶/■ 時間刻み。設計＝vault の todo-board-design。
   #
   # ★ 時刻刻みをエディタから切り離した: nvim を開く→行へ移動→キー、は1タスクごとの操作として
   #   重すぎる（ユーザーの指摘 2026-10-02）。`todo` は fzf でタスクを選ぶだけで ▶/■ が刻まれ、
   #   どの端末でも、`ssh -t ogasawara todo` でも動く。nvim のキーマップは編集中の補助として残す。
-  #   コマンド面: `todo`（選んで刻む）／`todo edit`（エディタで開く）／`todo add <text>`（追記）。
+  #   コマンド面: `todo`（選んで刻む）／`todo edit`（エディタで開く）／`todo add <text> [--due|--on|--size]`（倉庫へ追記）。
   # 実装は ./bin/todo-board（python3 1本・標準ライブラリのみ）。
   #
   # なぜ custom バケツか: 価値の中心が自分のコード（繰り越し規則）で、nvim の配線は付随。
@@ -41,11 +44,19 @@
       todo - today's todo list (~/Store/30_Work/todo/YYYY/YYYYMMDD-todo.md)
 
         todo              pick an open task: 1st pick = ▶ start, 2nd pick = ■ finish (duration)
-        todo add <text>   append a task to # Inbox
+        todo add <text> [--due M/D[ HH:MM]] [--on M/D] [--size 30m|2h]
+                          add to the backlog: dated if --due/--on is given, else Someday
         todo edit         open today's file in $EDITOR
         todo -h           show this help
 
-      Open tasks are copied to the next day at 06:00; the old line is kept as [>] with "→ M/D".
+      Tasks flow in automatically: Canvas assignments and mail-digest action items are synced hourly,
+      and at 06:00 the plan for today is built from them + the backlog (~/Store/30_Work/todo/backlog.md).
+      "# Today" = start now to make the deadline; "## Overdue" = past-due Canvas items that may still
+      be submittable (late OK until ...) or a 10m "Check if still submittable" task (tick it when done);
+      "## If time allows" = spare capacity, pull ahead.
+      A line you tick [x] is remembered, so it is not planned again before Canvas/mail catches up.
+      Open Today tasks are copied to the next day; the old line is kept as [>] with "→ M/D".
+      Someday ideas expire after 14 days (moved to # Expired in the backlog).
       USAGE
           exit 0 ;;
         *) echo "todo: unknown subcommand '$1' (see todo -h)" >&2; exit 2 ;;
@@ -54,10 +65,37 @@
     '';
   };
 
+  # 取得役（sync = Canvas ＋ メール）: 毎時 backlog の `# Canvas`／`# Mail` 欄と当日ファイルの ✓canvas・状態フッタを更新する。
+  #   `canvas` は sync の旧名（互換）。launchd のラベル名 todo-board-canvas は変えない。
+  #   ⚠ roll と同じく python は store パス固定。launchd の PATH は最小。
+  #   トークンは Keychain（canvas-txst-token）→ だめなら rbw（解錠済みのときだけ。launchd に pinentry は無い）。
+  #   TODO_BOARD_RBW は store の rbw を渡す（PATH に依存しない）。
+  #   RunAtLoad: switch／ログイン直後にも1回取る。失敗は .status.json と日次フッタの FAILED に出る。
+  launchd.agents.todo-board-canvas = {
+    enable = true;
+    config = {
+      ProgramArguments = [
+        "${pkgs.python3}/bin/python3"
+        "${config.home.homeDirectory}/bin/todo-board"
+        "sync"
+      ];
+      EnvironmentVariables = {
+        TODO_BOARD_RBW = "${pkgs.rbw}/bin/rbw";
+        TODO_BOARD_MAIL_DIR = mailDir;
+      };
+      StartInterval = 3600;
+      RunAtLoad = true;
+      StandardOutPath = "${config.home.homeDirectory}/Library/Logs/todo-board-canvas.log";
+      StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/todo-board-canvas.err.log";
+    };
+  };
+
   # 06:00 に当日ファイルを確定し、RunAtLoad で switch／ログイン時にも作る。
   #   ⚠ python は PATH から探さない（launchd の PATH は最小。record-blocks と同じ罠）。
   #   ⚠ roll は冪等（当日ファイルがあれば何もしない）なので RunAtLoad や
   #     起床後の取りこぼし再実行で二重に走っても壊れない。
+  #   ⚠ roll は先に Canvas 取得を1回走らせてから計画する（06:00 の計画を新しいデータで作る）。
+  #     取得に失敗したら最後の backlog から計画し、フッタに FAILED を出す。
   #   ⚠ Mac が 06:00 に寝ていても、起床後に launchd が取りこぼし分を1回走らせる。
   launchd.agents.todo-board-roll = {
     enable = true;
@@ -67,6 +105,10 @@
         "${config.home.homeDirectory}/bin/todo-board"
         "roll"
       ];
+      EnvironmentVariables = {
+        TODO_BOARD_RBW = "${pkgs.rbw}/bin/rbw";
+        TODO_BOARD_MAIL_DIR = mailDir;
+      };
       StartCalendarInterval = [
         {
           Hour = 6;
