@@ -308,6 +308,8 @@ check("overdue: capacity counts it (2h*1.5 + 1h-ish)", "> ⚠ over by" in t, t)
 # --- overdue: lock unknown -> Check task (10m), via API with cache
 b = newbase(); calls = []
 def fake_get(path):
+    if path.endswith("/submissions/self"):
+        return {"workflow_state": "unsubmitted"}  # 提出確認は lock 呼び出しの数に入れない
     calls.append(path); return {"lock_at": None}
 real_get = tb.http_get_json; tb.http_get_json = fake_get
 fixture([litem(1, "Mystery HW", PAST)])
@@ -417,11 +419,11 @@ tb.sync_all(T, NOW); bl = rd(tb.backlog_path()); print(bl)
 mail = bl.split("# Mail")[1].split("\n# ")[0]; ml = [l for l in mail.split("\n") if l.startswith("- ")]
 check("mail section between Canvas and Dated", bl.index("# Canvas") < bl.index("# Mail") < bl.index("# Dated"))
 check("mail: only action, no dup/resolved/info", len(ml) == 4 and "newsletter" not in bl and "already handled" not in bl, ml)
-check("mail deadline line", "- [ ] Reply: Campus Payments — Fall 2026 Tuition Bill (due 10/8 · 15m) ⟨m:" in bl, bl)
-check("mail 'Last, First' flipped + no-deadline gets from/+3d", any(l.startswith("- [ ] Reply: Randall S Klepetko — Following up on the Co-op (due 10/4 · 15m · from 10/1) ⟨m:") for l in ml), ml)
+check("mail deadline line", "- [ ] Mail: Campus Payments — Fall 2026 Tuition Bill (due 10/8 · 15m) ⟨m:" in bl, bl)
+check("mail 'Last, First' flipped + no-deadline gets from/+3d", any(l.startswith("- [ ] Mail: Randall S Klepetko — Following up on the Co-op (due 10/4 · 15m · from 10/1) ⟨m:") for l in ml), ml)
 ev = [l for l in ml if "evil" in l.lower() or "Mallory" in l][0]
 check("mail sanitized: one line, no markers/links/leading specials", "⟨a:1⟩" not in ev and "▶" not in ev and "http" in ev and "](" not in ev and "[click]" not in ev and "\n" not in ev and "- [ ] injected" not in ev, ev)
-check("mail sanitized: escaped leading #/>", "— \\# evil" in ev and "Reply: ›" in ev, ev)
+check("mail sanitized: escaped leading #/>", "— \\# evil" in ev and "Mail: ›" in ev, ev)
 check("mail subject capped 60", [l for l in ml if "LLLL" in l][0].split(" — ")[1].split(" (due")[0].__len__() == 60)
 check("mail ids stable across runs", (lambda a: (tb.sync_all(T, NOW), rd(tb.backlog_path()))[1] == a)(bl))
 check("footer mail ok", "Canvas: ok 05:58 · mail: ok (4 from 10/1)" in "\n".join(tb.footer_line(T) for _ in [0]), tb.footer_line(T))
@@ -432,7 +434,7 @@ check("mail no-deadline in Today next morning", "Following up on the Co-op (due 
 check("mail deadline item not yet (If time)", "Tuition Bill" not in today_part and "Tuition Bill" in t, t)
 check("mail footer in daily", "· mail: ok (4 from 10/1)" in t)
 # mark mail [x] -> remembered, not re-planned, forgotten when digest drops it
-wr(tb.day_path(D(2026, 10, 3)), t.replace("- [ ] Reply: Randall", "- [x] Reply: Randall"))
+wr(tb.day_path(D(2026, 10, 3)), t.replace("- [ ] Mail: Randall", "- [x] Reply: Randall"))
 t2 = rd(tb.roll(D(2026, 10, 4), fetch=True, now=dt.datetime(2026, 10, 4, 6, 0)))
 check("mail [x] remembered, not re-planned/ carried", "Klepetko" not in t2 and "Klepetko" not in rd(tb.backlog_path()).split("# Mail")[1].split("\n# ")[0], t2)
 check("mail done recorded", any(k.startswith("m:") for k in json.load(open(os.path.join(b, ".state.json")))["done_ids"]))
@@ -451,4 +453,16 @@ check("mail disabled when env unset: no Mail block, no footer suffix", "# Mail" 
 # CLI aliases exist
 src = rd(P); check("sync + canvas alias subcommands", 'sub.add_parser("sync")' in src and 'sub.add_parser("canvas")' in src)
 
+
+# --- LTI 提出（planner は submitted=False・submissions/self は pending_review）→ 完了扱い
+b = newbase()
+def fake_get2(path):
+    if path.endswith("/submissions/self"):
+        return {"workflow_state": "pending_review", "submitted_at": None, "score": None}
+    return {"lock_at": None}
+tb.http_get_json = fake_get2
+fixture([litem(7, "zyBook Ex LTI", PAST)])
+tb.canvas_refresh(T, NOW); bl = rd(tb.backlog_path())
+check("LTI pending_review counts as done", "zyBook Ex LTI" not in bl, bl)
+tb.http_get_json = real_get
 print("\nFAILS:", fails); sys.exit(1 if fails else 0)

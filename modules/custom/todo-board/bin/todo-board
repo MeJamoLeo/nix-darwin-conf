@@ -881,6 +881,18 @@ def fetch_canvas(today, now=None):
     for it in items:
         it["drop"] = False
         it["late_until"] = None
+        # planner の submissions は外部ツール連携（zyBooks 等の LTI）の提出を拾わない。
+        # 実データ：zyBook Ex3 は planner で submitted=False だが、submissions/self は
+        # workflow_state=pending_review（2026-10-02、本人「出したような気がする」で発覚）。
+        # 未完了に見える assignment だけ個別に確かめる（数十件・毎時なので許容）。
+        if not it["done"] and not it["exam"] and it["marker"].startswith("a:") and it.get("course_id"):
+            try:
+                sub = http_get_json(f"/courses/{it['course_id']}/assignments/{it['id']}/submissions/self")
+                if (sub.get("workflow_state") in ("submitted", "pending_review", "graded")
+                        or sub.get("submitted_at") or sub.get("score") is not None):
+                    it["done"] = True
+            except CanvasError:
+                pass  # 確かめられなければ planner の判定のまま
         if it["due"] < now and not it["done"] and not it["exam"]:
             lock = lock_lookup(it, now)
             if lock and lock <= now:
@@ -1128,7 +1140,7 @@ def mail_lines(digest_date, data, done):
             when = f"due {md(dl)} · {MAIL_MIN}m"
         else:
             when = f"due {md(digest_date + dt.timedelta(days=MAIL_DUE_DAYS))} · {MAIL_MIN}m · from {md(digest_date)}"
-        lines.append(f"- [ ] Reply: {mail_sender(it)} — {subj} ({when}) ⟨{mid}⟩")
+        lines.append(f"- [ ] Mail: {mail_sender(it)} — {subj} ({when}) ⟨{mid}⟩")
     return lines, alive
 
 
