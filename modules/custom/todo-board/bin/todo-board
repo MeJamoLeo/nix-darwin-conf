@@ -119,6 +119,29 @@ def courses_path():
     return os.path.join(base_dir(), "courses.json")
 
 
+def exclude_path():
+    return os.path.join(base_dir(), "exclude.json")
+
+
+def load_excluded():
+    """exclude.json（任意）＝ 同期しない科目コードの配列（例 ["ENG3303"]）。
+
+    履修を中止した科目（2026-10-02 本人が ENG3303 を drop）の課題やメールが、毎時の同期で
+    倉庫に戻ってこないようにする。比較はドット・空白を除いた大文字。
+    """
+    try:
+        with open(exclude_path(), encoding="utf-8") as fh:
+            v = json.load(fh)
+        return {re.sub(r"[.\s]", "", str(x)).upper() for x in v} if isinstance(v, list) else set()
+    except (OSError, ValueError):
+        return set()
+
+
+def is_excluded_text(text, excluded):
+    t = re.sub(r"[.\s]", "", str(text or "")).upper()
+    return any(code in t for code in excluded)
+
+
 def md(d):
     return f"{d.month}/{d.day}"  # ゼロ埋めなし
 
@@ -767,6 +790,8 @@ def normalize_item(raw):
         except (ValueError, TypeError):
             pass
     course = course_label(raw.get("context_name"))
+    if is_excluded_text(course, load_excluded()) or is_excluded_text(raw.get("context_name"), load_excluded()):
+        return None
     exam = is_exam(title, ptype)
     if title.upper().startswith(course.upper()):
         label = title
@@ -1260,6 +1285,8 @@ def mail_lines(digest_date, data, done):
         mid = f"m:{mail_id(it)}"
         alive.add(mid)
         if it.get("category") != "action" or it.get("resolved") is True or mid in seen or mid in done:
+            continue
+        if is_excluded_text(f"{it.get('sender_name') or ''} {it.get('sender') or ''} {it.get('subject') or ''}", load_excluded()):
             continue
         seen.add(mid)
         dl = None
