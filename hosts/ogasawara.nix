@@ -13,5 +13,6 @@
   # 他機に広げたくなったら、このブロックを profiles/mac-workstation.nix へ移す。
   home-manager.users.${username}.imports = [
     ../modules/apps/hermes/home.nix
+    ../modules/custom/todo-board/home.nix
   ];
 }

@@ -1,0 +1,277 @@
+#!/usr/bin/env python3
+"""todo-board — 日次 Todo ファイルの繰り越し（roll）・▶/■ 刻み（pick）・追記（add）・編集（edit）。
+
+★ 時刻刻みをエディタから切り離した理由: nvim を開く→行へ移動→キー、は1タスクごとの操作として重い
+  （ユーザーの指摘 2026-10-02）。pick は fzf で選ぶだけ。どの端末でも、`ssh -t ogasawara todo` でも動く。
+  fzf は env TODO_BOARD_FZF（home.nix が store パスを渡す）、無ければ PATH の fzf。
+
+ファイル: <base>/YYYY/YYYYMMDD-todo.md（base 既定 ~/Store/30_Work/todo、env TODO_BOARD_DIR で上書き）。
+繰り越しは「移動ではなくコピー」: 前日側は `- [>]` + ` → M/D` を残し、新ファイル側に未完行を写す。
+標準ライブラリのみ。設計: vault の todo-board-design。
+"""
+import argparse
+import datetime as dt
+import os
+import re
+import subprocess
+import sys
+import tempfile
+
+TASK_OPEN = re.compile(r"^(\s*)- \[ \] (.*)$")
+STAMP = re.compile(r"\s*[▶■][^(→]*?(?:\(\d+m\))?(?=\s*\(since|\s*→|$)")
+ORIGIN = re.compile(r"\(since \d+/\d+\)")
+DAILY = re.compile(r"^(\d{4})(\d{2})(\d{2})-todo\.md$")
+SECTIONS = ("# Today", "# Inbox")
+
+
+def base_dir():
+    return os.environ.get("TODO_BOARD_DIR") or os.path.expanduser("~/Store/30_Work/todo")
+
+
+def day_path(d):
+    return os.path.join(base_dir(), f"{d.year:04d}", f"{d:%Y%m%d}-todo.md")
+
+
+def md(d):
+    return f"{d.month}/{d.day}"  # ゼロ埋めなし
+
+
+def find_prev(d):
+    """d より前で最も新しい日次ファイル。数日空くのは普通なので全走査する。"""
+    best = None
+    base = base_dir()
+    if not os.path.isdir(base):
+        return None
+    for y in os.listdir(base):
+        yd = os.path.join(base, y)
+        if not (y.isdigit() and os.path.isdir(yd)):
+            continue
+        for f in os.listdir(yd):
+            m = DAILY.match(f)
+            if not m:
+                continue
+            fd = dt.date(int(m[1]), int(m[2]), int(m[3]))
+            if fd < d and (best is None or fd > best):
+                best = fd
+    return best
+
+
+def atomic_write(path, text):
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".todo-")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            fh.write(text)
+        os.replace(tmp, path)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+
+
+def section_of(line, cur):
+    if line.startswith("# "):
+        return "Today" if line.startswith("# Today") else line[2:].strip()
+    return cur
+
+
+def roll(d):
+    path = day_path(d)
+    if os.path.exists(path):
+        return path  # 冪等
+    prev = find_prev(d)
+    carried = {}  # section -> [lines]
+    order = []
+    new_prev_text = None
+    if prev:
+        with open(day_path(prev), encoding="utf-8", newline="") as fh:
+            lines = fh.read().split("\n")
+        cur = "Today"
+        out = []
+        for ln in lines:
+            cur = section_of(ln, cur)
+            m = TASK_OPEN.match(ln)
+            if m:
+                body = STAMP.sub("", m[2]).rstrip()
+                # 起票印は初回だけ付ける。既存はそのまま（2週間失効の起点）
+                if not ORIGIN.search(body):
+                    body += f" (since {md(prev)})"
+                carried.setdefault(cur, []).append(f"{m[1]}- [ ] {body}")
+                if cur not in order:
+                    order.append(cur)
+                ln = f"{m[1]}- [>] {m[2]} → {md(d)}"
+            out.append(ln)
+        if carried:
+            new_prev_text = "\n".join(out)
+    # 新ファイル: 既定2セクション。他のセクションの未完行は同名セクションを末尾に作る
+    sec_lines = {"Today": [], "Inbox": []}
+    for s in order:
+        sec_lines.setdefault(s, []).extend(carried[s])
+    text = f"# Today {md(d)}\n"
+    text += "".join(l + "\n" for l in sec_lines.pop("Today"))
+    text += "\n"
+    for s, ls in sec_lines.items():
+        text += f"# {s}\n" + "".join(l + "\n" for l in ls) + "\n"
+    atomic_write(path, text)
+    if new_prev_text is not None:
+        # 新ファイルを先に書く: 途中で落ちても繰越行が失われない（重複は許容、欠落は不可）
+        atomic_write(day_path(prev), new_prev_text)
+    return path
+
+
+STARTED = re.compile(r"▶(\d+):(\d+)")
+
+
+def read_raw(path):
+    with open(path, encoding="utf-8", newline="") as fh:
+        return fh.read()
+
+
+def label_of(body):
+    started = "▶" in body
+    done = "■" in body
+    clean = ORIGIN.sub("", STAMP.sub("", body)).strip()
+    m = STARTED.search(body)
+    if done:
+        hint = "■ done"
+    elif started and m:
+        hint = f"▶{int(m[1]):02d}:{int(m[2]):02d} in progress"
+    else:
+        hint = ""
+    return f"{clean}  {hint}".rstrip(), clean
+
+
+def toggle_line(line, now):
+    """nvim の todo_toggle と同じ規則。(新しい行, メッセージ) を返す。変更なしは (None, msg)。"""
+    if line.endswith("\r"):  # CRLF 行でも末尾の \r を保つ
+        new, msg = toggle_line(line[:-1], now)
+        return (new + "\r" if new else None), msg
+    hm = f"{now.hour:02d}:{now.minute:02d}"
+    if "■" in line:
+        return None, "already finished (■)"
+    m = STARTED.search(line)
+    m_ = TASK_OPEN.match(line)
+    clean = label_of(m_[2])[1] if m_ else line
+    if "▶" not in line:
+        return f"{line} ▶{hm}", f"▶ {hm} {clean}"
+    if not m:
+        return None, "cannot parse the ▶ time"
+    mins = (now.hour * 60 + now.minute) - (int(m[1]) * 60 + int(m[2]))
+    if mins < 0:
+        mins += 24 * 60
+    new = f"{line} ■{hm} ({mins}m)"
+    new = re.sub(r"^(\s*- )\[ \]", r"\1[x]", new, count=1)
+    return new, f"■ {hm} ({mins}m) {clean}"
+
+
+def pick(d, now=None):
+    now = now or dt.datetime.now()
+    path = roll(d)
+    text = read_raw(path)
+    lines = text.split("\n")
+    items = []  # (idx, label)
+    for i, ln in enumerate(lines):
+        m = TASK_OPEN.match(ln)
+        if m:
+            items.append((i, label_of(m[2])[0]))
+    if not items:
+        print("All done for today.")
+        return 0
+    fzf = os.environ.get("TODO_BOARD_FZF") or "fzf"
+    inp = "".join(f"{i}\t{lab}\n" for i, lab in items)
+    try:
+        r = subprocess.run(
+            [fzf, "--delimiter=\t", "--with-nth=2..", "--prompt=todo> ", "--height=40%", "--reverse"],
+            input=inp, stdout=subprocess.PIPE, text=True,
+        )
+    except FileNotFoundError:
+        print(f"fzf not found: {fzf}", file=sys.stderr)
+        return 1
+    sel = r.stdout.strip("\n")
+    if r.returncode != 0 or not sel:
+        return 0
+    try:
+        idx = int(sel.split("\t", 1)[0])
+    except ValueError:
+        print("could not parse the selection", file=sys.stderr)
+        return 1
+    # 書く直前に再読込して、キャプチャ時と同じ行か検証する
+    fresh = read_raw(path).split("\n")
+    if idx >= len(fresh) or fresh[idx] != lines[idx]:
+        print("file changed meanwhile; aborted (run todo again)", file=sys.stderr)
+        return 1
+    new, msg = toggle_line(fresh[idx], now)
+    if new is None:
+        print(msg)
+        return 0
+    fresh[idx] = new
+    atomic_write(path, "\n".join(fresh))
+    print(msg)
+    return 0
+
+
+def add(d, words):
+    text_in = " ".join(words).strip()
+    if not text_in:
+        print("todo add <text...>", file=sys.stderr)
+        return 1
+    path = roll(d)
+    lines = read_raw(path).split("\n")
+    new = f"- [ ] {text_in} (since {md(d)})"
+    head = None
+    for i, ln in enumerate(lines):
+        if ln.startswith("# Inbox"):
+            head = i
+            break
+    if head is None:
+        while lines and lines[-1] == "":
+            lines.pop()
+        lines += ["", "# Inbox", new, ""]
+    else:
+        end = len(lines)
+        for j in range(head + 1, len(lines)):
+            if lines[j].startswith("# "):
+                end = j
+                break
+        last = head
+        for j in range(head + 1, end):
+            if lines[j].strip():
+                last = j
+        lines.insert(last + 1, new)
+    atomic_write(path, "\n".join(lines))
+    print(f"+ {text_in}")
+    return 0
+
+
+def parse_date(s):
+    return dt.date.today() if not s else dt.datetime.strptime(s, "%Y-%m-%d").date()
+
+
+def main():
+    ap = argparse.ArgumentParser(prog="todo-board")
+    sub = ap.add_subparsers(dest="cmd", required=True)
+    for n in ("roll", "path"):
+        p = sub.add_parser(n)
+        p.add_argument("--date")
+    sub.add_parser("pick")
+    sub.add_parser("edit")
+    sub.add_parser("open")  # edit の旧名（互換）
+    pa = sub.add_parser("add")
+    pa.add_argument("text", nargs="+")
+    a = ap.parse_args()
+    if a.cmd == "roll":
+        roll(parse_date(a.date))
+    elif a.cmd == "path":
+        print(day_path(parse_date(a.date)))
+    elif a.cmd == "pick":
+        return pick(dt.date.today())
+    elif a.cmd == "add":
+        return add(dt.date.today(), a.text)
+    else:
+        p = roll(dt.date.today())
+        ed = os.environ.get("EDITOR") or "nvim"
+        os.execvp(ed, [ed, p])
+
+
+if __name__ == "__main__":
+    sys.exit(main())
