@@ -12,7 +12,7 @@ in {
   # ★ 時刻刻みをエディタから切り離した: nvim を開く→行へ移動→キー、は1タスクごとの操作として
   #   重すぎる（ユーザーの指摘 2026-10-02）。`todo` は fzf でタスクを選ぶだけで ▶/■ が刻まれ、
   #   どの端末でも、`ssh -t ogasawara todo` でも動く。nvim のキーマップは編集中の補助として残す。
-  #   コマンド面: `todo`（選んで刻む）／`todo edit`（エディタで開く）／`todo add <text> [--due|--on|--size]`（倉庫へ追記）。
+  #   コマンド面: `todo`（選んで刻む）／`todo edit`（エディタで開く）／`todo show`（描画して表示）／`todo add <text> [--due|--on|--size]`（倉庫へ追記）。
   # 実装は ./bin/todo-board（python3 1本・標準ライブラリのみ）。
   #
   # なぜ custom バケツか: 価値の中心が自分のコード（繰り越し規則）で、nvim の配線は付随。
@@ -38,7 +38,7 @@ in {
       sub=pick
       case "''${1:-}" in
         "") ;;
-        edit|add) sub=$1; shift ;;
+        edit|add|show) sub=$1; shift ;;
         -h|--help|help)
           cat <<'USAGE'
       todo - today's todo list (~/Store/30_Work/todo/YYYY/YYYYMMDD-todo.md)
@@ -47,6 +47,7 @@ in {
         todo add <text> [--due M/D[ HH:MM]] [--on M/D] [--size 30m|2h]
                           add to the backlog: dated if --due/--on is given, else Someday
         todo edit         open today's file in $EDITOR
+        todo show         print today's file (rendered with leaf if available; read-only, no roll)
         todo -h           show this help
 
       Tasks flow in automatically: Canvas assignments and mail-digest action items are synced hourly,

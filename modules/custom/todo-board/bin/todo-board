@@ -1793,6 +1793,53 @@ def add(d, words, due=None, on=None, size=None):
     return 0
 
 
+def latest_day_file(today):
+    """今日以前で最新の日次ファイル（無ければ None）。show が今日の分が無いときに使う。"""
+    best = None
+    root = base_dir()
+    if not os.path.isdir(root):
+        return None
+    for y in os.listdir(root):
+        yd = os.path.join(root, y)
+        if not (y.isdigit() and os.path.isdir(yd)):
+            continue
+        for f in os.listdir(yd):
+            m = re.fullmatch(r"(\d{8})-todo\.md", f)
+            if not m:
+                continue
+            try:
+                d = dt.datetime.strptime(m.group(1), "%Y%m%d").date()
+            except ValueError:
+                continue
+            if d <= today and (best is None or d > best[0]):
+                best = (d, os.path.join(yd, f))
+    return best
+
+
+def show(today):
+    """今日の日次ファイルを表示するだけ（roll しない＝副作用なし）。
+    leaf（env TODO_BOARD_LEAF、既定 ~/.local/bin/leaf）があれば --inline ansi:<端末幅> で描画、無ければ素の cat。
+    今日の分が無ければ直近の過去分を注記つきで出す。"""
+    p = day_path(today)
+    if not os.path.isfile(p):
+        best = latest_day_file(today)
+        if not best:
+            print("todo: no daily file yet", file=sys.stderr)
+            return 1
+        p = best[1]
+        print(f"(no file for {today:%-m/%-d} yet; showing {best[0]:%-m/%-d})", file=sys.stderr)
+    leaf = os.environ.get("TODO_BOARD_LEAF") or os.path.expanduser("~/.local/bin/leaf")
+    if os.path.isfile(leaf) and os.access(leaf, os.X_OK):
+        cols = shutil.get_terminal_size((80, 24)).columns
+        sys.stdout.flush()
+        r = subprocess.run([leaf, "--inline", f"ansi:{cols}", p])
+        if r.returncode == 0:
+            return 0
+    with open(p, encoding="utf-8") as f:
+        sys.stdout.write(f.read())
+    return 0
+
+
 def parse_date(s):
     return dt.date.today() if not s else dt.datetime.strptime(s, "%Y-%m-%d").date()
 
@@ -1807,6 +1854,7 @@ def main():
     p.add_argument("--date")
     sub.add_parser("pick")
     sub.add_parser("edit")
+    sub.add_parser("show")
     sub.add_parser("open")  # edit の旧名（互換）
     sub.add_parser("sync")
     sub.add_parser("canvas")  # sync の旧名（互換）
@@ -1828,6 +1876,8 @@ def main():
         if not ok:
             print(footer_line(now.date()), file=sys.stderr)
         return 0 if ok else 1
+    elif a.cmd == "show":
+        return show(dt.date.today())
     elif a.cmd == "add":
         return add(dt.date.today(), a.text, a.due, a.on, a.size)
     else:

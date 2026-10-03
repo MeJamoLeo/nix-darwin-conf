@@ -675,4 +675,25 @@ json.dump({"items": [mi("a@x.edu", "Old thing", name="A", resolved=True)]}, open
 tb.mail_refresh(D(2026, 10, 2), NOW); mb = rd(tb.backlog_path())
 check("union: later resolved removes", "Old thing" not in mb and "New thing" in mb, mb)
 
+# --- show: 今日の分／無ければ直近の過去分（注記つき）／leaf 無しは cat
+import io, contextlib
+b = newbase()
+os.environ["TODO_BOARD_LEAF"] = "/nonexistent/leaf"
+wr(tb.day_path(D(2026, 10, 1)), "# Today 10/1\n- [ ] older\n")
+out, err = io.StringIO(), io.StringIO()
+with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err): rc = tb.show(T)
+check("show: falls back to latest earlier file with note", rc == 0 and "older" in out.getvalue() and "10/1" in err.getvalue(), (out.getvalue(), err.getvalue()))
+wr(tb.day_path(T), "# Today 10/2\n- [ ] now\n")
+out, err = io.StringIO(), io.StringIO()
+with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err): rc = tb.show(T)
+check("show: today's file, plain cat", rc == 0 and "now" in out.getvalue() and "older" not in out.getvalue() and err.getvalue() == "")
+fk = os.path.join(os.environ["S"], "fakeleaf"); wr(fk, "#!/bin/sh\necho LEAF \"$@\"\n"); os.chmod(fk, 0o755)
+os.environ["TODO_BOARD_LEAF"] = fk
+r = subprocess.run([sys.executable, P, "show"], capture_output=True, text=True, env=dict(os.environ, TODO_BOARD_DIR=b))
+check("show: uses leaf --inline ansi:<cols>", r.returncode == 0 and "LEAF --inline ansi:80" in r.stdout and r.stdout.strip().endswith("-todo.md"), (r.stdout, r.stderr))
+b = newbase()
+r = subprocess.run([sys.executable, P, "show"], capture_output=True, text=True, env=dict(os.environ, TODO_BOARD_DIR=b))
+check("show: nothing -> rc 1", r.returncode == 1)
+os.environ.pop("TODO_BOARD_LEAF")
+
 print("\nFAILS:", fails); sys.exit(1 if fails else 0)
