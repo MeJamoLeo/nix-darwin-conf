@@ -2,18 +2,22 @@
 // 本体アプリを WKWebView で"最上位"ロード（iframe でないので X-Frame-Options 回避）。
 // 全面が .default() データストア共有 → ログイン1回で全面認証・再起動で永続（実測済み）。
 //
-// レイアウト（4面）: 3 等幅カラム、左カラムは 2 月を縦スタック。
+// レイアウト（4面）: 3 等幅カラム、左カラムは上下スタック。
 //   ┌────────┬────────┬────────┐
-//   │ 今月    │ 今週    │ 来週    │   ← 来週で「次の月曜」も見える（週ビュー日曜起点問題の解）
+//   │ 4週     │ 今週    │ 来週    │   ← 来週で「次の月曜」も見える（週ビュー日曜起点問題の解）
 //   ├────────┤        │        │
-//   │ 来月    │        │        │
+//   │ 来月    │        │        │   ← 暫定。いずれ todo パネルに差し替える予定
 //   └────────┴────────┴────────┘
+// 左上は月ビューでなく Google カレンダーのカスタムビュー（4週・月曜始まり・本体設定済み）。
+// WHY: 月ビューは月末で打ち切られ、翌月に入った週が見えなくなる。4週カスタムビューは
+//      常に「今週」始まりなので、直近4週間が月境界に関係なく連続して見える（2026-10-02 ユーザー要望）。
 //
 // モード: （無フラグ）interactive=通常窓・ログイン用 / --wallpaper=常在面（アイコン裏・透過・全Space・無人）
 // 設定: ~/calendar-dashboard/caldash-config.json（env CALDASH_CONFIG で上書き）。
 //       gap / zoom / weekZoom / baseZoom / baseWeekZoom / referenceWidth /
 //       leftColumnRatio / account(u/N) / tz / backgroundOpacity。
-// 日次: ローカル 00:01 に再ロード（各面を今日基準に再アンカー＋来週/来月 URL 再計算）。
+// 日次: ローカル 00:01 に再ロード（各面を今日基準に再アンカー＋来週/来月 URL 再計算。
+//       4週ビューは本体側が「今週始まり」で描くので再ロードだけで当週に追随する）。
 //       ※イベントデータ自体は本体 SPA が自前同期するので定期リロードはしない。
 // 終了 = プロセス kill のみ。システム状態は何も変えない。
 //
@@ -186,16 +190,15 @@ func thisMonthYM() -> (Int, Int) {
     return (c.year!, c.month!)
 }
 // 4 pane（GridView.layout の panes[0..3] と順序を揃える）:
-//   [0] 今月 (左上) / [1] 来月 (左下) / [2] 今週 (中央) / [3] 来週 (右)
-// 今月も明示日付 URL にする（素の /month と同じ表示。境界週デデュープ JS が
-// URL から対象月を読むため必須。日次 reanchor で当日基準に再計算される）。
+//   [0] 4週カスタム (左上) / [1] 来月 (左下) / [2] 今週 (中央) / [3] 来週 (右)
+// [0] の /customweek は日付を持たず常に今週始まり（本体のカスタムビュー設定=4週・月曜始まり）。
+// 来月は明示日付 URL（月 JS が URL から対象月を読むため。日次 reanchor で再計算される）。
 func paneURLs() -> [String] {
     let base = "https://calendar.google.com/calendar/u/\(ACCOUNT)/r"
-    let (ty, tm) = thisMonthYM()
     let (ny, nm) = nextMonthYM()
     let (wy, wm, wd) = nextWeekYMD()
     return [
-        "\(base)/month/\(ty)/\(tm)/1",     // 今月
+        "\(base)/customweek",             // 4週（今週始まり）
         "\(base)/month/\(ny)/\(nm)/1",     // 来月
         "\(base)/week",                    // 今週
         "\(base)/week/\(wy)/\(wm)/\(wd)"   // 来週
@@ -221,10 +224,13 @@ func paneURLs() -> [String] {
 // 非依存・毎月自動適応。Swift から渡すのはペインの役割（current/next）だけ。
 // class ハッシュに依存せず role（row/gridcell）だけで当てる。日番号は h2 の
 // 「N日」表記（日本語 locale の月初セル「9月1日」）を優先し、無ければ末尾の数値。
-func monthPaneJS(role: String) -> String {
+// 4週ペインが入ったので今月ペアは消えた＝デデュープの相手がいない。dedupe=false で①を止め、
+// ②（today 強調）だけ残す（来月ペインの先頭行に today がいる日だけ光る）。
+func monthPaneJS(role: String, dedupe: Bool = true) -> String {
     return #"""
     (() => {
       const ROLE = '\#(role)';   // 'current' | 'next'
+      const DEDUPE = \#(dedupe);
 
       //---- DOM 読み取り -------------------------------------------------
 
@@ -339,11 +345,68 @@ func monthPaneJS(role: String) -> String {
       const apply = () => {
         const ctx = buildContext();
         if (!ctx) return;
-        dedupeBoundaryWeek(ctx);
+        if (DEDUPE) dedupeBoundaryWeek(ctx);
         highlightToday(ctx);
       };
       apply();
       setInterval(apply, 3000);   // SPA の DOM 再構築に追随（冪等・再適用）
+    })();
+    """#
+}
+
+// 4週カスタムビュー（pane [0]）専用 JS（wallpaper 専用）。today 強調だけ行う。
+// 月ビュー同様 today セルに .F262Ye が付く保証が無い（CSS では当てられない）ので、
+// 「today は先頭の週行にいる・列＝月曜からの日数（本体設定=月曜始まり）」という
+// 構造から特定し、monthPaneJS ②と同じ背面オーバーレイ方式・同色で塗る。
+// 週行は month と同様 role=row 配下の gridcell 7 個で拾う（行数は 4 前後・親ごと最大グループ）。
+// 位置演算と実測の日番号が合わない（ビューがまだ今週始まりでない等）ときは塗らない。
+func customWeekPaneJS() -> String {
+    return #"""
+    (() => {
+      const dayNum = c => {
+        const t = (c.querySelector('h2') || c).textContent || '';
+        const jp = t.match(/(\d+)日/);
+        if (jp) return +jp[1];
+        const all = t.match(/\d+/g);
+        return all ? +all[all.length - 1] : NaN;
+      };
+      const apply = () => {
+        const cells = [...document.querySelectorAll("[role='main'] [role='gridcell']")];
+        const groups = new Map();
+        for (const c of cells) {
+          const r = c.closest("[role='row']");
+          if (!r || !r.parentElement) continue;
+          if (!groups.has(r.parentElement)) groups.set(r.parentElement, new Set());
+          groups.get(r.parentElement).add(r);
+        }
+        let rows = [];
+        for (const g of groups.values()) {
+          const arr = [...g].filter(r => r.getBoundingClientRect().width > 0);
+          if (arr.length > rows.length) rows = arr;
+        }
+        if (!rows.length) return;
+        const now = new Date();
+        const row = rows[0];
+        const cell = row.querySelectorAll("[role='gridcell']")[(now.getDay() + 6) % 7];  // 月曜=0
+        if (!cell || dayNum(cell) !== now.getDate()) return;
+        let ov = row.querySelector(':scope > .caldash-today-ov');
+        if (!ov) {
+          ov = document.createElement('div');
+          ov.className = 'caldash-today-ov';
+          ov.style.position = 'absolute';
+          ov.style.top = '0';
+          ov.style.height = '100%';
+          ov.style.pointerEvents = 'none';
+          ov.style.backgroundColor = 'rgba(66, 133, 244, 0.15)';
+          if (getComputedStyle(row).position === 'static') row.style.position = 'relative';
+          row.insertBefore(ov, row.firstChild);
+        }
+        const rr = row.getBoundingClientRect(), cr = cell.getBoundingClientRect();
+        ov.style.left = (cr.left - rr.left) + 'px';
+        ov.style.width = cr.width + 'px';
+      };
+      apply();
+      setInterval(apply, 3000);
     })();
     """#
 }
@@ -385,7 +448,7 @@ final class GridView: NSView {
             rw = lw
         }
         let monthH = max(0, (H - GAP) / 2)
-        panes[0].frame = NSRect(x: 0,                       y: 0,             width: lw, height: monthH) // 今月（左上）
+        panes[0].frame = NSRect(x: 0,                       y: 0,             width: lw, height: monthH) // 4週（左上）
         panes[1].frame = NSRect(x: 0,                       y: monthH + GAP,  width: lw, height: monthH) // 来月（左下）
         panes[2].frame = NSRect(x: lw + GAP,                y: 0,             width: mw, height: H)      // 今週（中央、+extra）
         panes[3].frame = NSRect(x: lw + GAP + mw + GAP,     y: 0,             width: rw, height: H)      // 来週（右）
@@ -502,7 +565,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
             let w = NSWindow(contentRect: grid.frame,
                              styleMask: [.titled, .closable, .resizable, .miniaturizable],
                              backing: .buffered, defer: false)
-            w.title = "caldash — 今日/今週/来週/今月/来月（--wallpaper で常在面化）"
+            w.title = "caldash — 4週/今週/来週/来月（--wallpaper で常在面化）"
             w.contentView = grid
             w.center()
             w.makeKeyAndOrderFront(nil)
@@ -527,7 +590,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         // pageZoom が掛かるので device px = CSS px * weekZoom。
         grid.middleExtraWidth = GCAL_WEEK_GUTTER_PX * weekZoom
         grid.leftColumnRatio = LEFT_COLUMN_RATIO
-        let zooms: [CGFloat] = [zoom, zoom, weekZoom, weekZoom]  // 今月/来月/今週/来週
+        let zooms: [CGFloat] = [zoom, zoom, weekZoom, weekZoom]  // 4週/来月/今週/来週（多週グリッドは月 zoom）
         // 来週 (index 3) は時間ラベル gutter を完全に消去し、day headers も events grid
         // 本体も左端に寄せる。GCal 週ビュー DOM (2026-07-30 時点):
         //   .UqLcs  = 上部 Texas/Japan チップコンテナ（.sS0sZd + .kL3bhb 内包）
@@ -546,8 +609,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         let nextMonthCSS = "[role='row']:has([role='columnheader']) { display: none !important; }"
         let extraCSSs: [String] = ["", nextMonthCSS, WEEK_EVENT_FONT_CSS,
             WEEK_EVENT_FONT_CSS + "\n.lqYlwe, .UqLcs, .FDbe8b, .EDDeke { display: none !important; }"]
-        // 月ペイン2枚に境界週デデュープ＋today 強調 JS（monthPaneJS 冒頭コメント参照）。
-        let extraJSs: [String] = [monthPaneJS(role: "current"), monthPaneJS(role: "next"), "", ""]
+        // 4週ペインは today 強調のみ（customWeekPaneJS）。来月ペインは相手がいないので
+        // デデュープ無効（monthPaneJS 冒頭コメント参照）。
+        let extraJSs: [String] = [customWeekPaneJS(), monthPaneJS(role: "next", dedupe: false), "", ""]
         let urls = paneURLs()
         let paneWebs = urls.indices.map { i in
             makeWeb(urls[i], zoom: zooms[i], extraCSS: extraCSSs[i], extraJS: extraJSs[i])
@@ -604,7 +668,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         print("[caldash] next re-anchor at \(next)")
     }
     func reanchor() {
-        let urls = paneURLs()   // 来週/来月 URL は当日基準で再計算される
+        let urls = paneURLs()   // 来週/来月 URL は当日基準で再計算（4週は固定 URL＝再ロードで今週始まりに戻る）
         for screenWebs in webs {
             for (i, wv) in screenWebs.enumerated() where i < urls.count {
                 if let u = URL(string: urls[i]) { wv.load(URLRequest(url: u)) }
@@ -632,7 +696,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
             if w.frame != area { w.setFrame(area, display: true) }
             guard formulaMode, i < webs.count else { continue }
             let (nz, nwz) = computeEffectiveZooms(for: screen)
-            let zooms: [CGFloat] = [nz, nz, nwz, nwz]  // 今月/来月/今週/来週
+            let zooms: [CGFloat] = [nz, nz, nwz, nwz]  // 4週/来月/今週/来週
             for (j, wv) in webs[i].enumerated() where j < zooms.count {
                 if wv.pageZoom != zooms[j] { wv.pageZoom = zooms[j] }
             }
