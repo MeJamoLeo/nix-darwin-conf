@@ -78,8 +78,8 @@ CHECK_PREFIX = "Check if still submittable:"
 CHECK_MIN = 10
 MAIL_MIN = 15
 MAIL_MAX_AGE_DAYS = 3
-# mail-check は「前回成功日以降」の新着だけを digest にする（2026-10-03〜）ので、直近7日分を合算して読む。
-MAIL_UNION_DAYS = 7
+# mail-check は「前回成功日以降」の新着だけを digest にする（2026-10-03〜）ので、直近14日分を合算して読む（締切が先の要対応を途中で落とさない）。
+MAIL_UNION_DAYS = 14
 MAIL_DUE_DAYS = 3
 LOCK_TTL_H = 24
 STATUS_MARK = "<!-- status -->"
