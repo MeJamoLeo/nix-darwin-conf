@@ -1,5 +1,6 @@
 {
   config,
+  lib,
   pkgs,
   ...
 }: let
@@ -13,7 +14,8 @@ in {
   #   重すぎる（ユーザーの指摘 2026-10-02）。`todo` は fzf でタスクを選ぶだけで ▶/■ が刻まれ、
   #   どの端末でも、`ssh -t ogasawara todo` でも動く。nvim のキーマップは編集中の補助として残す。
   #   コマンド面: `todo`（選んで刻む）／`todo edit`（エディタで開く）／`todo show`（描画して表示）／`todo add <text> [--due|--on|--size]`（倉庫へ追記）。
-  # 実装は ./bin/todo-board（python3 1本・標準ライブラリのみ）。
+  # 実装は ./todo_board/（python3 パッケージ・標準ライブラリのみ。責務ごとに store/items/backlog/daily/planner/canvas/mail/commands/cli）。
+  # ./bin/todo-board はそれを呼ぶだけの薄い起動役。
   #
   # なぜ custom バケツか: 価値の中心が自分のコード（繰り越し規則）で、nvim の配線は付随。
   #
@@ -21,9 +23,18 @@ in {
   #   「セッション／人間の手動」頼みで全滅、record-blocks と gcal-dash（launchd）だけ生存した。
   #   だから 06:00 の確定（roll）は人間もセッションも介さず launchd が打つ。
 
+  # 起動役は ~/bin/todo-board のまま（launchd／`todo`／remote.nix は従来どおり `python3 ~/bin/todo-board <sub>` を叩く）。
+  # 本体パッケージは ~/.local/lib/todo-board/todo_board に置き、起動役が sys.path に足す
+  # （env TODO_BOARD_PKG で差し替え可。リポジトリ内で直接実行したときは bin/../todo_board を使う）。
+  # __pycache__ は store に入れない（flake 評価に作業ツリーの pycache が混ざらないように）。
   home.file."bin/todo-board" = {
     source = ./bin/todo-board;
     executable = true;
+  };
+
+  home.file.".local/lib/todo-board/todo_board".source = lib.cleanSourceWith {
+    src = ./todo_board;
+    filter = path: type: baseNameOf path != "__pycache__";
   };
 
   # `todo` = `todo-board pick`（引数があれば edit / add をそのまま渡す）。alias ではなく PATH 上のファイルにする:

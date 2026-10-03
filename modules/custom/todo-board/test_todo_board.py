@@ -1,7 +1,22 @@
-import importlib.machinery, importlib.util, os, sys, json, tempfile, datetime as dt, stat, subprocess
-P = os.path.expanduser("~/Forge/nix-darwin-conf/modules/custom/todo-board/bin/todo-board")
-ld = importlib.machinery.SourceFileLoader("tb", P); spec = importlib.util.spec_from_loader("tb", ld)
-tb = importlib.util.module_from_spec(spec); ld.exec_module(tb)
+import importlib, os, sys, json, tempfile, datetime as dt, stat, subprocess
+HERE = os.path.dirname(os.path.abspath(__file__))
+P = os.path.join(HERE, "bin", "todo-board")  # launcher（subprocess の CLI テスト用）
+sys.path.insert(0, HERE)
+# 本体は todo_board パッケージの各モジュール。`tb` はそれらの公開名をまとめて引けるだけの読み取り用ファサード。
+# ★ モンキーパッチは必ず定義元モジュールに当てる（`tb.x = ...` は tb の属性を作るだけで内部の呼び出しに効かない）。
+#   Canvas の HTTP は `cv.http_get_json = fake`（canvas.py 内の関数が名前で呼ぶので効く）。
+MODS = [importlib.import_module("todo_board." + n)
+        for n in ("store", "items", "backlog", "daily", "planner", "canvas", "mail", "commands", "cli")]
+cv = importlib.import_module("todo_board.canvas")
+class _Facade:
+    def __getattr__(self, name):
+        for m in MODS:
+            if name in m.__dict__:
+                return m.__dict__[name]
+        raise AttributeError(name)
+    def __setattr__(self, name, value):
+        raise AttributeError(f"patch the defining module, not the facade: {name}")
+tb = _Facade()
 D = dt.date
 os.environ.setdefault("S", tempfile.mkdtemp())
 fails = []
@@ -311,7 +326,7 @@ def fake_get(path):
     if path.endswith("/submissions/self"):
         return {"workflow_state": "unsubmitted"}  # 提出確認は lock 呼び出しの数に入れない
     calls.append(path); return {"lock_at": None}
-real_get = tb.http_get_json; tb.http_get_json = fake_get
+real_get = cv.http_get_json; cv.http_get_json = fake_get
 fixture([litem(1, "Mystery HW", PAST)])
 tb.canvas_refresh(T, NOW); bl = rd(tb.backlog_path())
 check("lock fetch endpoint", calls == ["/courses/111/assignments/1"], calls)
@@ -323,17 +338,17 @@ t = rd(tb.roll(T)); print(t)
 check("unknown lock: Check task", "- [ ] Check if still submittable: CS4355 Mystery HW (was due Wed 9/30 · 10m) ⟨a:1⟩" in sect(t, "Overdue"), t)
 check("unknown lock: not in Today", "Mystery" not in t.split("## Overdue")[0])
 # API gives a future lock -> known
-tb.http_get_json = lambda path: {"lock_at": "2026-10-09T04:59:59Z"}
+cv.http_get_json = lambda path: {"lock_at": "2026-10-09T04:59:59Z"}
 b = newbase(); fixture([litem(1, "Api Lock HW", PAST)]); tb.canvas_refresh(T, NOW)
 check("api lock future -> late tag", "(late until 10/8 23:59)" in rd(tb.backlog_path()), rd(tb.backlog_path()))
-tb.http_get_json = lambda path: {"lock_at": "2026-10-01T04:59:59Z"}
+cv.http_get_json = lambda path: {"lock_at": "2026-10-01T04:59:59Z"}
 b = newbase(); fixture([litem(1, "Api Locked HW", PAST)]); tb.canvas_refresh(T, NOW)
 check("api lock passed -> dropped", "Api Locked HW" not in rd(tb.backlog_path()))
 def boom(path): raise tb.CanvasError("x")
-tb.http_get_json = boom
+cv.http_get_json = boom
 b = newbase(); fixture([litem(1, "Err HW", PAST)]); ok, _ = tb.canvas_refresh(T, NOW)
 check("lock fetch failure -> unknown, canvas still ok, not cached", ok and "Err HW" in rd(tb.backlog_path()) and not os.path.exists(os.path.join(b, ".cache", "lock_at.json")))
-tb.http_get_json = real_get
+cv.http_get_json = real_get
 # fixture mode never touches network/token
 b = newbase(); fixture([litem(1, "Fx HW", PAST)]); ok, _ = tb.canvas_refresh(T, NOW)
 check("fixture mode: lock lookup offline -> unknown", ok and "Fx HW" in rd(tb.backlog_path()))
@@ -455,7 +470,7 @@ os.environ.pop("TODO_BOARD_MAIL_DIR")
 b = newbase(); fixture([]); tb.sync_all(T, NOW)
 check("mail disabled when env unset: no Mail block, no footer suffix", "# Mail" not in rd(tb.backlog_path()) and "mail:" not in tb.footer_line(T))
 # CLI aliases exist
-src = rd(P); check("sync + canvas alias subcommands", 'sub.add_parser("sync")' in src and 'sub.add_parser("canvas")' in src)
+src = rd(os.path.join(HERE, "todo_board", "cli.py")); check("sync + canvas alias subcommands", 'sub.add_parser("sync")' in src and 'sub.add_parser("canvas")' in src)
 
 
 # --- LTI 提出（planner は submitted=False・submissions/self は pending_review）→ 完了扱い
@@ -464,11 +479,11 @@ def fake_get2(path):
     if path.endswith("/submissions/self"):
         return {"workflow_state": "pending_review", "submitted_at": None, "score": None}
     return {"lock_at": None}
-tb.http_get_json = fake_get2
+cv.http_get_json = fake_get2
 fixture([litem(7, "zyBook Ex LTI", PAST)])
 tb.canvas_refresh(T, NOW); bl = rd(tb.backlog_path())
 check("LTI pending_review counts as done", "zyBook Ex LTI" not in bl, bl)
-tb.http_get_json = real_get
+cv.http_get_json = real_get
 # ======================= v3: nesting / block carry / tally / Done today =======================
 # --- parse: child_map（2スペース・タブ・深い字下げ・孤児・空行で切れる）
 L = ["# Today 10/1", "- [ ] P", "  - [ ] c1", "\t- [x] c2", "      - [ ] deep", "", "  - [ ] orphan", "- [ ] Q", "  - [ ] q1"]
@@ -636,7 +651,7 @@ def fake_sub(path):
     if path.endswith("/submissions/self"):
         return {"workflow_state": "submitted", "submitted_at": "2026-10-02T15:00:00Z"}  # 10/2 10:00 CDT
     return {"lock_at": None}
-tb.http_get_json = fake_sub
+cv.http_get_json = fake_sub
 fixture([litem(5, "LTI today", "2026-10-06T04:59:00Z")])
 wr(tb.day_path(T), "# Today 10/2\n\n<!-- status -->\nx\n"); tb.canvas_refresh(T, NOW)
 check("done-today: submitted_at (Chicago) today -> appended", "- [x] CS4355 LTI today ✓canvas" in rd(tb.day_path(T)), rd(tb.day_path(T)))
@@ -644,11 +659,11 @@ def fake_sub2(path):
     if path.endswith("/submissions/self"):
         return {"workflow_state": "submitted", "submitted_at": "2026-10-01T15:00:00Z"}
     return {"lock_at": None}
-tb.http_get_json = fake_sub2
+cv.http_get_json = fake_sub2
 b = newbase(); fixture([litem(5, "LTI yesterday", "2026-10-06T04:59:00Z")])
 wr(tb.day_path(T), "# Today 10/2\n\n<!-- status -->\nx\n"); tb.canvas_refresh(T, NOW)
 check("done-today: submitted_at yesterday -> not appended", "LTI yesterday" not in rd(tb.day_path(T)))
-tb.http_get_json = real_get
+cv.http_get_json = real_get
 
 # --- Done today (mail resolved)
 shutil.rmtree(md_dir, ignore_errors=True); os.makedirs(md_dir)
