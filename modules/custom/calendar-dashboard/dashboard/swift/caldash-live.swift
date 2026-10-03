@@ -32,8 +32,19 @@
 //      今日のファイル出現）を同じ1箇所で拾える。stat 1回/2秒は無視できるコスト。
 // 当日ファイルが無い間（roll ジョブが 06:00 に作る＝00:01〜06:00）は、最新の過去ファイルを
 //   「showing M/D (today's file not created yet)」の注記付きで出す（空白にしない）。
-// leaf が失敗（バイナリ無し/非0終了）したらエラー文を淡色で面に出す（黙って古いまま、にしない）。
-// ※ leaf は nixpkgs に無い。手動で ~/.local/bin/leaf に置いたバイナリ（config: leafPath）。
+// leaf が使えない（バイナリ無し/非0終了）ときは、leaf 風の素朴な等幅 HTML に自前で描く
+//   （見出し太字・`- [ ]`→☐・`- [x]`→☑ 淡緑・字下げ保持）。エラー文は出さない（leaf 無しは正常系の1つ）。
+//   エラーを出すのは「ファイルが読めない」ときだけ。
+// WHY 自前フォールバック: leaf は nixpkgs に無く（手動で ~/.local/bin/leaf に置く、config: leafPath）、
+//   持ち出し機（tanegashima）には入っていないことがある。入れ忘れで todo 面が死ぬのは割に合わない。
+//
+// 環境変数（起動時に1回読む。launchd の EnvironmentVariables で機体ごとに差し込む）:
+//   CALDASH_TODO_DIR        todo ファイルのルート。既定 ~/Store/30_Work/todo。
+//                           tanegashima は ogasawara の読み取り専用ミラー ~/.cache/todo-mirror を指す
+//                           （modules/custom/todo-board/remote.nix の todo-mirror が 5 分ごとに更新）。
+//   CALDASH_TODO_STALE_MIN  <dir>/.synced の mtime がこの分数より古い（or 無い）と、todo 面の先頭に
+//                           `last sync HH:MM (ogasawara unreachable?)` を淡色で出す。既定 0=無効
+//                           （ogasawara は ~/Store を直読みで、同期の概念が無いため）。
 //
 // モード: （無フラグ）interactive=通常窓・ログイン用 / --wallpaper=常在面（アイコン裏・透過・全Space・無人）
 // 設定: ~/calendar-dashboard/caldash-config.json（env CALDASH_CONFIG で上書き）。
@@ -311,7 +322,13 @@ var BG_OPACITY: CGFloat = 1.0
 // leaf バイナリのパス（config: leafPath）。nixpkgs に無いので手動配置の ~/.local/bin/leaf が既定。
 var LEAF_PATH = "~/.local/bin/leaf"
 // todo ファイルのルート。YYYY/YYYYMMDD-todo.md が下に並ぶ。
-let TODO_DIR = "~/Store/30_Work/todo"
+// env CALDASH_TODO_DIR で上書き（ミラーを読む機体用）。
+let TODO_DIR: String = {
+    let v = ProcessInfo.processInfo.environment["CALDASH_TODO_DIR"] ?? ""
+    return v.isEmpty ? "~/Store/30_Work/todo" : v
+}()
+// 鮮度警告のしきい値（分）。0=無効。
+let TODO_STALE_MIN: Int = Int(ProcessInfo.processInfo.environment["CALDASH_TODO_STALE_MIN"] ?? "") ?? 0
 
 struct Config: Codable {
     var gap: Double?; var monthZoom: Double?; var weekZoom: Double?
@@ -513,6 +530,7 @@ let TODO_FONT_PX: CGFloat = 16     // CSS px（pageZoom が掛かる）
 let TODO_CHAR_W: CGFloat = 0.61    // 等幅の 1 字幅 ≒ 0.6em（SF Mono/Menlo は 0.602em。切れ防止に僅かに多め）
 let TODO_PAD: CGFloat = 8          // CSS px（左右）
 
+extension String { var nilIfEmpty: String? { isEmpty ? nil : self } }
 func expandTilde(_ p: String) -> String { (p as NSString).expandingTildeInPath }
 
 // 日付 → ~/Store/30_Work/todo/YYYY/YYYYMMDD-todo.md
@@ -532,6 +550,36 @@ func latestTodoFile(onOrBefore stamp: String) -> (path: String, stamp: String)? 
         if let f = files.first { return ("\(root)/\(y)/\(f)", String(f.prefix(8))) }
     }
     return nil
+}
+
+// ---- todo の素朴レンダラ + 鮮度警告（leaf 無し用・純関数。単体テスト対象）----
+// markdown を leaf 風の等幅 HTML（<pre> の中身）にする。入力は必ず HTML エスケープする。
+func plainMarkdownToHTML(_ md: String) -> String {
+    var lines: [String] = []
+    for raw in md.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n") {
+        // 先頭の空白（字下げ）を保ち、その後ろだけを解釈する
+        let indentCount = raw.prefix(while: { $0 == " " || $0 == "\t" }).count
+        let indent = String(raw.prefix(indentCount)), rest = String(raw.dropFirst(indentCount))
+        if rest.hasPrefix("#") {
+            let text = rest.drop(while: { $0 == "#" }).trimmingCharacters(in: .whitespaces)
+            lines.append("\(htmlEscape(indent))<b>\(htmlEscape(text))</b>")
+        } else if rest.hasPrefix("- [ ] ") {
+            lines.append("\(htmlEscape(indent))☐ \(htmlEscape(String(rest.dropFirst(6))))")
+        } else if rest.hasPrefix("- [x] ") || rest.hasPrefix("- [X] ") {
+            lines.append("\(htmlEscape(indent))<span style=\"color:#6b9e78\">☑ \(htmlEscape(String(rest.dropFirst(6))))</span>")
+        } else {
+            lines.append(htmlEscape(raw))
+        }
+    }
+    return lines.joined(separator: "\n")
+}
+// 鮮度警告文。staleMin<=0 なら無効。.synced の mtime（nil=無い）が staleMin 分より古い/無いときだけ返す。
+func staleBanner(syncedAt: Date?, now: Date, staleMin: Int) -> String? {
+    guard staleMin > 0 else { return nil }
+    if let t = syncedAt, now.timeIntervalSince(t) <= Double(staleMin) * 60 { return nil }
+    guard let t = syncedAt else { return "last sync never (ogasawara unreachable?)" }
+    let c = cal().dateComponents([.hour, .minute], from: t)
+    return String(format: "last sync %02d:%02d (ogasawara unreachable?)", c.hour!, c.minute!)
 }
 
 final class TodoPane {
@@ -571,10 +619,14 @@ final class TodoPane {
             return
         }
         let mtime = ((try? FileManager.default.attributesOfItem(atPath: t.path))?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
-        let key = "\(t.path)|\(mtime)|\(cols)|\(zoom)"
+        // 鮮度警告は .synced の mtime と「今が古いか」で変わるので key に含める（2 秒 tick で再評価される）
+        let synced = (try? FileManager.default.attributesOfItem(atPath: "\(expandTilde(TODO_DIR))/.synced"))?[.modificationDate] as? Date
+        let banner = staleBanner(syncedAt: synced, now: Date(), staleMin: TODO_STALE_MIN)
+        let key = "\(t.path)|\(mtime)|\(cols)|\(zoom)|\(banner ?? "")"
         if key == lastKey { return }
         lastKey = key; gen += 1
-        let g = gen, leaf = expandTilde(LEAF_PATH), note = t.note, path = t.path
+        let g = gen, leaf = expandTilde(LEAF_PATH), path = t.path
+        let note = [banner, t.note].compactMap { $0 }.joined(separator: "\n").nilIfEmpty
         queue.async { [weak self] in
             let r = TodoPane.runLeaf(leaf: leaf, cols: cols, file: path)
             DispatchQueue.main.async {
@@ -585,9 +637,15 @@ final class TodoPane {
                     print("[caldash] todo re-render \(path) cols=\(cols)")
                     self.show(body: ansiToHTML(ansi), note: note)
                 case .fail(let msg):
-                    self.lastKey = ""      // 失敗は次の tick で再試行（leaf を後から置いた場合に復帰）
-                    if msg != self.lastErr { print("[caldash] todo leaf error: \(msg)"); self.lastErr = msg }
-                    self.show(body: "", note: "leaf error: \(msg)")
+                    // leaf 無し/失敗は正常系: 自前で素朴に描く。エラーを出すのはファイルが読めないときだけ。
+                    // key は残す（leaf を後から置いた場合は mtime/再起動で戻る。毎 tick の再試行はしない）。
+                    if msg != self.lastErr { print("[caldash] todo leaf unavailable, plain render: \(msg)"); self.lastErr = msg }
+                    if let data = FileManager.default.contents(atPath: path) {
+                        self.show(body: plainMarkdownToHTML(String(decoding: data, as: UTF8.self)), note: note)
+                    } else {
+                        self.lastKey = ""
+                        self.show(body: "", note: "cannot read \(path)")
+                    }
                 }
             }
         }
@@ -614,7 +672,8 @@ final class TodoPane {
     }
 
     private func show(body: String, note: String?) {
-        let n = note.map { "<div class=\"dim\">\(htmlEscape($0))</div>" } ?? ""
+        let n = (note ?? "").components(separatedBy: "\n").filter { !$0.isEmpty }
+            .map { "<div class=\"dim\">\(htmlEscape($0))</div>" }.joined()
         let html = """
         <!doctype html><meta charset="utf-8"><style>
         html,body{margin:0;background:#0f1117;overflow:hidden}
