@@ -78,6 +78,8 @@ CHECK_PREFIX = "Check if still submittable:"
 CHECK_MIN = 10
 MAIL_MIN = 15
 MAIL_MAX_AGE_DAYS = 3
+# mail-check は「前回成功日以降」の新着だけを digest にする（2026-10-03〜）ので、直近7日分を合算して読む。
+MAIL_UNION_DAYS = 7
 MAIL_DUE_DAYS = 3
 LOCK_TTL_H = 24
 STATUS_MARK = "<!-- status -->"
@@ -1266,12 +1268,41 @@ def latest_digest(today):
         return None, None
     if (today - best[0]).days > MAIL_MAX_AGE_DAYS:
         return best[0], None
-    try:
-        with open(os.path.join(mdir, best[1]), encoding="utf-8") as fh:
-            data = json.load(fh)
-    except (OSError, ValueError):
+    # 直近 MAIL_UNION_DAYS 日の digest を古い順に読み、同じメール（mail_id）は新しい digest の
+    # 判定で上書きする（後の digest で resolved になったものは消える）。各項目に初出の digest 日を残す
+    # （"from M/D" と着手日の基準。窓が「前回以降」になり、各 digest には新着しか載らないため）。
+    picked = []
+    for f in names:
+        m = MAIL_FILE.match(f)
+        if not m:
+            continue
+        try:
+            d = dt.date(int(m[1]), int(m[2]), int(m[3]))
+        except ValueError:
+            continue
+        if d <= today and (today - d).days <= MAIL_UNION_DAYS:
+            picked.append((d, f))
+    merged, first_seen = {}, {}
+    for d, f in sorted(picked):
+        try:
+            with open(os.path.join(mdir, f), encoding="utf-8") as fh:
+                data = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        items = data.get("items") if isinstance(data, dict) else None
+        in_this = set()
+        for it in (items[:300] if isinstance(items, list) else []):
+            if not isinstance(it, dict):
+                continue
+            mid = mail_id(it)
+            if mid in in_this:
+                continue  # 同じ digest 内の重複は先頭を採る（従来どおり）
+            in_this.add(mid)
+            first_seen.setdefault(mid, d)
+            merged[mid] = dict(it, _dd=first_seen[mid].isoformat())
+    if not merged and not picked:
         return best[0], None
-    return best[0], data if isinstance(data, dict) else None
+    return best[0], {"items": list(merged.values())}
 
 
 def mail_lines(digest_date, data, done):
@@ -1294,7 +1325,11 @@ def mail_lines(digest_date, data, done):
             dl = dt.date.fromisoformat(str(it.get("deadline") or ""))
         except ValueError:
             pass
-        if dl and dl < digest_date - dt.timedelta(days=20):
+        try:
+            idd = dt.date.fromisoformat(str(it.get("_dd") or ""))
+        except ValueError:
+            idd = digest_date
+        if dl and dl < idd - dt.timedelta(days=20):
             dl = None  # 古い締切（infer_date が翌年に飛ばす）は無視して通常扱い
         subj = mail_clean(it.get("subject"), 60)
         if not subj:
@@ -1302,7 +1337,7 @@ def mail_lines(digest_date, data, done):
         if dl:
             when = f"due {md(dl)} · {MAIL_MIN}m"
         else:
-            when = f"due {md(digest_date + dt.timedelta(days=MAIL_DUE_DAYS))} · {MAIL_MIN}m · from {md(digest_date)}"
+            when = f"due {md(idd + dt.timedelta(days=MAIL_DUE_DAYS))} · {MAIL_MIN}m · from {md(idd)}"
         lines.append(f"- [ ] Mail: {mail_sender(it)} — {subj} ({when}) ⟨{mid}⟩")
     return lines, alive
 

@@ -440,7 +440,11 @@ check("mail [x] remembered, not re-planned/ carried", "Klepetko" not in t2 and "
 check("mail done recorded", any(k.startswith("m:") for k in json.load(open(os.path.join(b, ".state.json")))["done_ids"]))
 digest("2026-10-02", [mi("bursar@x.edu", "Fall 2026 Tuition Bill", dl="2026-10-08", name="Campus Payments")])
 tb.sync_all(D(2026, 10, 4), NOW)
-check("mail done forgotten when digest drops it", json.load(open(os.path.join(b, ".state.json")))["done_ids"] == {})
+# 直近7日の digest を合算するので、10/1 の digest が窓にある間は覚えたまま
+check("mail done kept while still in the 7-day union", any(k.startswith("m:") for k in json.load(open(os.path.join(b, ".state.json")))["done_ids"]))
+os.remove(os.path.join(md_dir, "2026-10-01-mail.json"))
+tb.sync_all(D(2026, 10, 4), NOW)
+check("mail done forgotten when no digest has it", json.load(open(os.path.join(b, ".state.json")))["done_ids"] == {})
 # stale digest (>3 days) -> empty section + status
 tb.sync_all(D(2026, 10, 9), NOW); bl = rd(tb.backlog_path())
 check("stale digest: section empty", "# Mail" in bl and not [l for l in bl.split("# Mail")[1].split("\n# ")[0].split("\n") if l.startswith("- ")])
@@ -659,5 +663,16 @@ b = newbase(); fixture([]); wr(tb.day_path(D(2026, 10, 3)), "# Today 10/3\n\n<!-
 tb.sync_all(D(2026, 10, 3), NOW)
 check("done-today: older digest's resolved not appended", "Sign the form" not in rd(tb.day_path(D(2026, 10, 3))))
 os.environ.pop("TODO_BOARD_MAIL_DIR")
+
+# --- 7日合算：別の日の digest に分かれた要対応が両方残る・後の digest の resolved で消える
+b = newbase()
+md_dir2 = tempfile.mkdtemp(dir=os.environ["S"]); os.environ["TODO_BOARD_MAIL_DIR"] = md_dir2
+json.dump({"items": [mi("a@x.edu", "Old thing", name="A")]}, open(os.path.join(md_dir2, "2026-09-30-mail.json"), "w"))
+json.dump({"items": [mi("b@x.edu", "New thing", name="B")]}, open(os.path.join(md_dir2, "2026-10-01-mail.json"), "w"))
+tb.mail_refresh(D(2026, 10, 1), NOW); mb = rd(tb.backlog_path())
+check("union: both days kept", "Old thing" in mb and "New thing" in mb and "from 9/30" in mb, mb)
+json.dump({"items": [mi("a@x.edu", "Old thing", name="A", resolved=True)]}, open(os.path.join(md_dir2, "2026-10-02-mail.json"), "w"))
+tb.mail_refresh(D(2026, 10, 2), NOW); mb = rd(tb.backlog_path())
+check("union: later resolved removes", "Old thing" not in mb and "New thing" in mb, mb)
 
 print("\nFAILS:", fails); sys.exit(1 if fails else 0)
