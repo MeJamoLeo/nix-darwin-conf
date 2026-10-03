@@ -14,5 +14,6 @@
   home-manager.users.${username}.imports = [
     ../modules/apps/hermes/home.nix
     ../modules/custom/todo-board/home.nix
+    ../modules/custom/mail-check/home.nix
   ];
 }
