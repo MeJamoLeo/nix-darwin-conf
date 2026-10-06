@@ -7,6 +7,7 @@
   <base>/backlog.md             倉庫。`# Canvas`（機械管理）/ `# Dated` / `# Someday` / `# Expired`。
   <base>/.status.json           Canvas／メール取得の最終成功・直近エラー。
   <base>/.state.json            手で [x] にした行の記憶（done_ids／checked_ids。Canvas／digest から消えたら忘れる）。
+  <base>/.blocks.json           blocks が分類済みのブロック（日付:セッション:区間 → 紐づけた行のキー）。0600。
   <base>/.cache/lock_at.json    過去締切項目の lock_at（24h キャッシュ）。
   <base>/courses.json           任意。{"context_name の部分文字列": "CS4355"} の別名表（コード内の既定に上書き）。
   <base>/exclude.json           任意。同期しない科目コードの配列。
@@ -44,6 +45,25 @@ def state_path():
     return os.path.join(base_dir(), ".state.json")
 
 
+def blocks_path():
+    return os.path.join(base_dir(), ".blocks.json")
+
+
+ROLL_HOUR = 6  # 日次ファイルを確定する時刻（launchd の roll）
+
+
+def current_day(now):
+    """いま機械が書く日次ファイルの日付。
+
+    06:00 前に今日のファイルがまだ無ければ前日のもの（夜更かしの作業は前日の続き。06:00 の roll が
+    今日のファイルを作るまで、前日のファイルが「いまの」ファイル）。今日のファイルがあればそちら。
+    """
+    today = now.date()
+    if now.hour < ROLL_HOUR and not os.path.exists(day_path(today)):
+        return today - dt.timedelta(days=1)
+    return today
+
+
 def lock_cache_path():
     return os.path.join(base_dir(), ".cache", "lock_at.json")
 
@@ -77,7 +97,7 @@ def is_excluded_text(text, excluded):
 
 def atomic_write(path, text):
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".todo-")
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path), prefix=".todo-")  # mkstemp は 0600
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as fh:
             fh.write(text)
@@ -146,6 +166,15 @@ def save_status(ok, err, now):
 def save_mail_status(info):
     st = load_status()
     st["mail"] = info
+    write_if_changed(status_path(), json.dumps(st, ensure_ascii=False, indent=2) + "\n")
+
+
+def save_status_key(key, info):
+    """.status.json の1キー（calendar／blocks など）だけを更新する。"""
+    st = load_status()
+    if st.get(key) == info:
+        return
+    st[key] = info
     write_if_changed(status_path(), json.dumps(st, ensure_ascii=False, indent=2) + "\n")
 
 

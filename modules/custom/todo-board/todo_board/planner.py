@@ -17,6 +17,7 @@ from .items import (
     infer_date,
     LATE,
     MARKER,
+    md,
     norm_text,
     PAREN,
     parse_item,
@@ -35,6 +36,7 @@ CAPACITY = 120  # 1日の作業可能分（record-blocks は膨らむので控�
 DEFAULT_SIZE = 60
 EXAM_LEAD_DAYS = 7
 IF_TIME = "If time allows"
+COULD_MOVE = "Could move"
 OVERDUE = "Overdue"
 CHECK_MIN = 10
 
@@ -132,8 +134,61 @@ def line_size(body):
     return DEFAULT_SIZE
 
 
-def plan_today(today, blocks, carried):
-    """(警告行 or None, Must 行[], Overdue 行[], If-time 行[])。carried は繰り越し済みの日次行。"""
+def latest_start(it):
+    """余白を削った最遅の着手日（締切に間に合う最後の日）。動かせない／日付なしは None。
+
+    start_by は「倍率 RATIO と最低1日の余白」を含む安全側の日。ここでは倍率なし・余白なしで、
+    締切日そのものに着手できるなら締切日、作業が1日に収まらなければ超える日数だけ前に戻す（午前の締切は前日）。
+    試験準備は試験の前日まで。`on`（その日にやる）は動かさない。
+    """
+    if it["date"] is None or it["kind"] == "on":
+        return None
+    if it["kind"] == "exam":
+        return it["date"] - dt.timedelta(days=1)
+    extra = max(0, math.ceil(plan_size(it) / CAPACITY) - 1)
+    ls = it["date"] - dt.timedelta(days=extra)
+    if it["time"] and it["time"][0] < 12:
+        ls -= dt.timedelta(days=1)
+    return ls
+
+
+def defer_proposal(today, must, load):
+    """(動かす候補[(item, 移動先の日, 最遅の日)], 動かしたあとの残り超過（分）)。機械は何も動かさない。
+
+    動かせるのは latest_start が明日以降の項目だけ。余裕（最遅の日までの日数）が大きいものから、
+    1日に収まるまで貪欲に取る。移動先は明日（最遅の日が明日より前なら動かせない）。
+    """
+    tomorrow = today + dt.timedelta(days=1)
+    pool = []
+    for c in must:
+        ls = latest_start(c)
+        if ls is not None and ls >= tomorrow:
+            pool.append((c, ls))
+    pool.sort(key=lambda x: ((x[1] - today).days, plan_size(x[0])), reverse=True)
+    moves = []
+    for c, ls in pool:
+        if load <= CAPACITY:
+            break
+        moves.append((c, tomorrow, ls))
+        load -= plan_size(c) * RATIO
+    return moves, max(0.0, load - CAPACITY)
+
+
+def could_move_lines(moves, remaining):
+    """日次ファイルの `---` ＋ `## Could move …` 節（チェックボックス無し＝タスクとして拾われない）。"""
+    head = "fits if deferred" if remaining <= 0 else "does not fully fit"
+    out = ["---", f"## {COULD_MOVE} ({head})"]
+    if not moves:
+        out.append("- (nothing can move without missing a deadline)")
+    for c, to, ls in moves:
+        out.append(f"- {norm_text(c['line'][6:])} → {md(to)} (latest start {md(ls)})")
+    if remaining > 0:
+        out.append(f"> ⚠ still over by {fmt_hm(math.ceil(remaining))} even after moving all of these")
+    return out
+
+
+def plan_full(today, blocks, carried):
+    """(警告行 or None, Must 項目[], Overdue 項目[], If-time 項目[], 超過時の Could move 行[])。"""
     present_markers = set()
     present_text = set()
     load = 0.0
@@ -162,8 +217,11 @@ def plan_today(today, blocks, carried):
     load += sum(c["osize"] * RATIO for c in over)
     warn = None
     later = []
+    moves_lines = []
     if load > CAPACITY:
         warn = f"> ⚠ over by {fmt_hm(math.ceil(load - CAPACITY))} today"
+        moves, remaining = defer_proposal(today, must, load)
+        moves_lines = could_move_lines(moves, remaining)
     else:
         spare = CAPACITY - load
         for c in rest:
@@ -171,4 +229,10 @@ def plan_today(today, blocks, carried):
                 break
             later.append(c)
             spare -= plan_size(c) * RATIO
+    return warn, must, over, later, moves_lines
+
+
+def plan_today(today, blocks, carried):
+    """(警告行 or None, Must 行[], Overdue 行[], If-time 行[])。carried は繰り越し済みの日次行。"""
+    warn, must, over, later, _ = plan_full(today, blocks, carried)
     return warn, [c["line"] for c in must], [c["line"] for c in over], [c["line"] for c in later]

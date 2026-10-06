@@ -25,11 +25,13 @@ from .store import (
     read_raw,
     save_state,
     save_status,
+    save_status_key,
     write_if_changed,
 )
 from .items import EXAM_PREP_MIN, fmt_size, last_paren, MARKER, md, TASK_ANY
 from .backlog import CANVAS_NOTE, get_block, join_blocks, load_backlog, split_blocks
-from .daily import open_markers, refresh_today
+from .daily import open_markers, refresh_today, save_exams
+from .gcal import calendar_exams
 
 
 LOCK_TTL_H = 24
@@ -161,6 +163,9 @@ def normalize_item(raw):
         label = f"{course} {title}".strip()
     return {
         "marker": f"{kind}:{raw['plannable_id']}",
+        # 試験の「準備」は試験本体と別の ID（p:）で持つ。準備を [x] にしても a:ID（試験そのもの）は閉じない
+        "prep_marker": f"p:{raw['plannable_id']}",
+        "course": course,
         "label": label,
         "due": to_chicago(raw["plannable_date"]),
         "pts": pl.get("points_possible"),
@@ -317,8 +322,10 @@ def fetch_canvas(today, now=None):
 def canvas_line(it):
     t = it["due"]
     if it["exam"]:
-        # 試験は準備タスク（Plan prep）として出す。提出は来ないので Canvas 側の完了では閉じない
-        return f"- [ ] {it['label']} (exam {md(t)} {t:%H:%M} · {fmt_size(it['size'])}) ⟨{it['marker']}⟩"
+        # 試験は準備タスク（Plan prep）として出す。提出は来ないので Canvas 側の完了では閉じない。
+        # ID は準備専用の p:（試験本体の a:ID と別。カレンダー由来の試験は g: の本体を持たず p:g… だけ）
+        when = md(t) + ("" if it.get("allday") else f" {t:%H:%M}")
+        return f"- [ ] {it['label']} (exam {when} · {fmt_size(it['size'])}) ⟨{it.get('prep_marker') or it['marker']}⟩"
     parts = [f"due {md(t)} {t:%H:%M}"]
     try:
         pts = float(it["pts"] or 0)
@@ -334,17 +341,25 @@ def canvas_line(it):
     return f"- [ ] {it['label']} ({' · '.join(parts)}){tag} ⟨{it['marker']}⟩"
 
 
-def rewrite_canvas_section(text, items, today):
-    """`# Canvas` ブロックだけを差し替える。他のブロックはバイト列のまま。"""
+def rewrite_canvas_section(text, items, today, keep_cal=False):
+    """`# Canvas` ブロックだけを差し替える。他のブロックはバイト列のまま。
+
+    keep_cal: カレンダーが取れなかった回は、前回の `g:`／`p:g…` 由来の試験行を（[x] も含め）そのまま残す。
+    """
     blocks = split_blocks(text)
     old = get_block(blocks, "Canvas")
     old_done = set()
+    kept = []
     if old:
         for ln in old[1]:
             m = TASK_ANY.match(ln)
             mm = MARKER.search(m[3]) if m else None
+            if keep_cal and mm and (mm[1] == "g" or mm[2].startswith("g") and mm[1] == "p"):
+                kept.append(ln)
             if m and m[2] == "x" and mm and last_paren(m[3]) and last_paren(m[3])[1] == "exam":
                 old_done.add(f"{mm[1]}:{mm[2]}")  # 試験の準備は人が閉じた状態を保つ
+                if mm[1] == "a":
+                    old_done.add(f"p:{mm[2]}")  # 旧形式（準備が本体と同じ a:ID）の閉じた状態を p: に引き継ぐ
     open_items = []
     for it in items:
         if it["done"] and not it["exam"]:
@@ -360,9 +375,10 @@ def rewrite_canvas_section(text, items, today):
     lines = ["# Canvas", CANVAS_NOTE]
     for it in open_items:
         ln = canvas_line(it)
-        if it["marker"] in old_done:
+        if (it.get("prep_marker") if it["exam"] else it["marker"]) in old_done:
             ln = ln.replace("- [ ]", "- [x]", 1)
         lines.append(ln)
+    lines.extend(kept)
     lines.append("")
     if old:
         old[1] = lines
@@ -422,11 +438,19 @@ def canvas_refresh(today, now):
     prev_open = open_markers(old_bl)
     if os.path.exists(day_path(today)):
         prev_open |= open_markers(read_raw(day_path(today)))
-    text = rewrite_canvas_section(old_bl, items, today)
+    # カレンダーの 📕（Canvas に載らない試験）。取れなくても Canvas 側は止めない（前回の試験行を残す）
+    try:
+        cal, cal_st = calendar_exams(today, items, now)
+    except Exception as e:
+        cal, cal_st = None, {"state": "error", "error": f"calendar failed: {type(e).__name__}"}
+    save_status_key("calendar", cal_st)
+    all_items = items + (cal or [])
+    save_exams(all_items, keep_cal=cal is None)
+    text = rewrite_canvas_section(old_bl, all_items, today, keep_cal=cal is None)
     write_if_changed(backlog_path(), text)
     save_status(True, None, now)
     done_ids = {i["marker"] for i in items if i["done"] and not i["exam"]}
     done_today = canvas_done_today(items, today, prev_open)
-    refresh_today(today, done_ids, now, done_today)  # 先に今日の [x] を記憶し、そのあと Canvas に無い項目を忘れる
+    refresh_today(today, done_ids, now, done_today, all_items)  # 先に今日の [x] を記憶し、そのあと Canvas に無い項目を忘れる
     prune_state("aqd", {i["marker"] for i in items})
     return True, done_ids

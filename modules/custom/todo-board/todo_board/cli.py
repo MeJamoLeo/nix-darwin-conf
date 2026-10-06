@@ -3,9 +3,10 @@ import argparse
 import datetime as dt
 import sys
 
-from .store import day_path
+from .store import current_day, day_path
 from .daily import footer_line
 from .commands import add, edit, pick, roll, show, sync_all
+from . import blocks
 
 
 def parse_date(s):
@@ -25,6 +26,8 @@ def main():
     sub.add_parser("show")
     sub.add_parser("open")  # edit の旧名（互換）
     sub.add_parser("sync")
+    p = sub.add_parser("blocks")  # Claude 作業時間（record-blocks）を今日の行に (≈35m) で紐づける
+    p.add_argument("--dry-run", action="store_true")
     sub.add_parser("canvas")  # sync の旧名（互換）
     pa = sub.add_parser("add")
     pa.add_argument("text", nargs="+")
@@ -40,10 +43,17 @@ def main():
         return pick(dt.date.today())
     elif a.cmd in ("sync", "canvas"):
         now = dt.datetime.now()
-        ok, _ = sync_all(now.date(), now)
+        day = current_day(now)  # 06:00 前で今日のファイルが無ければ前日のファイル（夜更かし中も締切の変更が届く）
+        ok, _ = sync_all(day, now)
         if not ok:
-            print(footer_line(now.date()), file=sys.stderr)
+            print(footer_line(day), file=sys.stderr)
         return 0 if ok else 1
+    elif a.cmd == "blocks":
+        with blocks.single_instance() as got:
+            if not got:
+                print("[blocks] another run is in progress; skipped")
+                return 0
+            return blocks.run(dt.datetime.now(), dry_run=a.dry_run)
     elif a.cmd == "show":
         return show(dt.date.today())
     elif a.cmd == "add":

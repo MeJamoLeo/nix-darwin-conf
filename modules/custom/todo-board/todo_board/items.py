@@ -11,7 +11,10 @@ import re
 
 TASK_OPEN = re.compile(r"^(\s*)- \[ \] (.*)$")
 TASK_ANY = re.compile(r"^(\s*)- \[(.)\] (.*)$")
-STAMP = re.compile(r"\s*[▶■][^(→⟨]*?(?:\(\d+m\))?(?=\s*\(since|\s*→|\s*⟨|$)")
+# 手で刻んだ ▶/■、または blocks が付ける `(≈35m)` 注記（繰り越し・突き合わせでは両方とも「印」として落とす）
+STAMP = re.compile(r"\s*(?:[▶■][^(→⟨]*?(?:\(\d+m\))?(?=\s*\(since|\s*→|\s*⟨|$)|\(≈[^)]*\))")
+BLOCK_NOTE = re.compile(r"\s*\(≈[^)]*\)")
+MANUAL_STAMP = re.compile(r"\s*[▶■]")
 ORIGIN = re.compile(r"\s*\(since (\d+)/(\d+)\)")
 MARKER = re.compile(r"\s*⟨([a-z]):([0-9A-Za-z]+)⟩")
 STARTED = re.compile(r"▶(\d+):(\d+)")
@@ -24,6 +27,20 @@ DUR_DONE = re.compile(r"■\d+:\d+ \((\d+)m\)")
 EXAM_PREP_MIN = 30
 CHECK_PREFIX = "Check if still submittable:"
 WD = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+
+def set_block_note(body, note):
+    """行本文の `(≈…)` 注記を note に差し替える（None なら外す）。冪等。
+
+    置き場所: ⟨マーカー⟩ の直前 → 無ければ手刻みの ▶/■ の直前 → 無ければ末尾。
+    手刻みの ▶…■…(35m) の後ろに括弧を足すと STAMP が手刻みを丸ごと落とせなくなるため、必ずその前に置く。
+    """
+    body = BLOCK_NOTE.sub("", body)
+    if not note:
+        return body
+    m = MARKER.search(body) or MANUAL_STAMP.search(body) or re.search(r"\s*→ \S+$", body)  # [>] 行の `→ 10/6` の手前
+    i = m.start() if m else len(body.rstrip())
+    return body[:i] + " " + note + body[i:]
 
 
 def md(d):

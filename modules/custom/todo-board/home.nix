@@ -6,6 +6,18 @@
 }: let
   # メール triage の日次 digest（YYYY-MM-DD-mail.json）。todo-board sync が直近3日以内のものを読む。
   mailDir = "${config.home.homeDirectory}/Forge/claude-obsidian/vault/wiki/2_Areas/anjin-operations/mail-digests";
+
+  # claude -p を叩く経路（blocks の分類・取得役のカレンダー読み取り）用。launchd の PATH は最小。
+  claudeBin = "${config.home.profileDirectory}/bin/claude";
+  claudePath = builtins.concatStringsSep ":" [
+    "${pkgs.python3}/bin"
+    "${config.home.profileDirectory}/bin"
+    "/run/current-system/sw/bin"
+    "/usr/bin"
+    "/bin"
+    "/usr/sbin"
+    "/sbin"
+  ];
 in {
   # todo-board — 日次 Todo ファイル（~/Store/30_Work/todo/YYYY/YYYYMMDD-todo.md）の
   # 繰り越しと、fzf での ▶/■ 時間刻み。設計＝vault の todo-board-design。
@@ -97,11 +109,42 @@ in {
       EnvironmentVariables = {
         TODO_BOARD_RBW = "${pkgs.rbw}/bin/rbw";
         TODO_BOARD_MAIL_DIR = mailDir;
+        # カレンダー（📕 試験）は claude -p ＋ Google Calendar コネクタで読む（6時間キャッシュ）
+        HOME = config.home.homeDirectory;
+        TODO_BOARD_CLAUDE = claudeBin;
+        PATH = claudePath;
       };
       StartInterval = 3600;
       RunAtLoad = true;
       StandardOutPath = "${config.home.homeDirectory}/Library/Logs/todo-board-canvas.log";
       StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/todo-board-canvas.err.log";
+    };
+  };
+
+  # 作業時間の自動記録: 15分ごとに今日の分の record-blocks を読み、Claude Code の作業ブロックを Haiku で
+  # 今日の Todo 行に紐づけて `(≈35m)` と書く（手入力ゼロ。▶/■ の手刻みは摩擦が大きく使われなかった）。
+  #   ⚠ 設計と除外規則（claude -p の launchd セッションは数えない等）は todo_board/blocks.py の docstring。
+  #   ⚠ claude は launchd の最小 PATH に居ないので store/profile の bin を PATH に足し、TODO_BOARD_CLAUDE でも渡す
+  #     （mail-check と同じ。認証は keychain 経由なので LaunchAgent のまま＝GUI セッションで動かすこと）。
+  #   ⚠ python は store パス固定。RunAtLoad は false（switch のたびに claude を呼ばない）。
+  #   ⚠ 分類は初見のブロックだけ・1回の呼び出しにまとめる。失敗したら次の周期にやり直す（ファイルは壊さない）。
+  launchd.agents.todo-board-blocks = {
+    enable = true;
+    config = {
+      ProgramArguments = [
+        "${pkgs.python3}/bin/python3"
+        "${config.home.homeDirectory}/bin/todo-board"
+        "blocks"
+      ];
+      EnvironmentVariables = {
+        HOME = config.home.homeDirectory;
+        TODO_BOARD_CLAUDE = claudeBin;
+        PATH = claudePath;
+      };
+      StartInterval = 900;
+      RunAtLoad = false;
+      StandardOutPath = "${config.home.homeDirectory}/Library/Logs/todo-board-blocks.log";
+      StandardErrorPath = "${config.home.homeDirectory}/Library/Logs/todo-board-blocks.err.log";
     };
   };
 
@@ -123,6 +166,10 @@ in {
       EnvironmentVariables = {
         TODO_BOARD_RBW = "${pkgs.rbw}/bin/rbw";
         TODO_BOARD_MAIL_DIR = mailDir;
+        # カレンダー（📕 試験）は claude -p ＋ Google Calendar コネクタで読む（6時間キャッシュ）
+        HOME = config.home.homeDirectory;
+        TODO_BOARD_CLAUDE = claudeBin;
+        PATH = claudePath;
       };
       StartCalendarInterval = [
         {

@@ -14,9 +14,10 @@ import datetime as dt
 import os
 import re
 
-from .store import day_path, load_state, load_status, read_raw, save_state, write_if_changed
+from .store import base_dir, day_path, load_state, load_status, read_raw, save_state, write_if_changed
 from .items import (
     CHECK_PREFIX,
+    wd_md,
     DONE_MARK,
     DUR_DONE,
     fmt_hm,
@@ -30,7 +31,9 @@ from .items import (
     TASK_OPEN,
     text_hash,
 )
-from .backlog import add_someday, get_block
+from .backlog import add_someday, get_block, load_backlog, split_blocks
+from .items import parse_item
+from .gcal import is_exam_title
 
 
 DONE_TODAY = "Done today"
@@ -80,8 +83,29 @@ def harvest_file(path, now):
         harvest(read_raw(path), now)
 
 
+def calendar_footer():
+    c = load_status().get("calendar")
+    if not c:
+        return ""
+    if c.get("state") == "suspicious":
+        return " · calendar: suspicious result (kept previous)"
+    if c.get("state") == "error":
+        err = re.sub(r"\s+", " ", str(c.get("error")))[:60]
+        return f" · calendar: FAILED: {err}"
+    no = c.get("no_emoji") or 0
+    return f" · calendar: ok ({c.get('n', 0)} exams" + (f" · {no} without 📕)" if no else ")")
+
+
+def blocks_footer(today):
+    """blocks が今日のどの行にも紐づけられなかった Claude 作業時間（0 なら出さない）。"""
+    b = load_status().get("blocks") or {}
+    if b.get("date") == today.isoformat() and b.get("unlinked_min"):
+        return f" · Claude time not linked: {fmt_hm(b['unlinked_min'])}"
+    return ""
+
+
 def footer_line(today):
-    return canvas_footer() + mail_footer()
+    return canvas_footer() + mail_footer() + calendar_footer() + blocks_footer(today)
 
 
 def canvas_footer():
@@ -131,6 +155,19 @@ def mark_canvas_done(text, done_ids):
     return "\n".join(out), changed
 
 
+PREP_PREFIX = "Plan prep:"
+
+
+def prep_marker_fix(body):
+    """旧形式の `Plan prep:` 行（試験本体と同じ ⟨a:ID⟩）を準備専用の ⟨p:ID⟩ に直す。
+
+    準備を [x] にすると試験本体（a:ID）まで閉じた扱いになる混線を避けるため（2026-10-06）。
+    """
+    if PREP_PREFIX not in body:
+        return body
+    return re.sub(r"⟨a:([0-9A-Za-z]+)⟩", r"⟨p:\1⟩", body)
+
+
 def sync_done(daily_text, blocks):
     """日次で [x] にした Dated 行・試験準備行を倉庫でも [x] にする（再計画を防ぐ）。変更の有無を返す。"""
     done = set()
@@ -139,7 +176,10 @@ def sync_done(daily_text, blocks):
         if m and m[2] == "x":
             mm = MARKER.search(m[3])
             if mm:
-                done.add(f"{mm[1]}:{mm[2]}")
+                if PREP_PREFIX in m[3] and mm[1] in "ap":
+                    done.add(f"p:{mm[2]}")  # 準備行は p: だけ（旧形式の a:ID で試験本体の行まで閉じない）
+                else:
+                    done.add(f"{mm[1]}:{mm[2]}")
     if not done:
         return False
     changed = False
@@ -156,6 +196,8 @@ def sync_done(daily_text, blocks):
                 continue
             mm = MARKER.search(m[2])
             key = f"{mm[1]}:{mm[2]}" if mm else f"h:{text_hash(m[2])}"
+            if name == "Canvas" and mm and mm[1] == "a":
+                key = f"p:{mm[2]}"  # 旧形式の試験行（a:ID）は準備の印として p: で照合する
             if key in done:
                 b[1][i] = f"{m[1]}- [x] {m[2]}"
                 changed = True
@@ -234,7 +276,246 @@ def add_done_today(text, entries):
     return "\n".join(lines + [""] + block)
 
 
-def refresh_today(today, done_ids, now=None, done_today=None):
+def prep_fix_text(text):
+    """今日のファイルの旧形式の `Plan prep:` 行（⟨a:ID⟩）を ⟨p:ID⟩ に直す（トップレベルの未完・完了行だけ）。"""
+    out = []
+    for ln in text.split("\n"):
+        m = TASK_ANY.match(ln)
+        out.append(f"{m[1]}- [{m[2]}] {prep_marker_fix(m[3])}" if m and not m[1] else ln)
+    return "\n".join(out)
+
+
+# ---------------------------------------------------------------- 終わった試験の準備行の失効
+EXPIRED = "(expired)"
+EXAM_WORD = re.compile(r"(?<![A-Za-z])(midterm|exam|final)s?(?![A-Za-z])|(試験)|(中間)|(期末)", re.I)
+COURSE_RE = re.compile(r"(?<![A-Za-z0-9])([A-Za-z]{2,4})[\s._-]?(\d{4})(?![0-9])")
+
+
+def course_codes(text):
+    return {m[1].upper() + m[2] for m in COURSE_RE.finditer(text)}
+
+
+def exam_words(text):
+    """題名の試験語 → 正規化した集合（中間→midterm、期末→final、試験→exam）。"""
+    out = set()
+    for m in EXAM_WORD.finditer(text):
+        w = m[0].lower()
+        out.add("midterm" if w.startswith("midterm") or w == "中間" else "final" if w.startswith("final") or w == "期末"
+                else "exam")
+    return out
+
+
+def exams_from_blocks(blocks, today):
+    """倉庫の Canvas／Mail／Dated から試験項目 [{marker, codes, words, start(datetime), allday}]。"""
+    out = []
+    for name in ("Canvas", "Mail", "Dated"):
+        b = get_block(blocks, name)
+        for ln in (b[1] if b else []):
+            m = TASK_ANY.match(ln)
+            if not m or m[2] not in (" ", "x"):
+                continue
+            it = parse_item(m[3], today)
+            if it["kind"] != "exam" or it["date"] is None:
+                continue
+            title = it["title"].removeprefix("Plan prep:").strip()
+            start = dt.datetime.combine(it["date"], dt.time(*it["time"]) if it["time"] else dt.time(23, 59, 59))
+            out.append({"marker": it["marker"], "codes": course_codes(title), "words": exam_words(title),
+                        "start": start, "allday": not it["time"], "date": it["date"]})
+    return out
+
+
+def exams_cache_path():
+    return os.path.join(base_dir(), ".cache", "exams.json")
+
+
+def exam_entry(it):
+    """canvas.py の項目 dict（exam）→ 失効判定用の dict。"""
+    due = it["due"]
+    codes = course_codes(f"{it['label']} {it.get('course') or ''}")
+    return {"marker": it.get("prep_marker") or it["marker"], "codes": codes, "words": exam_words(it["label"]),
+            "start": due, "allday": bool(it.get("allday")), "date": due.date()}
+
+
+def save_exams(items, keep_cal):
+    """直近の同期で見えた試験（受験済み・過去も含む）を覚える。倉庫の Canvas 欄は終わった試験を落とすので、
+    失効判定はここと倉庫の両方を見る。keep_cal＝カレンダーが取れなかった回は、前回のカレンダー由来を残す。"""
+    import json
+    p = exams_cache_path()
+    cur = [exam_entry(i) for i in items if i.get("exam") and not i.get("drop")]
+    if keep_cal:
+        have = {e["marker"] for e in cur}
+        cur += [e for e in load_exams_cache() if e["marker"].startswith("p:g") and e["marker"] not in have]
+    out = [dict(e, codes=sorted(e["codes"]), words=sorted(e["words"]), start=e["start"].isoformat(),
+                date=e["date"].isoformat()) for e in cur]
+    write_if_changed(p, json.dumps(out, ensure_ascii=False, indent=1) + "\n")
+
+
+def load_exams_cache():
+    import json
+    try:
+        with open(exams_cache_path(), encoding="utf-8") as fh:
+            rows = json.load(fh)
+        return [dict(r, codes=set(r["codes"]), words=set(r["words"]), start=dt.datetime.fromisoformat(r["start"]),
+                     date=dt.date.fromisoformat(r["date"])) for r in rows]
+    except (OSError, ValueError, KeyError, TypeError):
+        return []
+
+
+def known_exams(blocks, today):
+    """倉庫の試験 ＋ 直近の同期で見えた試験（過去・受験済みを含む）。"""
+    return exams_from_blocks(blocks, today) + load_exams_cache()
+
+
+def exam_passed(e, now):
+    return now.date() > e["date"] if e["allday"] else now > e["start"]
+
+
+def line_expired(body, exams, now):
+    """この行（本文）が、すでに終わった試験の準備か。試験語が無ければ（マーカーが p:ID の一致でなければ）False。"""
+    mm = MARKER.search(body)
+    if mm and mm[1] == "p":
+        hit = [e for e in exams if e["marker"] == f"p:{mm[2]}"]
+        if hit:
+            return all(exam_passed(e, now) for e in hit)
+    title = norm_text(body)
+    pm = last_paren(title)
+    head = title[:pm.start()] if pm else title
+    head = head.removeprefix("Plan prep:").strip()
+    ok, _ = is_exam_title(head)  # 試験語あり・Quiz／final project 等は除外
+    if not ok:
+        return False
+    codes = course_codes(head)
+    cands = [e for e in exams if e["codes"] & codes]
+    if not cands:
+        return False
+    words = exam_words(head)
+    narrowed = [e for e in cands if e["words"] & words]
+    cands = narrowed or cands
+    return all(exam_passed(e, now) for e in cands)
+
+
+def expire_exams(text, exams, now):
+    """`# Today` の未完トップレベル行のうち、終わった試験の準備を `[-] … (expired)` にする（子の未完も）。
+
+    ・[x]／[>]／他の節（Overdue・If time allows・Done today）・倉庫は触らない。繰り越しは [ ] だけを運ぶので、
+      `[-]` は次の日に持ち越されず、作業量の合計にも入らない。冪等。(新しいテキスト, 変更の有無) を返す。
+    """
+    if not exams:
+        return text, False
+    lines = text.split("\n")
+    parent_of = child_map(lines)
+    kids = {}
+    for c, par in parent_of.items():
+        kids.setdefault(par, []).append(c)
+    cur = "Today"
+    changed = False
+    for i, ln in enumerate(lines):
+        cur = section_of(ln, cur)
+        m = TASK_OPEN.match(ln)
+        if cur != "Today" or not m or m[1] or i in parent_of:
+            continue
+        if not line_expired(m[2], exams, now):
+            continue
+        lines[i] = f"- [-] {m[2]} {EXPIRED}"
+        changed = True
+        for c in kids.get(i, []):
+            cm = TASK_OPEN.match(lines[c])
+            if cm:
+                lines[c] = f"{cm[1]}- [-] {cm[2]} {EXPIRED}"
+    return "\n".join(lines), changed
+
+
+OVER_LINE = re.compile(r"^> ⚠ over by .* today$")
+
+
+def refresh_over_line(text):
+    """`> ⚠ over by …` を、いまの未完行（Today・Overdue）の合計から言い直す。収まれば消す。"""
+    import math
+    from .planner import CAPACITY, RATIO, line_size
+    lines = text.split("\n")
+    load = 0.0
+    cur = "Today"
+    for ln in lines:
+        cur = section_of(ln, cur)
+        m = TASK_OPEN.match(ln)
+        if m and not m[1] and cur in ("Today", "Overdue"):
+            load += line_size(m[2]) * RATIO
+    for i, ln in enumerate(lines):
+        if OVER_LINE.match(ln):
+            if load > CAPACITY:
+                lines[i] = f"> ⚠ over by {fmt_hm(math.ceil(load - CAPACITY))} today"
+            else:
+                del lines[i]
+            break
+    return "\n".join(lines)
+
+
+def item_key(it):
+    return it["prep_marker"] if it.get("exam") and it.get("prep_marker") else it["marker"]
+
+
+def _norm_label(s):
+    return re.sub(r"\s+", " ", s).strip().casefold()
+
+
+def refresh_meta(text, items):
+    """今日の `# Today` 欄の未完行に、Canvas／カレンダーの最新の締切時刻と ID を反映する。行の増減はしない。
+
+    ★ 日次ファイルは 06:00 の roll で一度書いたきりで、その後の Canvas 側の変更（締切の変更・
+      小テストの作り直しで ID が変わる）が届かなかった（2026-10-06: Module 3 Discussion の締切 21:20 が、
+      実際は 09:20 に更新されていた。時刻の変換ミスではなく古い値のまま。Module 3 Quiz は ID が
+      42988752 → 43037754 に変わった）。毎時の sync で `(due …)`／`(exam …)` の日付時刻と ⟨ID⟩ だけ直す。
+    ・[x] 完了行・子・`## Overdue`／`## If time allows` の行は触らない。
+    ・ID が Canvas から消えていたら、科目＋題名（正規化）が一致し、かつ今日のファイルに無い ID の項目が
+      ちょうど1件のときだけ、その ID に付け替える。
+    """
+    by_key = {item_key(i): i for i in items}
+    lines = text.split("\n")
+    present = {f"{a}:{b}" for ln in lines for a, b in MARKER.findall(ln)}
+    cur = "Today"
+    changed = False
+    for idx, ln in enumerate(lines):
+        cur = section_of(ln, cur)
+        m = TASK_OPEN.match(ln)
+        if cur != "Today" or not m or m[1]:
+            continue
+        body = m[2]
+        mm = MARKER.search(body)
+        if not mm or mm[1] not in "aqdpg":
+            continue
+        key = f"{mm[1]}:{mm[2]}"
+        is_prep = PREP_PREFIX in body
+        it = by_key.get(key)
+        if it is None and mm[1] in "aqdp":
+            pm = last_paren(body)
+            title = body[:pm.start()] if pm else body
+            title = _norm_label(norm_text(title).removeprefix(PREP_PREFIX))
+            hits = [i for i in items if bool(i.get("exam")) == is_prep and item_key(i) not in present
+                    and _norm_label(i["label"]) == title]
+            if len(hits) == 1:
+                it = hits[0]
+                nk = item_key(it)
+                body = body.replace(f"⟨{key}⟩", f"⟨{nk}⟩")
+                present.discard(key)
+                present.add(nk)
+        if it is None or it.get("done"):
+            continue
+        pm = last_paren(body)
+        want = "exam" if it.get("exam") else "due"
+        if pm and pm[1] == want:
+            t = it["due"]
+            when = wd_md(t.date()) + ("" if it.get("allday") else f" {t:%H:%M}")
+            first = pm[2].split(" · ")[0]
+            if first != when:
+                new_inner = f"{want} {when}{pm[2][len(first):]}"
+                body = body[:pm.start()] + f"({new_inner})" + body[pm.end():]
+        if body != m[2]:
+            lines[idx] = f"{m[1]}- [ ] {body}"
+            changed = True
+    return "\n".join(lines) if changed else text
+
+
+def refresh_today(today, done_ids, now=None, done_today=None, items=None):
     p = day_path(today)
     if not os.path.exists(p):
         return
@@ -242,6 +523,12 @@ def refresh_today(today, done_ids, now=None, done_today=None):
     harvest(text, now or dt.datetime.now())
     if done_ids:
         text, _ = mark_canvas_done(text, done_ids)
+    text = prep_fix_text(text)
+    if items:
+        text = refresh_meta(text, items)
+    text, expired = expire_exams(text, known_exams(split_blocks(load_backlog()), today), now or dt.datetime.now())
+    if expired:
+        text = refresh_over_line(text)
     text = set_footer(text, footer_line(today))
     if done_today:
         text = add_done_today(text, done_today)

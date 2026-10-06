@@ -41,18 +41,21 @@ from .backlog import add_someday, append_line, expire_someday, join_blocks, load
 from .daily import (
     apply_tally,
     carry_children,
+    known_exams,
+    expire_exams,
     child_map,
     DONE_TODAY,
     footer_line,
     harvest,
     harvest_file,
     migrate_inbox_in_place,
+    prep_marker_fix,
     refresh_today,
     section_of,
     STATUS_MARK,
     sync_done,
 )
-from .planner import candidates, IF_TIME, OVERDUE, plan_today
+from .planner import candidates, COULD_MOVE, IF_TIME, OVERDUE, plan_full
 from .canvas import canvas_refresh
 from .mail import mail_refresh
 
@@ -96,11 +99,12 @@ def roll(d, fetch=False, now=None):
     if prev:
         ptext = read_raw(day_path(prev))
         harvest(ptext, now)
+        plines_x, _ = expire_exams(ptext, known_exams(blocks, d), now)  # 終わった試験の準備は繰り越さない
         sync_done(ptext, blocks)
         st = load_state()
         remembered = set(st["done_ids"]) | set(st["checked_ids"])
         overdue_markers = {c["marker"] for c in candidates(blocks, d) if c["overdue"]}
-        plines = ptext.split("\n")
+        plines = plines_x.split("\n")
         parent_of = child_map(plines)
         kids = {}
         for c, par in parent_of.items():
@@ -117,7 +121,7 @@ def roll(d, fetch=False, now=None):
             ind, stt, body = m[1], m[2], m[3]
             ch = kids.get(i, [])
             todo_kids = [c for c in ch if TASK_ANY.match(plines[c])[2] == " "]
-            skip_sec = cur in (IF_TIME, OVERDUE, DONE_TODAY)
+            skip_sec = cur in (IF_TIME, OVERDUE, DONE_TODAY) or cur.startswith(COULD_MOVE)
             if stt == " ":
                 mm = MARKER.search(body)
                 if cur == "Inbox":
@@ -132,7 +136,7 @@ def roll(d, fetch=False, now=None):
                 elif mm and f"{mm[1]}:{mm[2]}" in overdue_markers:
                     out[i] = f"{ind}- [>] {body} → {md(d)}"  # 締切超過は Today ではなく Overdue 欄で出し直す
                 else:
-                    pbody = STAMP.sub("", body).rstrip()
+                    pbody = prep_marker_fix(STAMP.sub("", body).rstrip())
                     if not mm and not ORIGIN.search(pbody):
                         pbody += f" (since {md(prev)})"  # 起票印は初回だけ（マーカー付きは倉庫が出所）
                     carried.append(f"{ind}- [ ] {pbody}")
@@ -147,7 +151,8 @@ def roll(d, fetch=False, now=None):
                 carry_children(plines, ch, carried, out, prev, d)
         new_prev_text = "\n".join(out)
     expire_someday(blocks, d)
-    warn, must, over, later = plan_today(d, blocks, carried)
+    warn, must_i, over_i, later_i, moves = plan_full(d, blocks, carried)
+    must, over, later = ([c["line"] for c in x] for x in (must_i, over_i, later_i))
     text = f"# Today {md(d)}\n"
     if warn:
         text += warn + "\n"
@@ -157,6 +162,8 @@ def roll(d, fetch=False, now=None):
         text += f"## {OVERDUE}\n" + "".join(l + "\n" for l in over) + "\n"
     if later:
         text += f"## {IF_TIME}\n" + "".join(l + "\n" for l in later) + "\n"
+    if moves:
+        text += "\n".join(moves) + "\n\n"  # 超過時の「動かす案」。提案だけで、機械は何も動かさない
     text += f"{STATUS_MARK}\n{footer_line(d)}\n"
     text = apply_tally(text)
     # 書く順: 倉庫（移行は重複許容）→ 新ファイル → 前日。途中で落ちても欠落しない

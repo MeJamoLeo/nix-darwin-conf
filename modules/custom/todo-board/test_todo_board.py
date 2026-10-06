@@ -6,7 +6,7 @@ sys.path.insert(0, HERE)
 # ★ モンキーパッチは必ず定義元モジュールに当てる（`tb.x = ...` は tb の属性を作るだけで内部の呼び出しに効かない）。
 #   Canvas の HTTP は `cv.http_get_json = fake`（canvas.py 内の関数が名前で呼ぶので効く）。
 MODS = [importlib.import_module("todo_board." + n)
-        for n in ("store", "items", "backlog", "daily", "planner", "canvas", "mail", "commands", "cli")]
+        for n in ("store", "items", "backlog", "daily", "planner", "canvas", "mail", "gcal", "llm", "blocks", "commands", "cli")]
 cv = importlib.import_module("todo_board.canvas")
 class _Facade:
     def __getattr__(self, name):
@@ -19,6 +19,10 @@ class _Facade:
 tb = _Facade()
 D = dt.date
 os.environ.setdefault("S", tempfile.mkdtemp())
+# テストが本物の claude／Calendar コネクタを叩かない（カレンダーは空の fixture、claude は存在しないパス）
+os.environ["TODO_BOARD_CLAUDE"] = "/nonexistent/claude"
+_gfx = os.path.join(os.environ["S"], "gcal-empty.json"); open(_gfx, "w").write('{"events":[]}')
+os.environ["TODO_BOARD_GCAL_FIXTURE"] = _gfx
 fails = []
 def check(name, cond, extra=""):
     print(("PASS " if cond else "FAIL ") + name + ("" if cond else f"  {extra}"))
@@ -205,7 +209,7 @@ check("paper 6h, no pt when 0", "ENG3303 Term Paper Outline (due 10/29 23:59 · 
 check("submitted skipped", "Already done" not in bl)
 check("calendar_event skipped", "Event" not in bl)
 check("stale removed", "stale" not in bl)
-check("exam -> Plan prep entry 30m", "CS4371 Midterm Exam (exam 10/6 09:30 · 30m) ⟨q:7⟩" in bl, bl)
+check("exam -> Plan prep entry 30m", "CS4371 Midterm Exam (exam 10/6 09:30 · 30m) ⟨p:7⟩" in bl, bl)
 st = json.load(open(tb.status_path()))["canvas"]
 check("status ok", st["ok_at"] == "2026-10-02T05:58" and st["error"] is None)
 b1 = rd(tb.backlog_path()); tb.canvas_refresh(T, NOW)
@@ -214,7 +218,7 @@ check("canvas idempotent", rd(tb.backlog_path()) == b1)
 # roll now: must/if-time, exam prep
 T3 = D(2026, 10, 4)
 p = tb.roll(T3); t = rd(p); print(t)
-check("exam prep line label", "- [ ] Plan prep: CS4371 Midterm Exam (exam Tue 10/6 09:30 · 30m) ⟨q:7⟩" in t, t)
+check("exam prep line label", "- [ ] Plan prep: CS4371 Midterm Exam (exam Tue 10/6 09:30 · 30m) ⟨p:7⟩" in t, t)
 check("exam prep is Must when within 7d", t.index("Plan prep") < (t.index("## If time allows") if "## If time allows" in t else 10**9))
 check("footer ok", "Canvas: ok 05:58" in t)
 # exam >7d away: not yet
@@ -463,9 +467,9 @@ check("mail done forgotten when no digest has it", json.load(open(os.path.join(b
 # stale digest (>3 days) -> empty section + status
 tb.sync_all(D(2026, 10, 9), NOW); bl = rd(tb.backlog_path())
 check("stale digest: section empty", "# Mail" in bl and not [l for l in bl.split("# Mail")[1].split("\n# ")[0].split("\n") if l.startswith("- ")])
-check("stale digest: footer", tb.footer_line(T).endswith("· mail: no digest since 10/2"), tb.footer_line(T))
+check("stale digest: footer", "· mail: no digest since 10/2" in tb.footer_line(T), tb.footer_line(T))
 shutil.rmtree(md_dir); os.makedirs(md_dir); tb.sync_all(D(2026, 10, 9), NOW)
-check("no digest at all: footer", tb.footer_line(T).endswith("· mail: no digest"), tb.footer_line(T))
+check("no digest at all: footer", "· mail: no digest" in tb.footer_line(T), tb.footer_line(T))
 os.environ.pop("TODO_BOARD_MAIL_DIR")
 b = newbase(); fixture([]); tb.sync_all(T, NOW)
 check("mail disabled when env unset: no Mail block, no footer suffix", "# Mail" not in rd(tb.backlog_path()) and "mail:" not in tb.footer_line(T))
@@ -710,5 +714,470 @@ b = newbase()
 r = subprocess.run([sys.executable, P, "show"], capture_output=True, text=True, env=dict(os.environ, TODO_BOARD_DIR=b))
 check("show: nothing -> rc 1", r.returncode == 1)
 os.environ.pop("TODO_BOARD_LEAF")
+
+
+# ============================================================ blocks（record-blocks → 行の (≈35m)）
+blk = importlib.import_module("todo_board.blocks")
+gc = importlib.import_module("todo_board.gcal")
+pl = importlib.import_module("todo_board.planner")
+BODY = "CS3360 Module 3 Quiz (due Tue 10/6 23:59 · 30m) ⟨a:43037754⟩"
+n1 = tb.set_block_note(BODY, "(≈35m)")
+check("blocks note: placed before marker", n1 == "CS3360 Module 3 Quiz (due Tue 10/6 23:59 · 30m) (≈35m) ⟨a:43037754⟩", n1)
+check("blocks note: idempotent", tb.set_block_note(n1, "(≈35m)") == n1)
+check("blocks note: replaces (no duplicate)", tb.set_block_note(n1, "(≈50m)").count("≈") == 1)
+check("blocks note: None removes -> original", tb.set_block_note(n1, None) == BODY)
+man = BODY + " ▶10:00 ■10:35 (35m)"
+n2 = tb.set_block_note(man, "(≈35m · ▷10:00〜)")
+check("blocks note: manual marks kept, note before them", n2.endswith("⟨a:43037754⟩ ▶10:00 ■10:35 (35m)") and "(≈35m · ▷10:00〜)" in n2, n2)
+check("blocks note: stamp strip drops note and manual marks", tb.STAMP.sub("", n2) == BODY, tb.STAMP.sub("", n2))
+check("blocks note: norm_text/hash unaffected", tb.text_hash("plain thing (≈20m)") == tb.text_hash("plain thing"))
+check("blocks note: no-marker line gets it at the end", tb.set_block_note("write essay", "(≈5m)") == "write essay (≈5m)")
+check("blocks render: minutes", blk.render_note(95, None) == "(≈1h35m)" and blk.render_note(0, None) is None)
+check("blocks render: ongoing", blk.render_note(35, dt.datetime(2026, 10, 2, 10, 0)) == "(≈35m · ▷10:00〜)")
+txt = "# Today 10/2\n- [ ] " + BODY + "\n  - [ ] sub task\n- [x] done thing ⟨h:abc123⟩\n- [>] moved ⟨a:9⟩ → 10/3\n\n<!-- status -->\nCanvas: ok 10:00\n"
+k_sub = "t:" + tb.text_hash("sub task")
+a1 = blk.apply_notes(txt, {"a:43037754": "(≈35m)", k_sub: "(≈5m)", "h:abc123": "(≈1h)", "a:9": "(≈9m)"})
+check("blocks apply: parent+subtask+done+[>] lines get notes (before the →)",
+      "(≈35m) ⟨a:43037754⟩" in a1 and "  - [ ] sub task (≈5m)" in a1 and "- [x] done thing (≈1h) ⟨h:abc123⟩" in a1 and "- [>] moved (≈9m) ⟨a:9⟩ → 10/3" in a1, a1)
+check("blocks apply: idempotent", blk.apply_notes(a1, {"a:43037754": "(≈35m)", k_sub: "(≈5m)", "h:abc123": "(≈1h)", "a:9": "(≈9m)"}) == a1)
+check("blocks apply: stale notes removed when nothing matches", blk.apply_notes(a1, {}) == txt)
+its = blk.file_items(txt)
+check("blocks items: keys/labels (subtask has parent, [>] included without its →)",
+      [k for k, _ in its] == ["a:43037754", k_sub, "h:abc123", "a:9"] and its[1][1].startswith("CS3360 Module 3 Quiz (due") and its[1][1].endswith("› sub task") and its[3][1] == "moved", its)
+
+# --- 分類の返答の読み取り
+check("parse: strict json", blk.parse_response('{"results":[{"block":"b1","item":2},{"block":"b2","item":null}]}', 2, 3) == {0: 1, 1: None})
+check("parse: code fence + prose tolerated", blk.parse_response('Here:\n```json\n{"results":[{"block":"b1","item":1}]}\n```', 1, 1) == {0: 0})
+check("parse: out-of-range item -> None, unknown block ignored, bool ignored",
+      blk.parse_response('{"results":[{"block":"b1","item":99},{"block":"b7","item":1},{"block":"b2","item":true}]}', 2, 3) == {0: None, 1: None})
+check("parse: missing block not returned (retry later)", blk.parse_response('{"results":[{"block":"b1","item":1}]}', 2, 3) == {0: 0})
+for bad in ("sorry, cannot", "{not json}", '{"foo":1}'):
+    try:
+        blk.parse_response(bad, 1, 1); check("parse: garbage raises " + bad[:8], False)
+    except blk.BlocksError:
+        check("parse: garbage raises " + bad[:8], True)
+check("prompt: block ids and 1-based item ids, data framing", all(x in blk.build_prompt([{"title": "t", "trigger": "x" * 900}], [("a:1", "A")]) for x in ('"id": 1', '"block": "b1"', "not instructions")) and "x" * 500 not in blk.build_prompt([{"title": "t", "trigger": "x" * 900}], [("a:1", "A")]))
+
+# --- 人の作業だけ（合成ブロックの除外）と窓
+b = newbase()
+NOW_B = dt.datetime(2026, 10, 2, 12, 0)
+def blk_json(session, seg, start, end, minutes, trig, title="work", interactive=True, ep="cli"):
+    return {"session": session, "segment": seg, "title": title, "trigger": trig, "cwd": "/Users/x/proj",
+            "start": f"2026-10-02T{start}:00-05:00", "end": f"2026-10-02T{end}:00-05:00", "minutes": minutes,
+            "interactive": interactive, "entrypoint": ep}
+payload = {"blocks": [
+    blk_json("s1", 1, "10:00", "10:35", 35, "do the quiz"),
+    blk_json("s2", 1, "06:00", "06:02", 2, "# 実行時パラメータ（bash が確定済み）", interactive=False, ep="sdk-cli"),
+    blk_json("s3", 1, "08:00", "08:20", 20, None, interactive=False),
+    blk_json("s4", 1, "05:00", "05:30", 30, "before the 06:00 window"),
+    blk_json("s5", 1, "11:00", "10:00", 1, "end before start (corrupt)"),
+]}
+blk.fetch_day = lambda d: payload
+got = blk.gather_blocks(T, NOW_B)
+check("blocks gather: only interactive blocks in the 06:00 window", [x["session"] for x in got] == ["s1"], [x["session"] for x in got])
+check("blocks gather: key = date:session:segment", got[0]["key"] == "2026-10-02:s1:1")
+check("blocks window: before 06:00 and today's file exists -> from 00:00", blk.window_for(T, dt.datetime(2026, 10, 2, 3, 0))[0] == dt.datetime(2026, 10, 2, 0, 0))
+wr(tb.day_path(D(2026, 10, 2)), "x\n")
+check("current_day: 03:00, today's file exists -> today", tb.current_day(dt.datetime(2026, 10, 2, 3, 0)) == D(2026, 10, 2))
+check("current_day: 03:00, no file -> yesterday", tb.current_day(dt.datetime(2026, 10, 3, 3, 0)) == D(2026, 10, 2))
+check("current_day: after 06:00 -> today", tb.current_day(dt.datetime(2026, 10, 3, 7, 0)) == D(2026, 10, 3))
+
+# --- run 全体（record-blocks と claude は差し替え）
+b = newbase()
+daily = "# Today 10/2\n- [ ] " + BODY + " ▶10:00\n- [ ] CS4355 Exercise (due Sun 10/4 23:59 · 2h) ⟨a:1⟩\n\n<!-- status -->\nCanvas: ok 10:00\n"
+wr(tb.day_path(T), daily)
+payload = {"blocks": [
+    blk_json("s1", 1, "10:00", "10:35", 35, "do the quiz", title="Module 3 quiz"),
+    blk_json("s6", 1, "09:00", "09:20", 20, "something unrelated", title="misc"),
+    blk_json("s2", 1, "06:00", "06:02", 2, "# 実行時パラメータ", interactive=False, ep="sdk-cli"),
+]}
+calls = []
+def fake_ok(prompt):
+    calls.append(prompt)
+    return '{"results":[{"block":"b1","item":1},{"block":"b2","item":null}]}'  # s6(09:00)=b1 -> 行1? ※下で並びを確認
+blk.run_claude = fake_ok
+# 並び: 09:00 の s6 が b1、10:00 の s1 が b2。item 1 = Quiz 行
+def fake_ok2(prompt):
+    calls.append(prompt)
+    return '{"results":[{"block":"b1","item":null},{"block":"b2","item":1}]}'
+blk.run_claude = fake_ok2
+rc = blk.run(dt.datetime(2026, 10, 2, 10, 50))
+t = rd(tb.day_path(T))
+check("blocks run: matched line gets ≈ and ongoing ▷, manual ▶ kept", "(≈35m · ▷10:00〜) ⟨a:43037754⟩ ▶10:00" in t, t)
+check("blocks run: unmatched block not written; footer shows unlinked 20m", "Claude time not linked: 20m" in t and "(≈20m" not in t, t)
+check("blocks run: synthetic block never sent to the model", len(calls) == 1 and "実行時パラメータ" not in calls[0], calls)
+check("blocks run: cache file 0600 and keyed", oct(os.stat(tb.blocks_path()).st_mode & 0o777) == "0o600" and "2026-10-02:s1:1" in rd(tb.blocks_path()))
+before = rd(tb.day_path(T)); mt = os.stat(tb.day_path(T)).st_mtime_ns
+rc = blk.run(dt.datetime(2026, 10, 2, 10, 50))
+check("blocks run: rerun is idempotent (no model call, no rewrite)", len(calls) == 1 and rd(tb.day_path(T)) == before and os.stat(tb.day_path(T)).st_mtime_ns == mt)
+rc = blk.run(dt.datetime(2026, 10, 2, 11, 30))
+t = rd(tb.day_path(T))
+check("blocks run: later (idle) -> ongoing mark dropped, minutes kept, no duplicate", "(≈35m) ⟨a:43037754⟩ ▶10:00" in t and t.count("≈") == 1 and "▷" not in t, t)
+# ユーザーが行を足していても壊さない（既存の本文はそのまま）
+wr(tb.day_path(T), rd(tb.day_path(T)).replace("<!-- status -->", "- [ ] user added line\n\n<!-- status -->"))
+rc = blk.run(dt.datetime(2026, 10, 2, 11, 50))
+check("blocks run: user-added line preserved", "- [ ] user added line\n" in rd(tb.day_path(T)))
+# 分類失敗 → ファイルも記憶も触らない、次回やり直し
+b = newbase(); wr(tb.day_path(T), daily)
+payload = {"blocks": [blk_json("s1", 1, "10:00", "10:35", 35, "do the quiz")]}
+def fake_fail(prompt): raise blk.BlocksError("claude exit 1")
+blk.run_claude = fake_fail
+rc = blk.run(dt.datetime(2026, 10, 2, 10, 50))
+check("blocks run: classify failure -> rc 0, file untouched, nothing cached", rc == 0 and rd(tb.day_path(T)).split("<!--")[0] == daily.split("<!--")[0] and not os.path.exists(tb.blocks_path()))
+blk.run_claude = fake_ok2
+payload = {"blocks": [blk_json("s1", 1, "10:00", "10:35", 35, "do the quiz")]}
+def fake_one(prompt): return '{"results":[{"block":"b1","item":1}]}'
+blk.run_claude = fake_one
+blk.run(dt.datetime(2026, 10, 2, 11, 50))
+check("blocks run: retry next run succeeds", "(≈35m) ⟨a:43037754⟩" in rd(tb.day_path(T)))
+# dry-run: 何も書かない
+b = newbase(); wr(tb.day_path(T), daily)
+out = io.StringIO()
+with contextlib.redirect_stdout(out): blk.run(dt.datetime(2026, 10, 2, 10, 50), dry_run=True)
+check("blocks dry-run: prints plan, writes nothing", "(≈35m" in out.getvalue() and rd(tb.day_path(T)) == daily and not os.path.exists(tb.blocks_path()), out.getvalue())
+# 日次ファイルが無ければ何もしない
+b = newbase()
+check("blocks run: no daily file -> rc 0, no cache", blk.run(dt.datetime(2026, 10, 2, 10, 50)) == 0 and not os.path.exists(tb.blocks_path()))
+# record-blocks 失敗 → スキップ
+b = newbase(); wr(tb.day_path(T), daily)
+def boom(d): raise blk.BlocksError("record-blocks exit 1")
+blk.fetch_day = boom
+check("blocks run: record-blocks failure -> skipped, file untouched", blk.run(dt.datetime(2026, 10, 2, 10, 50)) == 0 and rd(tb.day_path(T)) == daily)
+
+# ============================================================ A: 今日のファイルのメタ更新（締切・ID）
+def ci(i, title, due, ctx="CS 3360-001 X", ptype="assignment"):
+    return item(i, title, due, ptype=ptype, pts=2, ctx=ctx)
+TODAY_TXT = ("# Today 10/5\n"
+ "- [ ] CS3360 Module 3 Discussion (due Tue 10/6 21:20 · 30m) ⟨a:43025146⟩\n"
+ "- [ ] CS3360 Module 3 Quiz (due Tue 10/6 23:59 · 30m) ⟨a:42988752⟩\n"
+ "- [x] CS3360 Done one (due Mon 10/5 23:59 · 15m) ⟨a:5⟩\n"
+ "  - [ ] CS3360 Module 3 Discussion kid ⟨a:43025146⟩\n"
+ "\n## If time allows\n- [ ] CS3360 Other (due Fri 10/9 23:59 · 30m) ⟨a:6⟩\n\n<!-- status -->\nCanvas: ok\n")
+b = newbase()
+os.environ.pop("TODO_BOARD_CANVAS_FIXTURE", None)
+cv_items = [cv.normalize_item(ci(43025146, "Module 3 Discussion", "2026-10-06T14:20:00Z")),
+            cv.normalize_item(ci(43037754, "Module 3 Quiz", "2026-10-07T04:59:59Z")),
+            cv.normalize_item(ci(5, "Done one", "2026-10-06T04:59:00Z")),
+            cv.normalize_item(ci(6, "Other", "2026-10-10T04:59:00Z"))]
+check("canvas tz: 14:20Z is 09:20 Chicago (CDT), not 21:20", cv_items[0]["due"] == dt.datetime(2026, 10, 6, 9, 20))
+nt = tb.refresh_meta(TODAY_TXT, cv_items)
+check("meta: due time updated on open Today line", "- [ ] CS3360 Module 3 Discussion (due Tue 10/6 09:20 · 30m) ⟨a:43025146⟩" in nt, nt)
+check("meta: recreated quiz: ID switched by course+title", "(due Tue 10/6 23:59 · 30m) ⟨a:43037754⟩" in nt and "42988752" not in nt, nt)
+check("meta: [x], subtask, other sections untouched; line count same",
+      "- [x] CS3360 Done one (due Mon 10/5 23:59 · 15m) ⟨a:5⟩" in nt and "  - [ ] CS3360 Module 3 Discussion kid ⟨a:43025146⟩" in nt
+      and "(due Fri 10/9 23:59 · 30m) ⟨a:6⟩" in nt and len(nt.split("\n")) == len(TODAY_TXT.split("\n")))
+check("meta: idempotent", tb.refresh_meta(nt, cv_items) == nt)
+amb = [cv.normalize_item(ci(70, "Module 3 Quiz", "2026-10-07T04:59:59Z")), cv.normalize_item(ci(71, "Module 3 Quiz", "2026-10-07T04:59:59Z"))]
+check("meta: ambiguous replacement -> no change", "42988752" in tb.refresh_meta(TODAY_TXT, amb))
+check("meta: ID not found anywhere -> no change", tb.refresh_meta(TODAY_TXT, []) == TODAY_TXT)
+# 統合: sync で今日のファイルに届く
+b = newbase(); wr(tb.day_path(D(2026, 10, 5)), TODAY_TXT)
+fixture([ci(43025146, "Module 3 Discussion", "2026-10-06T14:20:00Z"), ci(43037754, "Module 3 Quiz", "2026-10-07T04:59:59Z")])
+cv.http_get_json = lambda path: {}
+tb.sync_all(D(2026, 10, 5), dt.datetime(2026, 10, 5, 22, 0))
+t = rd(tb.day_path(D(2026, 10, 5)))
+check("meta via sync: due + ID refreshed in the file", "(due Tue 10/6 09:20 · 30m) ⟨a:43025146⟩" in t and "⟨a:43037754⟩" in t and "42988752" not in t, t)
+os.environ.pop("TODO_BOARD_CANVAS_FIXTURE", None)
+# sync は 06:00 前なら前日のファイルを対象にする
+check("cli sync day: 00:07 with no today file -> yesterday's", tb.current_day(dt.datetime(2026, 10, 6, 0, 7)) == D(2026, 10, 5))
+
+# ============================================================ B: 準備タスクは p: の別 ID
+b = newbase()
+ex = cv.normalize_item(item(42308422, "Midterm", "2026-10-06T14:30:00Z", pts=0, ctx="CS 4371-001 Sec"))
+check("prep: exam canvas line uses p:ID", cv.canvas_line(ex).endswith("⟨p:42308422⟩") and "a:42308422" not in cv.canvas_line(ex), cv.canvas_line(ex))
+old_bl = "# Canvas\n<!-- m -->\n- [x] CS4371 Midterm (exam 10/6 09:30 · 30m) ⟨a:42308422⟩\n\n# Dated\n"
+nb = cv.rewrite_canvas_section(old_bl, [ex], D(2026, 10, 5))
+check("prep: legacy closed prep carries over to p: line (stays [x])", "- [x] CS4371 Midterm (exam 10/6 09:30 · 30m) ⟨p:42308422⟩" in nb, nb)
+legacy = "# Today 10/5\n- [x] Plan prep: CS4371 Midterm (exam Tue 10/6 09:30 · 30m) ⟨a:42308422⟩\n"
+blocks_ = tb.split_blocks("# Canvas\n- [ ] CS4371 Midterm (exam 10/6 09:30 · 30m) ⟨p:42308422⟩\n\n# Dated\n- [ ] other (due 10/9) ⟨a:42308422⟩\n")
+check("prep: sync_done closes the p: line from a legacy [x] prep, not an a: line", tb.sync_done(legacy, blocks_) and "- [x] CS4371 Midterm (exam 10/6 09:30 · 30m) ⟨p:42308422⟩" in tb.join_blocks(blocks_) and "- [ ] other (due 10/9) ⟨a:42308422⟩" in tb.join_blocks(blocks_))
+check("prep: legacy Plan prep line in today's file migrates", tb.prep_fix_text("- [ ] Plan prep: X (exam Tue 10/6 09:30 · 30m) ⟨a:9⟩\n- [ ] real a ⟨a:9⟩") == "- [ ] Plan prep: X (exam Tue 10/6 09:30 · 30m) ⟨p:9⟩\n- [ ] real a ⟨a:9⟩")
+check("prep: a:ID of the exam itself is not closed by checking prep (Canvas done_ids untouched)", tb.mark_canvas_done("- [ ] Plan prep: X (exam) ⟨p:9⟩", {"a:9"})[1] is False)
+# roll 繰り越し時に旧 a: の準備行が p: になる
+b = newbase()
+wr(tb.day_path(D(2026, 10, 1)), "# Today 10/1\n- [ ] Plan prep: CS4371 Midterm (exam Tue 10/6 09:30 · 30m) ⟨a:42308422⟩\n")
+tb.roll(D(2026, 10, 2))
+check("prep: roll carries legacy prep with p:", "⟨p:42308422⟩" in rd(tb.day_path(D(2026, 10, 2))) and "⟨a:42308422⟩" not in rd(tb.day_path(D(2026, 10, 2))).split("\n", 3)[1], rd(tb.day_path(D(2026, 10, 2))))
+
+# ============================================================ C: 超過時の「動かす案」
+b = newbase()
+BL = """# Canvas
+- [ ] CS1000 Big1 (due 10/3 23:59 · 2h) ⟨a:1⟩
+- [ ] CS1000 Big2 (due 10/4 23:59 · 2h) ⟨a:2⟩
+- [ ] CS1000 Tight (due 10/2 23:59 · 15m) ⟨a:3⟩
+
+# Dated
+- [ ] must today (on 10/2 · 1h) (since 10/1)
+"""
+wr(tb.backlog_path(), BL)
+bl_blocks = tb.split_blocks(BL)
+cands = tb.candidates(bl_blocks, T)
+check("defer: latest_start is due day when work fits in a day", pl.latest_start([c for c in cands if "Big2" in c["title"]][0]) == D(2026, 10, 4) and pl.latest_start([c for c in cands if "Tight" in c["title"]][0]) == D(2026, 10, 2))
+w, must_i, over_i, later_i, mv = pl.plan_full(T, bl_blocks, [])
+check("defer: over capacity -> warning + Could move section below a divider", w is not None and mv[0] == "---" and mv[1].startswith("## Could move"), (w, mv))
+check("defer: lists only items that can still make their deadline; target is tomorrow", any("Big2" in l and "→ 10/3" in l and "latest start 10/4" in l for l in mv) and "fits if deferred" in mv[1], mv)
+check("defer: items due tomorrow or 'on' today are not proposed", not any("must today" in l or "Tight" in l for l in mv[2:]), mv)
+check("defer: proposal lines are not tasks (no checkbox)", not any(l.startswith("- [") for l in mv), mv)
+check("defer: honest remaining overrun when it cannot fit", any("still over by" in l for l in mv) or "fits if deferred" in mv[1], mv)
+check("defer: plan_today keeps 4-tuple API", len(pl.plan_today(T, bl_blocks, [])) == 4)
+wr(tb.backlog_path(), "# Canvas\n- [ ] CS1000 Big2 (due 10/4 23:59 · 2h) ⟨a:2⟩\n\n# Dated\n- [ ] fixed today (on 10/2 · 4h) (since 10/1)\n")
+_, _, _, _, mv4 = pl.plan_full(T, tb.split_blocks(rd(tb.backlog_path())), [])
+check("defer: partial fix reports the honest remainder", "does not fully fit" in mv4[1] and mv4[-1] == "> ⚠ still over by 4h even after moving all of these", mv4)
+wr(tb.backlog_path(), "# Canvas\n- [ ] CS1000 X (due 10/3 23:59 · 6h) ⟨a:9⟩\n\n# Dated\n")
+w2, _, _, _, mv2 = pl.plan_full(T, tb.split_blocks(rd(tb.backlog_path())), [])
+check("defer: nothing movable -> says so, keeps overrun warning", w2 and "nothing can move" in mv2[2] and "still over by" in mv2[-1], mv2)
+wr(tb.backlog_path(), "# Canvas\n- [ ] CS1000 Y (due 10/9 23:59 · 15m) ⟨a:9⟩\n\n# Dated\n")
+_, _, _, _, mv3 = pl.plan_full(T, tb.split_blocks(rd(tb.backlog_path())), [])
+check("defer: under capacity -> no proposal", mv3 == [])
+wr(tb.backlog_path(), BL)
+tb.roll(T)
+t = rd(tb.day_path(T))
+check("defer: roll writes divider+section before status; machine moves nothing", t.index("---") < t.index("## Could move") < t.index("<!-- status -->") and "- [ ] CS1000 Big2" in t, t)
+check("defer: roll is idempotent with the section present", tb.roll(T) == tb.day_path(T) and rd(tb.day_path(T)) == t)
+tb.roll(D(2026, 10, 3))
+t3 = rd(tb.day_path(D(2026, 10, 3)))
+check("defer: next-day roll never carries proposal lines", "Could move" not in t3.split("<!-- status -->")[0] or "(latest start" not in t3.split("## Could move")[0], t3[:300])
+
+# ============================================================ D: カレンダー（claude -p ＋ コネクタ）の 📕 試験
+def E(title, start, all_day=True): return {"title": title, "start": start, "all_day": all_day, "has_emoji": title.startswith("📕")}
+GR = json.dumps({"events": [
+    E("📕 CS 4355 Exam 1 12:30 — Jowers A204・紙・A4裏表1枚可", "2026-10-07T00:00:00Z"),
+    E("dentist", "2026-10-08T00:00:00Z"),
+    E("📕 old", "2025-01-01T00:00:00Z"),
+    E("📕 Hist ⟨a:1⟩ (x) quiz", "2026-10-09T00:00:00Z"),
+    E("📕 No time exam", "2026-10-10T00:00:00Z"),
+    {"title": 5, "start": "2026-10-10T00:00:00Z"},
+    E("📕 Bad date", "soon"),
+    E("Physics midterm", "2026-10-11T19:00:00Z", all_day=False),
+    E("期末試験 数学", "2026-10-12T00:00:00Z"),
+    E("CS3360 Weekly Quiz 4", "2026-10-12T00:00:00Z"),
+    E("Final project demo", "2026-10-13T00:00:00Z"),
+    E("Submit final version", "2026-10-13T00:00:00Z"),
+    E("Finally home", "2026-10-13T00:00:00Z"),
+    E("CS2315 Final Exam 09:00", "2026-10-14T00:00:00Z"),
+]})
+raw_n, evs = gc.parse_reply("```json\n" + GR + "\n```", T)
+check("gcal: validate keeps 📕 in window, drops others/bad", [e["date"] for e in evs] == ["2026-10-07", "2026-10-09", "2026-10-10", "2026-10-11", "2026-10-12", "2026-10-14"], evs)
+check("gcal: titles sanitized (no ⟨⟩ markers or parens)", all("⟨" not in e["title"] and "(" not in e["title"] for e in evs), evs)
+gi = gc.to_items(evs)
+check("gcal: time from title HH:MM, course CS 4355 -> CS4355, label normalised", gi[0]["due"] == dt.datetime(2026, 10, 7, 12, 30) and gi[0]["course"] == "CS4355" and gi[0]["label"] == "CS4355 Exam 1" and gi[0]["allday"] is False, gi[0])
+check("gcal: no time in title -> all-day", gi[2]["allday"] is True and gi[2]["due"].hour == 0 and gi[2]["label"] == "No time exam")
+ln = cv.canvas_line(gi[0]); ln2 = None
+check("gcal: canvas line is a Plan-prep source with p:g marker; all-day has no time", "(exam 10/7 12:30 · 30m) ⟨p:g" in ln and "(exam 10/10 · 30m) ⟨p:g" in cv.canvas_line(gi[2]), (ln, ln2))
+cex = cv.normalize_item(item(99, "Exam 1", "2026-10-07T17:30:00Z", pts=0, ctx="CS 4355-001 Algo"))
+check("gcal: deduped against a Canvas exam with same course+date", len(gc.dedupe_against(gi, [cex])) == len(gi) - 1 and all(g["course"] != "CS4355" for g in gc.dedupe_against(gi, [cex])), gc.dedupe_against(gi, [cex]))
+check("gcal: planner treats it like an exam (prep 7 days before)", tb.parse_item(ln.replace("- [ ] ", ""), T)["kind"] == "exam" and tb.start_by(tb.parse_item(ln.replace("- [ ] ", ""), T)) == D(2026, 9, 30))
+dup = gc.to_items(gc.validate({"events": [E("📕 CS 4371 Midterm 09:30 — Edu", "2026-10-07T00:00:00Z"),
+        E("Midterm [CS 4371 Computer Security]", "2026-10-07T14:30:00Z", all_day=False)]}, T)[1])
+dd = gc.dedupe_against(dup, [])
+check("gcal dedupe: same course+date inside the calendar -> one, 📕 version kept", len(dd) == 1 and dd[0]["has_emoji"] is True, dd)
+# --- 試験判定（キーワード・除外）、絵文字なしの数、timed／終日の時刻
+for ttl, want in [("Midterm review session", True), ("CS 3360 FINAL EXAM", True), ("Exams week", True), ("期末試験", True), ("中間テスト", True),
+                  ("Weekly quiz", False), ("Quiz 3 / midterm prep quiz", False), ("Final project", False), ("final version due", False),
+                  ("Final paper", False), ("Final presentation", False), ("Final draft", False), ("Examine results", False), ("Finals", True),
+                  ("Lunch", False), ("📙 CS 2315 term paper final （paper4final）", False), ("Term project midterm", False), ("📕 anything", True)]:
+    check(f"gcal match: {ttl!r} -> {want}", gc.is_exam_title(ttl)[0] is want, gc.is_exam_title(ttl))
+check("gcal match: emoji-less flag", gc.is_exam_title("Physics midterm") == (True, True) and gc.is_exam_title("📕 Physics midterm") == (True, False))
+check("gcal count: without-📕 counted in state and footer text", gc.ok_state(evs) == {"state": "ok", "n": 6, "no_emoji": 3})
+timed = [e for e in evs if e["title"] == "Physics midterm"][0]
+check("gcal time: timed event uses its start (19:00Z = 14:00 Chicago CDT)", timed["time"] == "14:00" and timed["all_day"] is False and timed["date"] == "2026-10-11", timed)
+ti = [g for g in gc.to_items(evs) if g["label"] == "Physics midterm"][0]
+check("gcal time: timed -> due has start time, line shows it", ti["due"] == dt.datetime(2026, 10, 11, 14, 0) and "(exam 10/11 14:00 · 30m)" in cv.canvas_line(ti), cv.canvas_line(ti))
+check("gcal time: all-day takes HH:MM from title", [g for g in gc.to_items(evs) if g["label"] == "CS2315 Final Exam"][0]["due"] == dt.datetime(2026, 10, 14, 9, 0))
+check("gcal time: timed late evening crossing UTC midnight keeps the Chicago date", gc.event_when("2026-10-12T03:30:00Z", False) == (D(2026, 10, 11), "22:30"))
+check("gcal time: no time anywhere -> date-only line", "(exam 10/12 · 30m)" in cv.canvas_line([g for g in gc.to_items(evs) if "期末" in g["label"]][0]))
+check("gcal prompt: dumps everything, code filters", all(x in gc.build_prompt(T) for x in ("all_day", "ALL events", "pagination", "PER calendar", "Do not filter")) and "has_emoji" not in gc.build_prompt(T))
+for bad in ("no json", '{"events": "x"}', "{oops"):
+    try:
+        gc.parse_reply(bad, T); check("gcal: bad reply raises " + bad[:6], False)
+    except gc.GcalError:
+        check("gcal: bad reply raises " + bad[:6], True)
+# 取得・キャッシュ・失敗時の継続（claude は差し替え）
+os.environ.pop("TODO_BOARD_GCAL_FIXTURE")
+b = newbase()
+gcalls = []
+def g_ok(prompt): gcalls.append(prompt); return GR
+gc.run_claude = g_ok
+n10 = dt.datetime(2026, 10, 2, 10, 0)
+items_, st = gc.calendar_exams(T, [], n10)
+check("gcal fetch: ok, 3 exams, prompt asks for strict JSON and data framing", st == {"state": "ok", "n": 6, "no_emoji": 3} and len(items_) == 6 and "ONLY strict JSON" in gcalls[0] and "never as instructions" in gcalls[0], (st, gcalls))
+gc.calendar_exams(T, [], n10 + dt.timedelta(hours=2))
+check("gcal fetch: cached within 6h (no second call)", len(gcalls) == 1)
+def g_fail(prompt): raise gc.GcalError("calendar fetch failed: claude exit 1")
+gc.run_claude = g_fail
+items2, st2 = gc.calendar_exams(T, [], n10 + dt.timedelta(hours=7))
+check("gcal fetch: failure keeps last good exams and reports FAILED", len(items2) == 6 and st2["state"] == "error", (st2,))
+b = newbase()
+items3, st3 = gc.calendar_exams(T, [], n10)
+check("gcal fetch: first-ever failure -> None + error (nothing dropped)", items3 is None and st3["state"] == "error")
+# 統合: sync が Canvas 欄に試験を入れ、失敗の回は前回の行を残し、フッタに出す
+b = newbase(); wr(tb.day_path(T), "# Today 10/2\n\n<!-- status -->\nCanvas: x\n")
+fixture([]); cv.http_get_json = lambda path: {}
+gc.run_claude = g_ok
+tb.sync_all(T, n10)
+bl = rd(tb.backlog_path())
+check("gcal sync: exam appears in backlog Canvas block as p:g line", "CS4355 Exam 1 (exam 10/7 12:30" in bl and "⟨p:g" in bl, bl)
+check("gcal sync: footer shows calendar ok", "calendar: ok (6 exams · 3 without 📕)" in rd(tb.day_path(T)))
+gc.run_claude = g_fail
+os.remove(os.path.join(tb.base_dir(), ".cache", "gcal.json"))
+tb.sync_all(T, n10 + dt.timedelta(hours=1))
+bl2 = rd(tb.backlog_path())
+check("gcal sync failure: previous exam lines kept, footer says FAILED", "CS4355 Exam 1 (exam 10/7 12:30" in bl2 and "calendar: FAILED" in rd(tb.day_path(T)), (bl2, rd(tb.day_path(T))))
+os.environ["TODO_BOARD_GCAL_FIXTURE"] = _gfx
+os.environ.pop("TODO_BOARD_CANVAS_FIXTURE", None)
+
+# --- カレンダー: 取りこぼし（件数が前回の半分未満）は前回を保ち、フッタに出す
+def full_reply(n_other, with_road=True):
+    evs_ = [E("📕 CS 4355 Exam 1 12:30", "2026-10-07T00:00:00Z")] + [E(f"thing {i}", "2026-10-08T00:00:00Z") for i in range(n_other)]
+    if with_road: evs_.append(E("運転免許 実技試験", "2026-10-29T20:15:00Z", all_day=False))
+    return json.dumps({"events": evs_})
+b = newbase(); wr(tb.day_path(T), "# Today 10/2\n\n<!-- status -->\nCanvas: x\n")
+os.environ.pop("TODO_BOARD_GCAL_FIXTURE", None)
+gc.run_claude = lambda p: full_reply(20)
+ev1, s1 = gc.get_events(T, n10)
+check("gcal raw: road test (no emoji) found when the full dump is filtered in code", any(e["title"].startswith("運転免許") for e in ev1) and s1["no_emoji"] == 1, (s1,))
+gc.run_claude = lambda p: full_reply(2, with_road=False)
+ev2, s2 = gc.get_events(T, n10 + dt.timedelta(hours=7))
+check("gcal raw: suspiciously small dump -> previous kept, state suspicious", s2["state"] == "suspicious" and any(e["title"].startswith("運転免許") for e in ev2), s2)
+sc = json.load(open(gc.cache_path()))
+check("gcal raw: cache not overwritten by the suspicious result", sc["raw_n"] == 22, sc.get("raw_n"))
+tb.save_status_key("calendar", s2)
+check("gcal raw: footer says suspicious", "calendar: suspicious result" in tb.footer_line(T))
+gc.run_claude = lambda p: full_reply(18)
+ev3, s3 = gc.get_events(T, n10 + dt.timedelta(hours=14))
+check("gcal raw: a normal-size dump is accepted again", s3["state"] == "ok")
+os.environ["TODO_BOARD_GCAL_FIXTURE"] = _gfx
+
+# 取りこぼし: 1回見えなくても残り、3回続けて見えなければ消える
+b = newbase()
+os.environ.pop("TODO_BOARD_GCAL_FIXTURE", None)
+with_road = full_reply(20); no_road = full_reply(20, with_road=False)
+gc.run_claude = lambda p: with_road
+gc.get_events(T, n10)
+gc.run_claude = lambda p: no_road
+kept = []
+for k in range(1, 4):
+    ev_, _ = gc.get_events(T, n10 + dt.timedelta(hours=7 * k))
+    kept.append(any(e["title"].startswith("運転免許") for e in ev_))
+check("gcal miss: a missed exam survives 2 fetches and is dropped on the 3rd", kept == [True, True, False], kept)
+gc.run_claude = lambda p: with_road
+ev_, _ = gc.get_events(T, n10 + dt.timedelta(hours=40))
+check("gcal miss: seen again -> back with miss reset", any(e["title"].startswith("運転免許") and e["miss"] == 0 for e in ev_))
+os.environ["TODO_BOARD_GCAL_FIXTURE"] = _gfx
+
+# ============================================================ 終わった試験の準備行の失効
+NOW_X = dt.datetime(2026, 10, 6, 10, 0)
+BL_X = """# Canvas
+- [ ] CS2315 Midterm (exam 10/5 15:30 · 30m) ⟨p:g1⟩
+- [ ] CS4371 Midterm (exam 10/6 09:30 · 30m) ⟨p:111⟩
+- [ ] CS4355 Exam 1 (exam 10/7 12:30 · 30m) ⟨p:g2⟩
+- [ ] CS3360 Midterm Exam (exam 10/13 08:00 · 30m) ⟨p:222⟩
+- [ ] ENG3303 Final (exam 10/6 · 30m) ⟨p:g3⟩
+
+# Dated
+"""
+exs = tb.exams_from_blocks(tb.split_blocks(BL_X), NOW_X.date())
+TX = """# Today 10/6
+- [ ] CS4371 Midterm 準備①問題づくり (exam Tue 10/6 09:30) (since 10/2)
+  - [x] done kid (done 10/4)
+  - [ ] open kid
+- [ ] CS2315 Midterm 準備：ノートに集める（open book） (on Sun 10/4 · 2h) ⟨h:46ba1f⟩
+- [ ] CS4371 Midterm 最終確認 (on Mon 10/5 · 1h) ⟨h:b5b17e⟩
+- [ ] CS4355 Exam 1 カンペ作り (on Sun 10/4 · 1h) ⟨h:8d7394⟩
+- [ ] CS4355 カンペ仕上げ・演習を解き直す (on Tue 10/6 · 2h) ⟨h:6f8e8a⟩
+- [ ] CS2315 Term paper draft version (paper3draft) (due Thu 10/8 23:59 · 6h) ⟨a:41629060⟩
+- [ ] CS2315 Final project plan (on Tue 10/6 · 1h) ⟨h:aaaaaa⟩
+- [ ] CS4371 Midterm Quiz 2 (due Tue 10/6 · 15m) ⟨a:7⟩
+- [ ] Plan prep: CS4355 Exam 1 (exam Wed 10/7 12:30 · 30m) ⟨p:g2⟩
+- [x] CS2315 Midterm 振り返り (done)
+- [>] CS2315 Midterm 前日 ⟨h:bbbbbb⟩ → 10/7
+- [ ] ENG3303 Final prep (on Tue 10/6) ⟨h:cccccc⟩
+
+## If time allows
+- [ ] CS2315 Midterm leftover (on Tue 10/6) ⟨h:dddddd⟩
+
+<!-- status -->
+Canvas: ok
+"""
+xt, ch = tb.expire_exams(TX, exs, NOW_X)
+check("expire: past exam prep (CS2315 Midterm 10/5 15:30) -> [-] (expired)", "- [-] CS2315 Midterm 準備：ノートに集める（open book） (on Sun 10/4 · 2h) ⟨h:46ba1f⟩ (expired)" in xt and ch, xt)
+check("expire: CS4371 Midterm prep + subtasks expire after 10/6 09:30, done kid untouched", "- [-] CS4371 Midterm 準備①問題づくり (exam Tue 10/6 09:30) (since 10/2) (expired)" in xt and "  - [-] open kid (expired)" in xt and "  - [x] done kid (done 10/4)" in xt, xt)
+check("expire: CS4371 Midterm 最終確認 expires", "- [-] CS4371 Midterm 最終確認 (on Mon 10/5 · 1h) ⟨h:b5b17e⟩ (expired)" in xt)
+check("expire: future exam (CS4355 Exam 1 10/7) stays open", "- [ ] CS4355 Exam 1 カンペ作り" in xt and "- [ ] Plan prep: CS4355 Exam 1" in xt)
+check("expire: no exam word (カンペ仕上げ) is left alone (accepted miss)", "- [ ] CS4355 カンペ仕上げ・演習を解き直す" in xt)
+check("expire: Term paper draft / Final project / Quiz are never expired", all(s in xt for s in ("- [ ] CS2315 Term paper draft", "- [ ] CS2315 Final project plan", "- [ ] CS4371 Midterm Quiz 2")), xt)
+check("expire: [x]/[>]/other sections untouched", "- [x] CS2315 Midterm 振り返り (done)" in xt and "- [>] CS2315 Midterm 前日 ⟨h:bbbbbb⟩ → 10/7" in xt and "## If time allows\n- [ ] CS2315 Midterm leftover" in xt)
+check("expire: date-only exam (ENG3303 10/6) is alive until the end of that day", "- [ ] ENG3303 Final prep" in xt)
+xt2, _ = tb.expire_exams(TX, exs, dt.datetime(2026, 10, 7, 0, 5))
+check("expire: date-only exam expires the next day", "- [-] ENG3303 Final prep (on Tue 10/6) ⟨h:cccccc⟩ (expired)" in xt2)
+check("expire: idempotent", tb.expire_exams(xt, exs, NOW_X) == (xt, False))
+check("expire: by ⟨p:ID⟩ even without the course code in the title", tb.expire_exams("# Today 10/6\n- [ ] prep thing ⟨p:111⟩\n", exs, NOW_X)[0].startswith("# Today 10/6\n- [-] prep thing ⟨p:111⟩ (expired)"))
+amb = tb.exams_from_blocks(tb.split_blocks("# Canvas\n- [ ] CS2315 Midterm (exam 10/5 15:30 · 30m) ⟨p:g1⟩\n- [ ] CS2315 Final (exam 12/10 15:30 · 30m) ⟨p:g9⟩\n\n# Dated\n"), NOW_X.date())
+check("expire: 'Midterm' line with a later Final in the same course still expires; a bare 'CS2315 Exam prep' does not",
+      "[-] CS2315 Midterm x" in tb.expire_exams("# Today 10/6\n- [ ] CS2315 Midterm x ⟨h:1⟩\n", amb, NOW_X)[0]
+      and "- [ ] CS2315 Exam prep" in tb.expire_exams("# Today 10/6\n- [ ] CS2315 Exam prep ⟨h:1⟩\n", amb, NOW_X)[0])
+ov = tb.refresh_over_line("# Today 10/6\n> ⚠ over by 28h 23m today\n- [-] a (due 10/9 · 6h) (expired)\n- [ ] b (due 10/9 · 1h)\n")
+check("expire: over-by line recomputed without expired lines (1h*1.5 fits -> removed)", "over by" not in ov, ov)
+# 受験済み（Canvas が done で倉庫から落とす）試験でも、同期で覚えた試験から失効できる
+b = newbase()
+done_exam = cv.normalize_item(dict(item(88, "Midterm exam (requires access code)", "2026-10-05T21:50:00Z", pts=0, ctx="CS 2315-001 Fa2026", ptype="quiz"), submissions={"submitted": True}))
+done_exam["done"] = True
+tb.save_exams([done_exam], keep_cal=False)
+check("expire cache: done+past Canvas exam is remembered (not in the backlog)", tb.load_exams_cache()[0]["codes"] == {"CS2315"} and tb.expire_exams("# Today 10/6\n- [ ] CS2315 Midterm 準備 ⟨h:1⟩\n", tb.known_exams(tb.split_blocks("# Canvas\n"), NOW_X.date()), NOW_X)[1])
+# 統合: sync で今日のファイルが失効し、roll は繰り越さない
+b = newbase()
+wr(tb.backlog_path(), BL_X)
+wr(tb.day_path(D(2026, 10, 5)), TX.replace("# Today 10/6", "# Today 10/5"))
+tb.roll(D(2026, 10, 6), now=NOW_X)
+t6 = rd(tb.day_path(D(2026, 10, 6)))
+p5 = rd(tb.day_path(D(2026, 10, 5)))
+check("expire roll: expired prep lines are not carried; old file marks them [-] (not [>])", "CS2315 Midterm 準備" not in t6 and "CS4371 Midterm 最終確認" not in t6 and "- [-] CS2315 Midterm 準備" in p5, (t6, p5))
+check("expire roll: live lines still carried", "CS4355 Exam 1 カンペ作り" in t6 and "Term paper draft" in t6, t6)
+b = newbase(); wr(tb.backlog_path(), BL_X); wr(tb.day_path(D(2026, 10, 6)), TX); tb.refresh_today(D(2026, 10, 6), None, NOW_X)
+check("expire sync: hourly sync expires the lines in today's file", "- [-] CS2315 Midterm 準備：ノートに集める（open book） (on Sun 10/4 · 2h) ⟨h:46ba1f⟩ (expired)" in rd(tb.day_path(D(2026, 10, 6))))
+os.environ["TODO_BOARD_GCAL_FIXTURE"] = _gfx
+os.environ.pop("TODO_BOARD_CANVAS_FIXTURE", None)
+
+# ============================================================ blocks: 閉じてから分類・null は2回連続で確定
+def bj(n, key_seg=1, start="10:00", end="10:35"): return blk_json(n, key_seg, start, end, 35, "do the quiz")
+b = newbase(); wr(tb.day_path(T), daily)
+payload = {"blocks": [bj("s1")]}
+blk.fetch_day = lambda d: payload
+cl = []
+def mk(reply):
+    def f(prompt): cl.append(prompt); return reply
+    return f
+blk.run_claude = mk('{"results":[{"block":"b1","item":1}]}')
+blk.run(dt.datetime(2026, 10, 2, 10, 40))
+check("blocks settle: ongoing/just-ended block (5m idle) is not classified", not cl and not os.path.exists(tb.blocks_path()))
+blk.run(dt.datetime(2026, 10, 2, 10, 46))
+check("blocks settle: classified once it has been idle >= 10m; non-null is final", len(cl) == 1 and "(≈35m" in rd(tb.day_path(T)))
+blk.run(dt.datetime(2026, 10, 2, 11, 10))
+check("blocks settle: non-null never re-classified", len(cl) == 1)
+# null: 2回連続で確定
+b = newbase(); wr(tb.day_path(T), daily); cl.clear()
+blk.run_claude = mk('{"results":[{"block":"b1","item":null}]}')
+blk.run(dt.datetime(2026, 10, 2, 10, 50))
+blk.run(dt.datetime(2026, 10, 2, 10, 52))
+check("blocks null: a null is retried only after a few minutes (no double count in one burst)", len(cl) == 1)
+blk.run(dt.datetime(2026, 10, 2, 11, 5))
+check("blocks null: second consistent null -> final (nulls=2)", len(cl) == 2 and json.load(open(tb.blocks_path()))["blocks"]["2026-10-02:s1:1"]["nulls"] == 2)
+blk.run(dt.datetime(2026, 10, 2, 11, 30))
+check("blocks null: final null is not asked again", len(cl) == 2)
+b = newbase(); wr(tb.day_path(T), daily); cl.clear()
+seq = iter(['{"results":[{"block":"b1","item":null}]}', '{"results":[{"block":"b1","item":1}]}'])
+blk.run_claude = lambda p: next(seq)
+blk.run(dt.datetime(2026, 10, 2, 10, 50)); blk.run(dt.datetime(2026, 10, 2, 11, 5))
+check("blocks null: null then non-null -> linked (the 10/6 'dp の意味' case)", "(≈35m" in rd(tb.day_path(T)))
+# 前日のファイル（06:00 以降の遅い確定・[>] 行）
+b = newbase()
+yday = "# Today 10/2\n- [>] " + BODY + " → 10/3\n\n<!-- status -->\nCanvas: ok\n"
+wr(tb.day_path(T), yday); wr(tb.day_path(D(2026, 10, 3)), "# Today 10/3\n- [ ] other thing ⟨h:abc123⟩\n\n<!-- status -->\nCanvas: ok\n")
+payload = {"blocks": [bj("s1")]}
+blk.fetch_day = lambda d: payload if d == T else {"blocks": []}
+blk.run_claude = lambda p: '{"results":[{"block":"b1","item":1}]}'
+blk.run(dt.datetime(2026, 10, 3, 9, 0))
+check("blocks prev-day: yesterday's [>] line gets the note even after the roll", "(≈35m) ⟨a:43037754⟩ → 10/3" in rd(tb.day_path(T)), rd(tb.day_path(T)))
+check("blocks prompt: richer context fields", all(x in blk.build_prompt([{"title": "t", "samples": ["p1", "p2"], "course_codes": ["CS4355"], "files": ["~/Store/20_Courses/CS4355/x.md"], "cwd": "/Users/x"}], [("a:1", "A")]) for x in ("user_prompts", "course_codes_in_prompts", "files_touched", "CS4355", "p2")))
 
 print("\nFAILS:", fails); sys.exit(1 if fails else 0)
