@@ -32,11 +32,16 @@ import argparse
 import datetime as dt
 import json
 import os
+import re
 import sys
+from collections import Counter
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
 DEFAULT_TZ = "America/Chicago"
+
+# これ以上 end より過去の timestamp を持つ行は、並びの乱れた異物として区間に使わない。
+BACKSTEP = dt.timedelta(minutes=1)
 
 # 本物のユーザー発話ではない合成メッセージ。きっかけの判定から除外する。
 SYNTHETIC_PREFIXES = (
@@ -44,8 +49,15 @@ SYNTHETIC_PREFIXES = (
     "<local-command-",
     "<system-reminder>",
     "<user-prompt-submit-hook>",
+    "<task-notification>",  # バックグラウンドタスクの完了通知（人が打った発話ではない）
     "Caveat: The messages below",
 )
+
+
+# 科目コード（CS 4355 / CS4355 / ENG3303）。todo-board が行との紐づけに使う手がかり
+COURSE_CODE = re.compile(r"(?<![A-Za-z0-9])([A-Z]{2,4})[ .]?(\d{4})(?![0-9])")
+SAMPLE_PROMPTS = 6
+SAMPLE_CHARS = 300
 
 
 def parse_date(value: str, tz: ZoneInfo) -> dt.date:
@@ -118,6 +130,7 @@ def scan_session(
     title_at_end = None
     cwd = None
     branch = None
+    entrypoint = None
 
     def close() -> None:
         nonlocal current
@@ -154,15 +167,41 @@ def scan_session(
                 cwd = entry["cwd"]
             if branch is None and entry.get("gitBranch"):
                 branch = entry["gitBranch"]
+            # `claude -p`（launchd の mail-check 等）は entrypoint が "sdk-cli"、対話は "cli"。
+            # 人が打っていないセッションを文面ではなくこの構造化フィールドで見分ける。
+            if entrypoint is None and entry.get("entrypoint"):
+                entrypoint = entry["entrypoint"]
 
+            # ★ transcript の行順は時刻順とは限らない（実測 2026-10-04: resume 直後に
+            #   5 時間前の timestamp を持つ attachment 行が1本混ざっていた）。後ろへ戻る行で
+            #   end を上書きすると end < start のブロックができ、次の行で idle 超過と誤判定されて
+            #   区間が割れる。大きく戻った行は捨て、数 ms 戻る程度（user/attachment 行で普通に
+            #   起きる）は発話の数だけ拾う。どちらも end は単調に伸ばすだけにする。
+            if current is not None and timestamp < current["end"] - BACKSTEP:
+                continue
             if current is not None and timestamp - current["end"] >= idle:
                 close()
             if current is None:
-                current = {"start": timestamp, "end": timestamp, "trigger": None, "prompts": 0}
-            current["end"] = timestamp
+                current = {"start": timestamp, "end": timestamp, "trigger": None, "prompts": 0,
+                           "samples": [], "_codes": Counter(), "_files": Counter()}
+            current["end"] = max(current["end"], timestamp)
 
+            # 触ったファイル（Read/Edit/Write の file_path）。どの課題・どのプロジェクトかの強い手がかり
+            if entry.get("type") == "assistant":
+                content = (entry.get("message") or {}).get("content")
+                for blk in content if isinstance(content, list) else []:
+                    inp = blk.get("input") if isinstance(blk, dict) and blk.get("type") == "tool_use" else None
+                    fp = inp.get("file_path") if isinstance(inp, dict) else None
+                    if isinstance(fp, str) and fp:
+                        current["_files"][fp.replace(str(Path.home()), "~")] += 1
             if is_real_prompt(entry):
                 current["prompts"] += 1
+                # 人が打った本文に出る科目コード（どの課題の作業かの手がかり。system-reminder や
+                # CLAUDE.md の注入には全科目が並ぶので、生の transcript 行ではなく発話だけを数える）
+                for m in COURSE_CODE.finditer(extract_text(entry["message"])):
+                    current["_codes"][m[1] + m[2]] += 1
+                if len(current["samples"]) < SAMPLE_PROMPTS:
+                    current["samples"].append(" ".join(extract_text(entry["message"]).split())[:SAMPLE_CHARS])
                 if current["trigger"] is None:
                     current["trigger"] = extract_text(entry["message"]).strip()
 
@@ -171,12 +210,18 @@ def scan_session(
         return []
 
     for index, segment in enumerate(segments):
+        codes = segment.pop("_codes")
+        segment["files"] = [f for f, _ in segment.pop("_files").most_common(6)]
+        segment["course_codes"] = [c for c, n in codes.most_common(4) if n >= 1]
         segment.update(
             {
                 "session": path.stem,
                 "segment": index + 1,
                 "segments_in_session": len(segments),
                 "title": title_at_end,
+                "entrypoint": entrypoint,
+                # 人が対話で打った発話を含む区間か。claude -p・通知だけで動いた区間は False。
+                "interactive": entrypoint != "sdk-cli" and segment["prompts"] > 0,
                 "cwd": cwd,
                 "branch": branch,
                 # 窓の外に続きがある＝この日の中では途中から/途中までしか見えていない。
