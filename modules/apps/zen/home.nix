@@ -280,6 +280,7 @@ in {
           videospeed # 動画の再生速度
           youtube-recommended-videos # ＝ Unhook（おすすめ・Shorts を消す）
           tampermonkey # ⚠ Zen 限定。CP 用。権限が重い（上のコメント参照）
+          tabwrangler # 放置タブを自動で閉じる（タブの GC）。閉じたものは拡張内の一覧から戻せる
         ];
 
         # ── permission canary ────────────────────────────────────────
@@ -375,6 +376,17 @@ in {
             "contextualIdentities"
             "downloads"
             "<all_urls>"
+          ];
+          # Tab Wrangler。ホスト権限ゼロ＝ページの中身には触れない（タブの開閉だけ）。
+          # ピン留めタブ（Zen の Essentials / pinned）は閉じない。閉じるまでの分数や
+          # 最小タブ数は拡張側の設定画面で変える（nix からは宣言していない）。
+          "{81b74d53-9416-4fb3-afa2-ab46684b253b}".permissions = [
+            "alarms"
+            "contextMenus"
+            "sessions"
+            "storage"
+            "tabGroups"
+            "tabs"
           ];
         };
       };
