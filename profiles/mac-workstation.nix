@@ -47,6 +47,7 @@
       ../modules/apps/zed/home.nix
       ../modules/apps/herdr/home.nix
       ../modules/apps/claude/home.nix
+      ../modules/apps/claude/plugins.nix # プラグインの宣言（settings.json には触れない）
       ../modules/apps/bitwarden/home.nix # fleet 横断の秘密ストア(D1)の CLI = rbw
       # WM は OmniWM（2026-08-30 に AeroSpace から移行、2026-09-09 に AeroSpace を退役）。
       # 戻すなら modules/_archive/README.md の aerospace 節を参照。
@@ -83,9 +84,5 @@
 
     # Let Home Manager install and manage itself.
     programs.home-manager.enable = true;
-
-    # スクショ保存先 (macos-defaults/darwin.nix screencapture.location) の存在保証。
-    # ディレクトリが無いと macOS はスクリーンショットを黙って失敗させる。
-    home.file."Downloads/screenshots/.keep".text = "";
   };
 }
