@@ -20,6 +20,20 @@
     #   （follows を張らない＝git を古い版に固定するのが目的なので独立させる）
     nixpkgs-stable.url = "github:nixos/nixpkgs/nixos-25.05";
 
+    # claude-code だけを「常に最新」に保つための独立 nixpkgs（2026-10-02 新設）。
+    #   nixpkgs の claude-code は update bot がほぼ毎日版を上げている
+    #   （実測 2026-09〜10：1〜2日に1回 commit）。古くなる原因は上流ではなく
+    #   **こちらの flake.lock が動かないこと**だったので、claude-code 用の input を
+    #   独立させて rebuild のたびにこれだけ bump する
+    #   （modules/apps/claude/home.nix の nh ラッパが実行）。
+    #   ★ follows を張らない＝「更新サイクルを他と分離すること自体が目的」。
+    #     nixpkgs-darwin 全体を自動 bump すると nvim/git まで巻き込み、意図して
+    #     ピン留めしてきたもの（上の nixpkgs-stable の git 2.50.1 など）が壊れる。
+    #   代償：flake.lock に nixpkgs が1本増える＋eval で2つ目の nixpkgs を
+    #     instantiate する（claude-code が unfree なので legacyPackages ではなく
+    #     config.allowUnfree 付きの import が必要。詳細は claude/home.nix）。
+    nixpkgs-claude.url = "github:nixos/nixpkgs/nixpkgs-unstable";
+
     # home-manager, used for managing user configuration
     home-manager = {
       # `follows` で nixpkgs を親と揃え、依存バージョン差異による問題を避ける。
