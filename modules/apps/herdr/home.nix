@@ -93,8 +93,11 @@ in {
   };
 
   # Claude Code UserPromptSubmit hook: herdr pane 内で動いているとき、workspace/tab の
-  # ラベルが未命名（ASCII のみ）なら、発話から日本語ラベルを背景の haiku で生成して
-  # rename する（詳細はスクリプト冒頭コメント）。
+  # ラベルが未命名（herdr の既定値＝cwd basename / タブ番号のまま）なら、5 発話ごとに
+  # 直近 5 発話を背景の haiku に渡して日本語ラベルを生成し rename する（詳細はスクリプト
+  # 冒頭コメント）。手動命名は modules/apps/claude/skills/space-rename（/space-rename）。
+  # 2026-10-14: 発火を「初回発話」から「5 ラリー目」に変更。同時に bash 3.2 の構文エラー
+  # （2026-09-11 から無言で死んでいた。/bin/sh -n で検証すること）を修正。
   # 2026-09-11 に SessionStart（＝モデルへ指示文を注入する方式）から移設した。
   # 指示注入の実測命中率は workspace 9個中1個（≒11%）。★ソフトな指示は累積で無視される
   # ので、検知と実行を自動経路に降ろした。
