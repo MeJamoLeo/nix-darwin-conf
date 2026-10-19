@@ -182,6 +182,22 @@
 #      ※ 一度「追従の有無でキー段を分ける」案（Option+Shift+U/I をカラム送りに
 #        入れ替える）を実装しかけたが、niri 文法を崩すため**同日撤回**した。
 #        追従して送りたいときは `Control+Option+U/I` を使うこと。
+#
+#  以下は 0.7.4 への更新（2026-10-02）で足した分。
+#
+#  11. closeFocusedWindow = Option+Q
+#        0.6.4 では hotkey ID に露出しておらずバインド不可だった（上の「再現できない
+#        もの」に書いてある通り）。0.7.4 で露出したので niri 本家の `Mod+Q` に揃えた。
+#
+#  12. niri.defaultContainerPrimarySpan = 1/3
+#        既定 0.5。新しい列が最初から 1/3 幅で出る（2026-10-04 に 2/3 から変更）。
+#        ⚠ `visibleContainerCount` はこの値がある限り死んでいる（下のコメント参照）。
+#
+#  13. gestures.overviewGestureEnabled = true
+#        既定 false。3本指は列スクロールに使っているので Overview は既定の4本指のまま。
+#
+#  ★ borders.enabled = true は「差分」ではなく**既定へ戻すための宣言**なので
+#    この一覧には入れない（経緯は下の該当コメント）。
 # ──────────────────────────────────────────────────────────────────────────
 {
   # hotkeys を1行1バインドに畳むヘルパ。Unassigned も全件残すこと（上の🔴）。
@@ -383,6 +399,47 @@
     (hk "toggleWorkspaceLayout" "Unassigned")
     (hk "toggleOverview" "Option+O")
     (hk "toggleSystemStats" "Unassigned")
+
+    # ──────────────────────────────────────────────────────────────────────
+    # 0.7.4 で増えた 21件（2026-10-02 に追加）。全部 Unassigned のまま置く。
+    #
+    # 🔴 **ここを欠かすと settings.toml ごと既定へ飛ぶ。** 実測事故（2026-10-02）：
+    #   0.6.4→0.7.4 に上げた直後の switch で、この配列が 169件のまま live へ書かれ、
+    #   OmniWM が**不完全として全体を捨てて 190件の既定を書き戻した**。
+    #   hotkeys 169件・ipcEnabled・followsWindowToMonitor・routing.arrangements
+    #   （モニタ配置）が一撃で消えた。上流 #604「Updating 0.6.2 -> 0.6.3 wipes
+    #   settings.toml (missing new required keys)」と同じ failure mode。
+    #
+    # ★ 一般形：**全件宣言は「全件」が版に依存する。** アプリ側の集合が増えたのに
+    #   こちらが据え置くと、部分集合は「設定」ではなく「壊れたファイル」として扱われる。
+    #   版を上げたら必ず `grep -c '^\[\[hotkeys\]\]' ~/.config/omniwm/settings.toml` と
+    #   この配列の件数を突き合わせること（現在 190）。
+    (hk "switchWorkspaceSlot.1" "Unassigned")
+    (hk "switchWorkspaceSlot.2" "Unassigned")
+    (hk "switchWorkspaceSlot.3" "Unassigned")
+    (hk "switchWorkspaceSlot.4" "Unassigned")
+    (hk "switchWorkspaceSlot.5" "Unassigned")
+    (hk "switchWorkspaceSlot.6" "Unassigned")
+    (hk "switchWorkspaceSlot.7" "Unassigned")
+    (hk "switchWorkspaceSlot.8" "Unassigned")
+    (hk "switchWorkspaceSlot.9" "Unassigned")
+    (hk "moveToWorkspaceSlot.1" "Unassigned")
+    (hk "moveToWorkspaceSlot.2" "Unassigned")
+    (hk "moveToWorkspaceSlot.3" "Unassigned")
+    (hk "moveToWorkspaceSlot.4" "Unassigned")
+    (hk "moveToWorkspaceSlot.5" "Unassigned")
+    (hk "moveToWorkspaceSlot.6" "Unassigned")
+    (hk "moveToWorkspaceSlot.7" "Unassigned")
+    (hk "moveToWorkspaceSlot.8" "Unassigned")
+    (hk "moveToWorkspaceSlot.9" "Unassigned")
+    # `closeFocusedWindow` は 0.6.4 では enum に在るのに hotkey ID に露出して
+    # いなかった（冒頭「再現できないもの」の記述）。**0.7.4 で露出した**ので
+    # niri 本家の `Mod+Q` と同じ Option+Q を当てた（差分11）。
+    # Q/W/E/A/S/D/Z/X 段は 2026-09-08 の 3×3 撤回以降ずっと空いている。
+    (hk "closeFocusedWindow" "Option+Q")
+    # 0.7.4 の window marks（コマンドパレット／omniwmctl から付ける名前）。
+    (hk "setWindowMark" "Unassigned")
+    (hk "removeWindowMark" "Unassigned")
   ];
 
   # 既定は false。omniwmctl 用のソケットを開かせる（差分 1）。
@@ -391,4 +448,43 @@
   # 既定 false。niri の move-column-to-workspace は既定で追従する（focus=true）ので、
   # niri 準拠のためには true が正しい。経緯と実測は冒頭の差分10を参照。
   focus.followsWindowToMonitor = true;
+
+  # 既定は true。**既定と同じ値をわざわざ宣言している**のは、live の settings.toml が
+  # false のまま取り残されているため（2026-10-02 発見）。
+  #
+  # ★ 経緯：87c9e70 が JankyBorders へ逃がすために `borders.enabled = false` を宣言し、
+  #   24644e6（2026-09-05 のリセット）がその宣言を**消した**。だが merge-settings.nu は
+  #   「テンプレが定義したキーだけ」を live に上書きする設計なので、**宣言を消しても
+  #   live の値は戻らない**。結果 false が居座り、JankyBorders も退役済みなので
+  #   2026-09-05 から**フォーカス枠が一切出ていなかった**。
+  #
+  # ★ 一般形：**宣言の削除は「既定に戻す」ではなく「管理をやめる」**。アプリが所有する
+  #   設定ファイルでは、やめた瞬間の値がそのまま凍る。既定へ戻したいなら、既定値を
+  #   明示的に宣言して1回流す必要がある。
+  #
+  #   枠が出たのを確認したら、この宣言は消してよい（live が true に書き変わるので
+  #   同じ事故は起きない）。ただし別機体（tanegashima）に同じ false が残っている
+  #   可能性があるので、両機で switch を回してから消すこと。
+  borders.enabled = true;
+
+  # 新しい列の既定幅をビューポートの 1/3 にする（既定 0.5・差分12）。
+  # `containerPrimarySpanPresets` の1番目と同じ値なので Option+R のサイクルとも揃う。
+  # 2026-10-04 に本人の指定で 2/3 → 1/3 に変更（3列が1画面に収まる）。
+  #
+  # ★ `niri.visibleContainerCount` は**この値が入っている限り効かない**。
+  #   NiriLayoutEngine.resolvedContainerResetPrimarySpan が
+  #   `defaultContainerPrimarySpan` を先に見て、nil のときだけ
+  #   `1.0 / visibleContainerCount` へ落ちるフォールバックだから
+  #   （＝「見える列数の上限」ではない。列は何本でも並ぶ）。
+  #   GUI の Visible Containers スライダーを動かすと
+  #   `defaultContainerPrimarySpan` を nil に落として 1/N へ委ねる作りなので、
+  #   GUI で触ると**この宣言と毎回ぶつかる**。幅は宣言側で決めること。
+  niri.defaultContainerPrimarySpan = 0.3333333333333333;
+
+  # Overview をトラックパッドの上スワイプで開く（既定 false・差分13）。
+  # 指の本数は既定の 4 本のまま。`gestures.fingerCount = 3`（Niri の列スクロール）と
+  # 分けるため 3 にはしない。
+  # ⚠ Overview の描画には**画面収録の権限**が要る（アクセシビリティ・入力監視と違い
+  #   任意扱いなので未許可の可能性がある）。宣言できないので初回に GUI で許可する。
+  gestures.overviewGestureEnabled = true;
 }

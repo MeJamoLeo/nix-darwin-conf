@@ -17,6 +17,8 @@
   #    （実測：master には在り、両チャンネル branch には 404）。この repo の
   #    nixpkgs-darwin は nixpkgs-unstable 追従なので、今 `nix flake update` しても
   #    取れない。チャンネルが回るまでの数日を埋めるためだけにこの derivation が在る。
+  #    ⚠ 2026-10-02 再確認：**まだ降りていない**（`nix eval nixpkgs#omniwm.version`
+  #      が attribute 無しで失敗）。「数日」の見積りは外れて1ヶ月経っている。
   #
   #    ▼ 降りてきたら（`nix eval nixpkgs#omniwm.version` が通ったら）：
   #        下の `omniwm = pkgs.stdenvNoCC.mkDerivation …` を丸ごと消して
@@ -53,7 +55,7 @@
   #       で出た SRI ハッシュを hash に貼る
   #
   ##########################################################################
-  version = "0.6.4";
+  version = "0.7.4";
 
   omniwm = pkgs.stdenvNoCC.mkDerivation (finalAttrs: {
     pname = "omniwm";
@@ -61,7 +63,7 @@
 
     src = pkgs.fetchurl {
       url = "https://github.com/BarutSRB/OmniWM/releases/download/v${finalAttrs.version}/OmniWM-v${finalAttrs.version}.zip";
-      hash = "sha256-myv1TSDWf1NicAMuBiUXbAbG4DuIl93wJVWNlIM55ec=";
+      hash = "sha256-HxSF4dFmgxaX6M7bnBF1d/WUn+AN7q6Fcr7W1sWOtOI=";
     };
 
     # zip の中身は OmniWM.app 1個。unpackPhase がその中へ cd するので、
