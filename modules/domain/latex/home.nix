@@ -4,6 +4,7 @@
 {pkgs, ...}: {
   home.packages = with pkgs; [
     neovim-remote # Skim からの逆検索用 (nvr)
+    pandoc # Markdown → PDF。エンジンは texlive の xelatex（darwin.nix 側）
   ];
 
   programs.nixvim = {
