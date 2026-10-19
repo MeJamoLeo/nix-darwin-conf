@@ -74,6 +74,20 @@
   '';
 
   # カーソル位置の診断メッセージをフロートウィンドウで自動表示
+  # copy は OSC 52、paste は無名レジスタから返す（OSC 52 の読み出しは端末の許可待ちで
+  # 固まりやすい。外からの貼り付けは端末の Cmd+V で入れる）。
+  osc52ClipboardLua = ''
+    local osc52 = require("vim.ui.clipboard.osc52")
+    local function paste()
+      return { vim.fn.split(vim.fn.getreg(""), "\n"), vim.fn.getregtype("") }
+    end
+    vim.g.clipboard = {
+      name = "OSC 52",
+      copy = { ["+"] = osc52.copy("+"), ["*"] = osc52.copy("*") },
+      paste = { ["+"] = paste, ["*"] = paste },
+    }
+  '';
+
   diagnosticFloatAutocmd = ''
     vim.api.nvim_create_autocmd("CursorHold", {
       callback = function()
@@ -193,7 +207,28 @@
   # LSP サーバー設定
   lspServers = {
     bashls.enable = true; # Bash
-    clangd.enable = true; # C/C++
+
+    # C/C++。--query-driver が無いと macOS で libc++ を二重に読んで標準ヘッダの
+    # パースが死ぬ（症状＝ファイル全体が赤い＋std:: の補完がゼロ）。
+    # 2026-09-10 に Zed 側 (modules/apps/zed/home.nix) で同じ修正を入れたが、
+    # nixvim 側は素のままで残っていた＝Zed では直り nvim では直っていない状態が
+    # 2026-09-18 まで続いた。glob は zed 側と同一のものを使う。
+    #
+    # ★マッチ対象は compile_commands.json に**書いてある文字列そのもの**で、
+    #   symlink 解決後のパスではない。だから安定パスと store 実体の両方を許可する。
+    #   DB を撒いているのは modules/domain/school/cs4355/home.nix の activation。
+    #
+    # 実測（zylab1 の main.cpp・clangd --check のエラー数、2026-09-18）:
+    #   素の clangd                      5 errors
+    #   + --query-driver=<実コンパイラ>   0 errors
+    clangd = {
+      enable = true;
+      cmd = [
+        "clangd"
+        "--query-driver=/etc/profiles/per-user/*/bin/g++,/nix/store/*/bin/g++,/usr/bin/clang*"
+      ];
+    };
+
     dockerls.enable = true; # Dockerfile
     lua_ls = {
       enable = true;
@@ -461,8 +496,9 @@ in {
     # 型は絶対パスなので pkgs そのものではなく pkgs.path を渡す。
     nixpkgs.source = pkgs.path;
 
-    # クリップボード連携（macOS pbcopy）
-    clipboard.providers.pbcopy.enable = true;
+    # クリップボード連携は OSC 52（extraConfigLua の osc52ClipboardLua）。
+    # pbcopy だと ssh 先（ogasawara）の Mac に書かれて手元に届かないため、端末側に
+    # 運ばせる。herdr は pane の OSC 52 を client 側へ転送する（--remote 時は手元機）。
 
     # カラースキーム: Kanagawa（ダークテーマ）
     colorschemes.kanagawa = {
@@ -481,7 +517,7 @@ in {
     ];
 
     # Lua 設定の挿入（CP スニペットローダー・数式スニペット・DAP デバッグ config 込み）
-    extraConfigLua = diagnosticFloatAutocmd + nvimAutopairsConfig + cpNvimLua;
+    extraConfigLua = osc52ClipboardLua + diagnosticFloatAutocmd + nvimAutopairsConfig + cpNvimLua;
     extraConfigLuaPre = rainbowDelimitersConfig;
 
     # グローバル変数
@@ -498,7 +534,6 @@ in {
     opts = {
       autoindent = true;
       background = "dark";
-      clipboard = "unnamedplus"; # システムクリップボード連携
       expandtab = true; # インデントはスペース（x1nano/CP 環境と統一。Python が主体で安全）
       list = true; # 不可視文字表示
       listchars = listchars;
