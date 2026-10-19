@@ -96,10 +96,8 @@
 
       # NOTE(2026-07-30): 元は `.com.apple.screencapture` に置かれていたが dead 宣言。
       # nix-darwin ネイティブ system.defaults.screencapture に移設。
-      # 副作用: スクショ保存先が ~/Desktop → ~/Downloads/screenshots に変化。
-      # 保存先ディレクトリは home-manager が `.keep` で確保済み。
+      # NOTE(2026-10-09): 保存先（location）の指定は撤去した。macOS 既定の ~/Desktop に保存される。
       screencapture = {
-        location = "~/Downloads/screenshots";
         type = "png";
       };
 
