@@ -79,6 +79,14 @@ in {
           type = "shell";
           command = "${config.home.homeDirectory}/bin/herdr-layout tiled";
         }
+        # 待ちのエージェントへ飛ぶ：赤(blocked) → 青緑(done) → 緑(idle) の順に、押すたび次へ。
+        # 公式の next_agent は並び順で全エージェントを回すだけで状態で絞れないので自前。
+        # prefix+t は herdr 既定で空き（`herdr --default-config` で確認）。
+        {
+          key = "prefix+t";
+          type = "shell";
+          command = "${config.home.homeDirectory}/bin/herdr-next-waiting";
+        }
       ];
     };
 
@@ -119,6 +127,17 @@ in {
       builtins.replaceStrings
       ["#!/usr/bin/env python3"] ["#!${pkgs.python3}/bin/python3"]
       (builtins.readFile ./herdr-layout);
+    executable = true;
+  };
+
+  # prefix+t（上の keys.command）から呼ぶ。herdr-layout と同じく shebang を nix の
+  # python3 に、herdr も絶対パスに差し替える（shell コマンドの PATH に頼らない）。
+  home.file."bin/herdr-next-waiting" = {
+    text =
+      builtins.replaceStrings
+      ["#!/usr/bin/env python3" "HERDR = \"herdr\""]
+      ["#!${pkgs.python3}/bin/python3" "HERDR = \"${pkgs.herdr}/bin/herdr\""]
+      (builtins.readFile ./herdr-next-waiting);
     executable = true;
   };
 }

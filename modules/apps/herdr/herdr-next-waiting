@@ -1,0 +1,41 @@
+#!/usr/bin/env python3
+"""herdr-next-waiting — 手が空いた／手を待っているエージェントへ順に飛ぶ。
+
+サイドバーの色でいう 赤(blocked) → 青緑(done: 終わって未読) → 緑(idle) の順に並べ、
+押すたびに次へ回す。黄(working) と灰(unknown) は飛ばない。
+同じ色の中では「その状態になってから長いもの」を先にする（state_change_seq の昇順）。
+
+色と状態の対応は herdr 本体 src/client/shell.rs の status_color（0.9.3 で確認）。
+"""
+import json
+import subprocess
+import sys
+
+HERDR = "herdr"  # nix 側で絶対パスに差し替える
+ORDER = {"blocked": 0, "done": 1, "idle": 2}
+
+
+def herdr(*args):
+    out = subprocess.run([HERDR, *args], capture_output=True, text=True, check=True)
+    return out.stdout
+
+
+def main():
+    agents = json.loads(herdr("agent", "list"))["result"]["agents"]
+    queue = sorted(
+        (a for a in agents if a.get("agent_status") in ORDER),
+        key=lambda a: (ORDER[a["agent_status"]], a.get("state_change_seq", 0)),
+    )
+    if not queue:
+        return 0
+
+    # いまフォーカス中のものが列に居れば、その次へ（末尾なら先頭へ戻る）。
+    ids = [a["pane_id"] for a in queue]
+    focused = next((a["pane_id"] for a in agents if a.get("focused")), None)
+    i = (ids.index(focused) + 1) % len(ids) if focused in ids else 0
+    herdr("agent", "focus", ids[i])
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
