@@ -76,15 +76,28 @@
   # カーソル位置の診断メッセージをフロートウィンドウで自動表示
   # copy は OSC 52、paste は無名レジスタから返す（OSC 52 の読み出しは端末の許可待ちで
   # 固まりやすい。外からの貼り付けは端末の Cmd+V で入れる）。
+  # ⚠ paste で getreg("") を読むな。opts.clipboard = "unnamedplus" の下では無名レジスタが
+  #   "+" に化けるので、provider の paste → getreg → paste … と再帰する。copy 時に自前で
+  #   控えた中身を返す。
   osc52ClipboardLua = ''
     local osc52 = require("vim.ui.clipboard.osc52")
-    local function paste()
-      return { vim.fn.split(vim.fn.getreg(""), "\n"), vim.fn.getregtype("") }
+    local last = { ["+"] = { {}, "v" }, ["*"] = { {}, "v" } }
+    local function copy(reg)
+      local send = osc52.copy(reg)
+      return function(lines, regtype)
+        last[reg] = { lines, regtype }
+        send(lines, regtype)
+      end
+    end
+    local function paste(reg)
+      return function()
+        return last[reg]
+      end
     end
     vim.g.clipboard = {
       name = "OSC 52",
-      copy = { ["+"] = osc52.copy("+"), ["*"] = osc52.copy("*") },
-      paste = { ["+"] = paste, ["*"] = paste },
+      copy = { ["+"] = copy("+"), ["*"] = copy("*") },
+      paste = { ["+"] = paste("+"), ["*"] = paste("*") },
     }
   '';
 
@@ -534,6 +547,7 @@ in {
     opts = {
       autoindent = true;
       background = "dark";
+      clipboard = "unnamedplus"; # 素の y / d / p も "+"（＝ OSC 52 で手元のクリップボード）に通す
       expandtab = true; # インデントはスペース（x1nano/CP 環境と統一。Python が主体で安全）
       list = true; # 不可視文字表示
       listchars = listchars;
