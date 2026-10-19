@@ -7,7 +7,7 @@
   ##########################################################################
   #
   #  OmniWM — Niri / Hyprland 系の macOS タイル型 WM（AeroSpace の置き換え候補）。
-  #  上流 github:BarutSRB/OmniWM・GPL-2.0・Apple Developer ID 署名 + notarize 済み。
+  #  上流 github:OmniNull/OmniWM（2026-10 に BarutSRB から移管・旧 URL はリダイレクト）・GPL-2.0・Apple Developer ID 署名 + notarize 済み。
   #
   #  ★★ パッケージ部分は**繋ぎ**（2026-08-30）。nixpkgs 本体に入ったら消す。★★
   #
@@ -51,19 +51,19 @@
   #  更新手順（繋ぎの間に新リリースが出たら）：
   #    1. version を書き換える
   #    2. `nix store prefetch-file --name OmniWM-v<ver>.zip \
-  #         https://github.com/BarutSRB/OmniWM/releases/download/v<ver>/OmniWM-v<ver>.zip`
+  #         https://github.com/OmniNull/OmniWM/releases/download/v<ver>/OmniWM-v<ver>.zip`
   #       で出た SRI ハッシュを hash に貼る
   #
   ##########################################################################
-  version = "0.7.4";
+  version = "0.7.6";
 
   omniwm = pkgs.stdenvNoCC.mkDerivation (finalAttrs: {
     pname = "omniwm";
     inherit version;
 
     src = pkgs.fetchurl {
-      url = "https://github.com/BarutSRB/OmniWM/releases/download/v${finalAttrs.version}/OmniWM-v${finalAttrs.version}.zip";
-      hash = "sha256-HxSF4dFmgxaX6M7bnBF1d/WUn+AN7q6Fcr7W1sWOtOI=";
+      url = "https://github.com/OmniNull/OmniWM/releases/download/v${finalAttrs.version}/OmniWM-v${finalAttrs.version}.zip";
+      hash = "sha256-7IxhRqbyGnnhxArHDWESF2K5PPU80wjmPrROis4g/Nw=";
     };
 
     # zip の中身は OmniWM.app 1個。unpackPhase がその中へ cd するので、
@@ -98,7 +98,7 @@
 
     meta = {
       description = "Niri/Hyprland 系の macOS タイル型ウィンドウマネージャ";
-      homepage = "https://github.com/BarutSRB/OmniWM";
+      homepage = "https://github.com/OmniNull/OmniWM";
       license = pkgs.lib.licenses.gpl2Only;
       mainProgram = "OmniWM";
       platforms = ["aarch64-darwin"];

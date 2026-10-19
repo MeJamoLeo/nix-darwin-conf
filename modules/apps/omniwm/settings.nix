@@ -85,7 +85,8 @@
 #  素の既定からの差分。増やすときはここに追記すること。
 #
 #   1. general.ipcEnabled = true
-#        既定 false。false だと ~/Library/Caches/com.barut.OmniWM/ipc.sock が
+#        既定 false。false だと ~/Library/Application Support/com.barut.OmniWM/ipc.sock
+#        （0.7.5 で ~/Library/Caches/ から移った）が
 #        開かず omniwmctl（query / watch / rule）が全滅する。
 #
 #   2. 方向キーを矢印から H/J/K/L へ（既定で矢印だった12件すべて）
