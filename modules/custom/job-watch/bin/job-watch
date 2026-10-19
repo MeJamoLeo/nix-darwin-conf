@@ -1,0 +1,30 @@
+#!/usr/bin/env python3
+"""job-watch launcher — 本体は job_watch パッケージ（job_watch/cli.py の main）。
+
+パッケージの探し方（先に見つかったものを使う）:
+  1. env JOB_WATCH_PKG（job_watch/ を含むディレクトリ。job_watch/ 自身を指してもよい。テスト／開発用）
+  2. このファイルの隣（リポジトリ内で直接実行したとき: bin/../job_watch）
+  3. ~/.local/lib/job-watch（home.nix が配置する場所）
+"""
+import os
+import sys
+
+
+def _roots():
+    env = os.environ.get("JOB_WATCH_PKG")
+    if env:
+        env = os.path.expanduser(env)
+        yield os.path.dirname(os.path.abspath(env)) if os.path.basename(os.path.abspath(env)) == "job_watch" else env
+    yield os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
+    yield os.path.expanduser("~/.local/lib/job-watch")
+
+
+for _r in _roots():
+    if os.path.isfile(os.path.join(_r, "job_watch", "__init__.py")):
+        sys.path.insert(0, _r)
+        break
+
+from job_watch.cli import main  # noqa: E402
+
+if __name__ == "__main__":
+    sys.exit(main())
