@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>__TITLE__</title>
+<style>
+:root{--bg:#fbfaf7;--fg:#1d1d1f;--muted:#8a8a8e;--panel:#efede8;--line:#cfccc4;--accent:#2f6fdf;--ok:#1f9d55;--warn:#d98a00;--bad:#d64545;--hl:#ffe49a}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#16171a;--fg:#e8e6e1;--muted:#8d8d93;--panel:#25272d;--line:#43464e;--accent:#6ea0ff;--ok:#4cc38a;--warn:#f0b43c;--bad:#ff6b6b;--hl:#665418}}
+:root[data-theme="dark"]{--bg:#16171a;--fg:#e8e6e1;--muted:#8d8d93;--panel:#25272d;--line:#43464e;--accent:#6ea0ff;--ok:#4cc38a;--warn:#f0b43c;--bad:#ff6b6b;--hl:#665418}
+html,body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",system-ui,sans-serif}
+#stage{position:fixed;inset:0;display:flex;flex-direction:column}
+#bar{position:fixed;left:0;top:0;height:3px;width:0;background:var(--accent);z-index:2}
+header{display:flex;justify-content:space-between;align-items:baseline;gap:16px;padding:12px 16px 0;font-size:14px;color:var(--muted)}
+header b{color:var(--fg);font-weight:600}
+#prog{font-variant-numeric:tabular-nums;white-space:nowrap}
+#fig{flex:1;min-height:0;width:100%;display:block}
+#cap{position:relative;box-sizing:border-box;width:100%;max-width:880px;margin:0 auto;padding:8px 16px 22px;font-size:17px;line-height:1.65}
+.capl{position:absolute;left:16px;right:16px;top:8px}
+#measure{visibility:hidden;position:absolute;left:16px;right:16px;top:8px}
+#cap code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:.9em;background:var(--panel);padding:0 .3em;border-radius:4px}
+#hint{position:fixed;right:16px;bottom:8px;font-size:12px;color:var(--muted)}
+#spacer{width:1px}
+svg text{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",system-ui,sans-serif}
+svg .mono,svg .mono text{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+svg .halo{paint-order:stroke;stroke:var(--bg);stroke-width:4px;stroke-linejoin:round}
+</style>
+</head>
+<body>
+<div id="bar"></div>
+<div id="stage">
+  <header><b id="title"></b><span id="prog"></span></header>
+  <svg id="fig" preserveAspectRatio="xMidYMid meet"></svg>
+  <div id="cap"><div class="capl" id="capA"></div><div class="capl" id="capB"></div><div id="measure"></div></div>
+</div>
+<div id="hint">scroll / j k</div>
+<div id="spacer"></div>
+<script>
+(() => {
+const SPEC = /*__SPEC__*/null;
+const NS = 'http://www.w3.org/2000/svg';
+const TOKENS = ['bg','fg','muted','panel','line','accent','ok','warn','bad','hl'];
+const COLOR_KEYS = new Set(['fill','stroke','color','labelColor','hlColor','_fill']);
+const DISCRETE = new Set(['type','id','text','label','values','lines','fn','prefix','suffix','align','side',
+  'array','plot','from','to','xlabel','ylabel','title','weight','order','cellFill','show','hide','lineNumbers','showIndex','grid','guides','head','dash']);
+const DEF = {
+  box:{fill:'panel',stroke:'line',strokeWidth:1.5,rx:8,labelSize:18,labelColor:'fg',opacity:1},
+  circle:{fill:'panel',stroke:'line',strokeWidth:1.5,labelSize:18,labelColor:'fg',opacity:1},
+  text:{size:18,color:'fg',align:'middle',weight:'normal',opacity:1},
+  number:{size:22,color:'fg',align:'middle',weight:'600',decimals:0,prefix:'',suffix:'',opacity:1},
+  arrow:{color:'muted',width:2,bend:0,gap:4,head:true,opacity:1,labelSize:14},
+  code:{size:15,hl:0,hlColor:'hl',lineNumbers:true,opacity:1},
+  array:{cell:48,showIndex:true,stroke:'line',opacity:1},
+  pointer:{side:'top',color:'accent',dy:0,opacity:1},
+  plot:{grid:true,ticks:5,color:'muted',opacity:1},
+  curve:{color:'accent',width:2.5,reveal:1,samples:240,opacity:1},
+  dot:{r:6,color:'accent',guides:false,opacity:1},
+};
+
+// ---------- color ----------
+let PAL = {};
+function parseHex(h){h=String(h).trim().replace('#','');if(h.length===3)h=h.split('').map(c=>c+c).join('');
+  const n=parseInt(h.slice(0,6),16);const a=h.length===8?parseInt(h.slice(6),16)/255:1;return [(n>>16)&255,(n>>8)&255,n&255,a];}
+function readPalette(){const cs=getComputedStyle(document.documentElement);TOKENS.forEach(t=>PAL[t]=parseHex(cs.getPropertyValue('--'+t)));}
+function col(c){if(c==null||c==='none')return null;if(Array.isArray(c))return c;if(PAL[c])return PAL[c];if(c[0]==='#')return parseHex(c);return PAL.fg;}
+function lerpColor(a,b,f){let A=col(a),B=col(b);if(!A&&!B)return 'none';if(!A)A=[B[0],B[1],B[2],0];if(!B)B=[A[0],A[1],A[2],0];return A.map((v,i)=>v+(B[i]-v)*f);}
+function css(c){const C=col(c);if(!C||C[3]<=0.001)return 'none';return `rgba(${Math.round(C[0])},${Math.round(C[1])},${Math.round(C[2])},${C[3].toFixed(3)})`;}
+
+// ---------- interpolation ----------
+const isObj=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
+function lerp(key,a,b,f){
+  if(a===undefined)return b; if(b===undefined)return a;
+  if(f<=0)return a; if(f>=1)return b;
+  if(COLOR_KEYS.has(key)){
+    if(Array.isArray(a)&&Array.isArray(b)&&a.length===b.length)return a.map((v,i)=>lerpColor(v,b[i],f));
+    if(typeof a==='string'&&typeof b==='string')return lerpColor(a,b,f);
+  }
+  if(DISCRETE.has(key))return f<0.5?a:b;
+  if(typeof a==='number'&&typeof b==='number')return a+(b-a)*f;
+  if(Array.isArray(a)&&Array.isArray(b)&&a.length===b.length)return a.map((v,i)=>lerp(key,v,b[i],f));
+  if(isObj(a)&&isObj(b)){const o={};new Set([...Object.keys(a),...Object.keys(b)]).forEach(k=>o[k]=lerp(k,a[k],b[k],f));return o;}
+  return f<0.5?a:b;
+}
+const EASE={smooth:f=>f*f*(3-2*f),linear:f=>f};
+const ease=EASE[SPEC.ease]||EASE.smooth;
+
+// ---------- resolve keyframes (diffs carry forward) ----------
+const els=SPEC.elements, steps=SPEC.steps, N=steps.length;
+const byId={}; els.forEach(e=>byId[e.id]=e);
+const S=[];
+{
+  const cur={};
+  els.forEach(e=>{const d=Object.assign({},DEF[e.type]||{},e);if(e.show!==undefined&&e.show>1)d.opacity=0;cur[e.id]=d;});
+  for(let i=0;i<N;i++){
+    const I=i+1;
+    els.forEach(e=>{if(e.show===I&&I>1)cur[e.id].opacity=e.opacity??1;if(e.hide===I)cur[e.id].opacity=0;});
+    const set=steps[i].set||{};
+    for(const id in set){const c=cur[id];if(!c)continue;
+      for(const k in set[id]){const v=set[id][k];c[k]=(isObj(v)&&isObj(c[k]))?Object.assign({},c[k],v):v;}}
+    S.push(JSON.parse(JSON.stringify(cur)));
+  }
+  // derived props
+  S.forEach(st=>{for(const id in st){const s=st[id];
+    if(s.type==='array'){const n=s.values.length;const ord=s.order||[...Array(n).keys()];
+      s._pos=Array(n).fill(0);ord.forEach((cell,slot)=>s._pos[cell]=slot);
+      const cf=s.cellFill||{};s._fill=[...Array(n).keys()].map(c=>cf[c]??'panel');}
+  }});
+  // code highlight: hold position while hidden so it fades instead of sliding from line 0
+  els.filter(e=>e.type==='code').forEach(e=>{
+    let last=null;S.forEach(st=>{const s=st[e.id];if(s.hl>0)last=s.hl;s._hla=s.hl>0?1:0;s._hlpos=s.hl>0?s.hl:last;});
+    let next=null;for(let i=N-1;i>=0;i--){const s=S[i][e.id];if(s.hl>0)next=s.hl;if(s._hlpos==null)s._hlpos=next??1;}
+  });
+}
+function stateAt(p){
+  let i=Math.floor(p),f=p-i;if(i>=N-1){i=N-1;f=0;}if(i<0){i=0;f=0;}
+  const fe=ease(f),A=S[i],B=S[Math.min(i+1,N-1)],out={};
+  for(const id in A){const a=A[id],b=B[id],o={};new Set([...Object.keys(a),...Object.keys(b)]).forEach(k=>o[k]=lerp(k,a[k],b[k],fe));out[id]=o;}
+  return {st:out,i,f:fe,A,B};
+}
+
+// ---------- svg helpers ----------
+const svg=document.getElementById('fig');
+const W=SPEC.width||1000,H=SPEC.height||600;
+svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+const defs=mk('defs',{},svg);
+function mk(tag,attrs,parent){const n=document.createElementNS(NS,tag);for(const k in attrs)n.setAttribute(k,attrs[k]);if(parent)parent.appendChild(n);return n;}
+function at(n,attrs){for(const k in attrs)n.setAttribute(k,attrs[k]);}
+function setLines(t,str,x,lh,cache){ // multi-line text via tspans, vertically centred on the text's y
+  str=str==null?'':String(str);
+  if(t._str!==str){t._str=str;while(t.firstChild)t.removeChild(t.firstChild);
+    str.split('\n').forEach(line=>{const sp=mk('tspan',{},t);sp.textContent=line;});}
+  const n=t.childNodes.length;[...t.childNodes].forEach((sp,k)=>at(sp,{x,dy:k===0?(-(n-1)/2*lh):lh}));
+}
+const fmtNum=(v,d)=>Number(v).toFixed(d);
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function niceTicks(lo,hi,count){const span=hi-lo;if(!(span>0))return [lo];const raw=span/count;const mag=Math.pow(10,Math.floor(Math.log10(raw)));
+  const step=[1,2,2.5,5,10].map(m=>m*mag).find(s=>s>=raw)||10*mag;const out=[];for(let v=Math.ceil(lo/step)*step;v<=hi+1e-9;v+=step)out.push(+v.toFixed(10));return out;}
+function tickLabel(v){return Math.abs(v)>=1e4||(Math.abs(v)<1e-3&&v!==0)?v.toExponential(1):String(+v.toFixed(4));}
+
+// ---------- renderers ----------
+const R={};
+R.box={create(g){g._r=mk('rect',{},g);g._t=mk('text',{'text-anchor':'middle','dominant-baseline':'central'},g);},
+  update(g,s){at(g._r,{x:s.x-s.w/2,y:s.y-s.h/2,width:Math.max(0,s.w),height:Math.max(0,s.h),rx:s.rx,fill:css(s.fill),stroke:css(s.stroke),'stroke-width':s.strokeWidth,'stroke-dasharray':s.dash?'6 5':'none'});
+    at(g._t,{y:s.y,'font-size':s.labelSize,fill:css(s.labelColor)});setLines(g._t,s.label,s.x,s.labelSize*1.25);}};
+R.circle={create(g){g._c=mk('circle',{},g);g._t=mk('text',{'text-anchor':'middle','dominant-baseline':'central'},g);},
+  update(g,s){at(g._c,{cx:s.x,cy:s.y,r:Math.max(0,s.r),fill:css(s.fill),stroke:css(s.stroke),'stroke-width':s.strokeWidth,'stroke-dasharray':s.dash?'6 5':'none'});
+    at(g._t,{y:s.y,'font-size':s.labelSize,fill:css(s.labelColor)});setLines(g._t,s.label,s.x,s.labelSize*1.25);}};
+R.text={create(g){g._t=mk('text',{'dominant-baseline':'central',class:'halo'},g);},
+  update(g,s){at(g._t,{y:s.y,'font-size':s.size,fill:css(s.color),'text-anchor':s.align,'font-weight':s.weight});setLines(g._t,s.text,s.x,s.size*1.3);}};
+R.number={create(g){g._t=mk('text',{'dominant-baseline':'central',class:'halo'},g);g._t.style.fontVariantNumeric='tabular-nums';},
+  update(g,s){at(g._t,{x:s.x,y:s.y,'font-size':s.size,fill:css(s.color),'text-anchor':s.align,'font-weight':s.weight});
+    g._t.textContent=s.prefix+fmtNum(s.value,s.decimals)+s.suffix;}};
+
+function center(ref,st){const [id,idx]=String(ref).split(':');const s=st[id];if(!s)return {x:0,y:0};
+  if(s.type==='array'&&idx!==undefined)return {x:s.x+(+idx)*s.cell+s.cell/2,y:s.y+s.cell/2};
+  return {x:s.x+(s.type==='code'||s.type==='plot'?(s.w||0)/2:0),y:s.y+(s.type==='plot'?s.h/2:0)};}
+function anchor(ref,toward,st){const [id,idx]=String(ref).split(':');const s=st[id];const c=center(ref,st);
+  const dx=toward.x-c.x,dy=toward.y-c.y,d=Math.hypot(dx,dy);if(d<1e-6)return c;
+  let hw=0,hh=0;
+  if(s.type==='array'&&idx!==undefined){hw=hh=s.cell/2;}
+  else if(s.type==='box'){hw=s.w/2;hh=s.h/2;}
+  else if(s.type==='circle'){return {x:c.x+dx/d*s.r,y:c.y+dy/d*s.r};}
+  else if(s.type==='plot'){hw=s.w/2;hh=s.h/2;}
+  else return c;
+  const k=Math.min(dx?hw/Math.abs(dx):Infinity,dy?hh/Math.abs(dy):Infinity);return {x:c.x+dx*k,y:c.y+dy*k};}
+R.arrow={create(g){g._p=mk('path',{fill:'none','stroke-linecap':'round'},g);g._h=mk('path',{},g);g._t=mk('text',{'text-anchor':'middle','dominant-baseline':'central',class:'halo'},g);},
+  update(g,s,st){
+    const pa=s.from!==undefined?center(s.from,st):{x:s.x1,y:s.y1};
+    const pb=s.to!==undefined?center(s.to,st):{x:s.x2,y:s.y2};
+    const mx=(pa.x+pb.x)/2,my=(pa.y+pb.y)/2,len=Math.hypot(pb.x-pa.x,pb.y-pa.y)||1;
+    const nx=-(pb.y-pa.y)/len,ny=(pb.x-pa.x)/len;const cp={x:mx+nx*s.bend,y:my+ny*s.bend};
+    let a=s.from!==undefined?anchor(s.from,s.bend?cp:pb,st):pa, b=s.to!==undefined?anchor(s.to,s.bend?cp:pa,st):pb;
+    const sh=(p,q,g0)=>{const dx=q.x-p.x,dy=q.y-p.y,d=Math.hypot(dx,dy)||1;return {x:p.x+dx/d*g0,y:p.y+dy/d*g0};};
+    a=sh(a,s.bend?cp:b,s.gap);b=sh(b,s.bend?cp:a,s.gap);
+    const c=css(s.color);
+    at(g._p,{d:s.bend?`M${a.x},${a.y} Q${cp.x},${cp.y} ${b.x},${b.y}`:`M${a.x},${a.y} L${b.x},${b.y}`,stroke:c,'stroke-width':s.width,'stroke-dasharray':s.dash?'6 5':'none'});
+    if(s.head){const from=s.bend?cp:a;const dx=b.x-from.x,dy=b.y-from.y,d=Math.hypot(dx,dy)||1,ux=dx/d,uy=dy/d,hs=7+s.width*2;
+      at(g._h,{d:`M${b.x},${b.y} L${b.x-ux*hs-uy*hs*0.55},${b.y-uy*hs+ux*hs*0.55} L${b.x-ux*hs+uy*hs*0.55},${b.y-uy*hs-ux*hs*0.55}Z`,fill:c});}
+    else at(g._h,{d:''});
+    const lx=s.bend?(a.x+2*cp.x+b.x)/4:mx,ly=s.bend?(a.y+2*cp.y+b.y)/4:my;
+    at(g._t,{y:ly,'font-size':s.labelSize,fill:css('fg')});setLines(g._t,s.label,lx,s.labelSize*1.25);}};
+R.code={create(g){g._bg=mk('rect',{rx:8},g);g._hl=mk('rect',{rx:4},g);g._ti=mk('text',{class:'mono'},g);g._ln=mk('g',{class:'mono'},g);g._tx=mk('g',{class:'mono'},g);},
+  update(g,s){
+    const lines=(s.lines||[]).map(l=>String(l).replace(/\t/g,'    '));const lh=s.size*1.6,pad=12,gut=s.lineNumbers?s.size*2.4:0;
+    const w=s.w||(Math.max(10,...lines.map(l=>l.length))*s.size*0.62+pad*2+gut);const h=lines.length*lh+pad*2;
+    at(g._bg,{x:s.x,y:s.y,width:w,height:h,fill:css('panel'),stroke:css('line')});
+    at(g._hl,{x:s.x+4,y:s.y+pad+(s._hlpos-1)*lh,width:w-8,height:lh,fill:css(s.hlColor),opacity:s._hla});
+    at(g._ti,{x:s.x,y:s.y-8,'font-size':s.size*0.85,fill:css('muted')});g._ti.textContent=s.title||'';
+    const key=lines.join('\n')+'|'+s.lineNumbers;
+    if(g._key!==key){g._key=key;g._ln.replaceChildren();g._tx.replaceChildren();
+      lines.forEach((l,k)=>{const t=mk('text',{'dominant-baseline':'central'},g._tx);t.setAttributeNS('http://www.w3.org/XML/1998/namespace','xml:space','preserve');t.textContent=l;
+        if(s.lineNumbers){const n=mk('text',{'dominant-baseline':'central','text-anchor':'end'},g._ln);n.textContent=k+1;}});}
+    [...g._tx.childNodes].forEach((t,k)=>at(t,{x:s.x+pad+gut,y:s.y+pad+k*lh+lh/2,'font-size':s.size,fill:css('fg')}));
+    [...g._ln.childNodes].forEach((t,k)=>at(t,{x:s.x+pad+gut-s.size*0.8,y:s.y+pad+k*lh+lh/2,'font-size':s.size*0.85,fill:css('muted')}));}};
+R.array={create(g,e){g._lab=mk('text',{'text-anchor':'end','dominant-baseline':'central'},g);g._idx=mk('g',{},g);g._cells=mk('g',{},g);
+    g._cellN=e.values.length;
+    for(let c=0;c<g._cellN;c++){const cg=mk('g',{},g._cells);mk('rect',{rx:4},cg);mk('text',{'text-anchor':'middle','dominant-baseline':'central',class:'mono'},cg);
+      const it=mk('text',{'text-anchor':'middle','dominant-baseline':'central',class:'mono'},g._idx);it.textContent=c+(e.indexBase||0);}},
+  update(g,s,st,ctx){const c=s.cell,fs=s.size||c*0.42,pa=ctx.A[s.id]._pos,pb=ctx.B[s.id]._pos;
+    at(g._lab,{x:s.x-12,y:s.y+c/2,'font-size':Math.min(18,fs),fill:css('muted')});g._lab.textContent=s.label||'';
+    [...g._idx.childNodes].forEach((t,k)=>at(t,{x:s.x+k*c+c/2,y:s.y+c+13,'font-size':Math.min(13,fs*0.7),fill:css('muted'),opacity:s.showIndex?1:0}));
+    [...g._cells.childNodes].forEach((cg,k)=>{const x=s.x+s._pos[k]*c,d=pb[k]-pa[k];
+      const y=s.y+(d?-Math.sign(d)*c*0.8*Math.sin(Math.PI*ctx.f):0);if(d)g._cells.appendChild(cg);at(cg.childNodes[0],{x:x+1.5,y,width:c-3,height:c,fill:css(s._fill[k]),stroke:css(s.stroke)});
+      at(cg.childNodes[1],{x:x+c/2,y:y+c/2,'font-size':fs,fill:css('fg')});cg.childNodes[1].textContent=s.values[k]??'';});}};
+R.pointer={create(g){g._p=mk('path',{},g);g._t=mk('text',{'text-anchor':'middle','dominant-baseline':'central','font-weight':'600',class:'halo'},g);},
+  update(g,s,st){const a=st[s.array];if(!a)return;const c=a.cell,x=a.x+s.index*c+c/2,col=css(s.color),z=9;
+    if(s.side==='bottom'){const y=a.y+c+(a.showIndex?26:6)+s.dy;at(g._p,{d:`M${x},${y} L${x-z},${y+z*1.4} L${x+z},${y+z*1.4}Z`,fill:col});at(g._t,{y:y+z*1.4+12,fill:col,'font-size':15});}
+    else{const y=a.y-6-s.dy;at(g._p,{d:`M${x},${y} L${x-z},${y-z*1.4} L${x+z},${y-z*1.4}Z`,fill:col});at(g._t,{y:y-z*1.4-12,fill:col,'font-size':15});}
+    setLines(g._t,s.label,x,18);}};
+function plotMap(p){const [x0,x1]=p.xr,[y0,y1]=p.yr;return (px,py)=>[p.x+(px-x0)/((x1-x0)||1)*p.w,p.y+p.h-(py-y0)/((y1-y0)||1)*p.h];}
+let clipSeq=0;
+R.plot={create(g,e){g._cid='clip'+(clipSeq++);const cp=mk('clipPath',{id:g._cid},defs);g._cr=mk('rect',{},cp);g._grid=mk('g',{},g);g._ax=mk('path',{fill:'none'},g);g._tk=mk('g',{},g);
+    g._xl=mk('text',{'text-anchor':'end'},g);g._yl=mk('text',{'text-anchor':'start'},g);clipFor[e.id]=g._cid;},
+  update(g,s){const m=plotMap(s);at(g._cr,{x:s.x,y:s.y,width:s.w,height:s.h});
+    const xt=niceTicks(s.xr[0],s.xr[1],s.ticks),yt=niceTicks(s.yr[0],s.yr[1],s.ticks);g._grid.replaceChildren();g._tk.replaceChildren();
+    const mc=css(s.color),lc=css('line');
+    xt.forEach(v=>{const [px]=m(v,0);if(s.grid)mk('line',{x1:px,x2:px,y1:s.y,y2:s.y+s.h,stroke:lc,'stroke-width':0.8,opacity:0.6},g._grid);
+      const t=mk('text',{x:px,y:s.y+s.h+18,'text-anchor':'middle','font-size':13,fill:mc},g._tk);t.textContent=tickLabel(v);});
+    yt.forEach(v=>{const [,py]=m(0,v);if(s.grid)mk('line',{x1:s.x,x2:s.x+s.w,y1:py,y2:py,stroke:lc,'stroke-width':0.8,opacity:0.6},g._grid);
+      const t=mk('text',{x:s.x-8,y:py,'text-anchor':'end','dominant-baseline':'central','font-size':13,fill:mc},g._tk);t.textContent=tickLabel(v);});
+    at(g._ax,{d:`M${s.x},${s.y} L${s.x},${s.y+s.h} L${s.x+s.w},${s.y+s.h}`,stroke:mc,'stroke-width':1.5});
+    at(g._xl,{x:s.x+s.w,y:s.y+s.h+38,'font-size':14,fill:mc});g._xl.textContent=s.xlabel||'';
+    at(g._yl,{x:s.x,y:s.y-12,'font-size':14,fill:mc});g._yl.textContent=s.ylabel||'';}};
+const clipFor={},fnCache={};
+function compile(fn,names){const k=fn+'|'+names.join(',');if(!fnCache[k]){try{fnCache[k]=new Function('x',...names,`with(Math){return (${fn});}`);}catch(err){console.error('[viz] bad fn',fn,err);fnCache[k]=()=>NaN;}}return fnCache[k];}
+R.curve={create(g,e){g._p=mk('path',{fill:'none','stroke-linejoin':'round','stroke-linecap':'round'},g);if(clipFor[e.plot])g.setAttribute('clip-path',`url(#${clipFor[e.plot]})`);},
+  update(g,s,st){const p=st[s.plot];if(!p)return;const m=plotMap(p);let d='';const rv=clamp(s.reveal,0,1);
+    if(s.fn){const names=Object.keys(s.params||{});const f=compile(s.fn,names);const vals=names.map(n=>s.params[n]);
+      const x0=p.xr[0],x1=x0+(p.xr[1]-x0)*rv,n=Math.max(2,Math.round(s.samples*rv));let pen=false;
+      for(let k=0;k<=n;k++){const x=x0+(x1-x0)*k/n;let y;try{y=f(x,...vals);}catch(_){y=NaN;}
+        if(!isFinite(y)){pen=false;continue;}const [px,py]=m(x,y);d+=(pen?'L':'M')+px.toFixed(2)+','+py.toFixed(2);pen=true;}}
+    else if(s.points&&s.points.length){const pts=s.points,L=(pts.length-1)*rv,full=Math.floor(L);
+      for(let k=0;k<=full&&k<pts.length;k++){const [px,py]=m(pts[k][0],pts[k][1]);d+=(k?'L':'M')+px+','+py;}
+      if(full<pts.length-1&&L>full){const a=pts[full],b=pts[full+1],t=L-full;const [px,py]=m(a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t);d+='L'+px+','+py;}}
+    at(g._p,{d,stroke:css(s.color),'stroke-width':s.width,'stroke-dasharray':s.dash?'7 6':'none'});}};
+R.dot={create(g){g._gx=mk('line',{'stroke-dasharray':'4 4'},g);g._gy=mk('line',{'stroke-dasharray':'4 4'},g);g._c=mk('circle',{},g);g._t=mk('text',{'font-size':14,'dominant-baseline':'central',class:'halo'},g);},
+  update(g,s,st){const p=st[s.plot];if(!p)return;const [x,y]=plotMap(p)(s.px,s.py);const c=css(s.color);
+    at(g._c,{cx:x,cy:y,r:s.r,fill:c});const go=s.guides?1:0;
+    at(g._gx,{x1:x,y1:y,x2:x,y2:p.y+p.h,stroke:c,opacity:go});at(g._gy,{x1:x,y1:y,x2:p.x,y2:y,stroke:c,opacity:go});
+    at(g._t,{x:x+s.r+6,y:y-s.r-6,fill:c});g._t.textContent=s.label||'';}};
+
+// ---------- build scene ----------
+const nodes={};
+els.forEach(e=>{const g=mk('g',{},svg);g.dataset.id=e.id;R[e.type].create(g,e);nodes[e.id]=g;});
+
+// ---------- captions ----------
+const capEl=document.getElementById('cap'),capA=document.getElementById('capA'),capB=document.getElementById('capB'),meas=document.getElementById('measure');
+function md(s){return String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))
+  .replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<b>$1</b>').replace(/\n/g,'<br>');}
+function fitCaption(){let mx=0;steps.forEach(s=>{meas.innerHTML=md(s.caption);mx=Math.max(mx,meas.offsetHeight);});capEl.style.height=(mx+30)+'px';}
+let capIdx=-1;
+
+// ---------- scroll mapping ----------
+let off=[];
+function layout(){const unit=Math.max(220,window.innerHeight*0.45);off=[0];for(let i=1;i<N;i++)off.push(off[i-1]+unit*(steps[i].len??1));
+  document.getElementById('spacer').style.height=(off[N-1]+window.innerHeight)+'px';fitCaption();}
+let pinned=null; // set in screenshot mode so resize/scroll events can't move the frame
+function progressFromScroll(){if(pinned!==null)return pinned;const y=window.scrollY;for(let i=0;i<N-1;i++)if(y<off[i+1])return i+Math.max(0,y-off[i])/(off[i+1]-off[i]);return N-1;}
+
+const prog=document.getElementById('prog'),bar=document.getElementById('bar');
+document.getElementById('title').textContent=SPEC.title||'';
+function render(p){const {st,i,f,A,B}=stateAt(p);const ctx={A,B,f};
+  els.forEach(e=>{const g=nodes[e.id],s=st[e.id];R[e.type].update(g,s,st,ctx);g.setAttribute('opacity',clamp(s.opacity,0,1));});
+  if(capIdx!==i){capIdx=i;capA.innerHTML=md(steps[i].caption);capB.innerHTML=i+1<N?md(steps[i+1].caption):'';}
+  capA.style.opacity=Math.max(0,1-2*f);capB.style.opacity=Math.max(0,2*f-1);
+  prog.textContent=`${(p+1).toFixed(1)} / ${N}`;bar.style.width=(N>1?p/(N-1)*100:100)+'%';}
+
+let raf=0;
+window.addEventListener('scroll',()=>{if(!raf)raf=requestAnimationFrame(()=>{raf=0;render(progressFromScroll());});},{passive:true});
+window.addEventListener('resize',()=>{layout();render(progressFromScroll());});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>{readPalette();render(progressFromScroll());});
+window.addEventListener('keydown',ev=>{if(ev.metaKey||ev.ctrlKey||ev.altKey)return;const p=progressFromScroll();let k=null;
+  if(['j','ArrowDown','ArrowRight',' ','PageDown'].includes(ev.key))k=Math.min(N-1,Math.floor(p+1e-3)+1);
+  else if(['k','ArrowUp','ArrowLeft','PageUp'].includes(ev.key))k=Math.max(0,Math.ceil(p-1e-3)-1);
+  else if(ev.key==='Home'||ev.key==='g')k=0;else if(ev.key==='End'||ev.key==='G')k=N-1;
+  if(k!==null){ev.preventDefault();window.scrollTo({top:off[k],behavior:'smooth'});}});
+
+readPalette();layout();
+const m=location.hash.match(/s=([\d.]+)/);
+const p0=m?clamp(parseFloat(m[1])-1,0,N-1):0;
+if(m&&/shot/.test(location.hash))pinned=p0;
+else if(m){const i=Math.floor(p0);window.scrollTo(0,i<N-1?off[i]+(off[i+1]-off[i])*(p0-i):off[N-1]);}
+render(p0);
+})();
+</script>
+</body>
+</html>

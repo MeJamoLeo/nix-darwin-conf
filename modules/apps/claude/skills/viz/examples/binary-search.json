@@ -1,0 +1,48 @@
+{
+  "title": "二分探索：t = 23 を探す",
+  "slug": "binary-search",
+  "width": 1000,
+  "height": 560,
+  "elements": [
+    {"id": "arr", "type": "array", "x": 230, "y": 70, "cell": 54, "label": "a", "values": [2, 5, 8, 12, 16, 23, 38, 56, 72, 91]},
+    {"id": "lo", "type": "pointer", "array": "arr", "index": 0, "label": "lo", "side": "bottom", "color": "ok", "show": 2},
+    {"id": "hi", "type": "pointer", "array": "arr", "index": 9, "label": "hi", "side": "bottom", "color": "bad", "show": 2},
+    {"id": "mid", "type": "pointer", "array": "arr", "index": 4, "label": "mid", "side": "top", "color": "accent", "show": 4},
+    {"id": "code", "type": "code", "x": 60, "y": 250, "size": 16, "title": "search.py", "lines": [
+      "def search(a, t):",
+      "    lo, hi = 0, len(a) - 1",
+      "    while lo <= hi:",
+      "        mid = (lo + hi) // 2",
+      "        if a[mid] == t: return mid",
+      "        if a[mid] < t: lo = mid + 1",
+      "        else: hi = mid - 1",
+      "    return -1"
+    ]},
+    {"id": "t", "type": "text", "x": 700, "y": 270, "text": "t = 23", "align": "start", "size": 22, "weight": "600"},
+    {"id": "nlo", "type": "number", "x": 700, "y": 320, "value": 0, "prefix": "lo = ", "align": "start", "color": "ok", "show": 2},
+    {"id": "nhi", "type": "number", "x": 700, "y": 360, "value": 9, "prefix": "hi = ", "align": "start", "color": "bad", "show": 2},
+    {"id": "nmid", "type": "number", "x": 700, "y": 400, "value": 4, "prefix": "mid = ", "align": "start", "color": "accent", "show": 4},
+    {"id": "nrange", "type": "number", "x": 700, "y": 460, "value": 10, "prefix": "残り候補 ", "suffix": " 個", "align": "start", "size": 26, "show": 2}
+  ],
+  "steps": [
+    {"caption": "ソート済みの配列 `a` から `t = 23` の位置を探す。"},
+    {"caption": "探索範囲の両端 `lo` と `hi` を配列の端に置く。候補は 10 個。", "set": {"code": {"hl": 2}}},
+    {"caption": "`lo <= hi` なので、まだ候補が残っている。", "set": {"code": {"hl": 3}}},
+    {"caption": "真ん中 `mid = (0 + 9) // 2 = 4` を見る。", "set": {"code": {"hl": 4}}},
+    {"caption": "`a[4] = 16` は `t` と等しくない。", "set": {"code": {"hl": 5}, "arr": {"cellFill": {"4": "warn"}}}},
+    {"caption": "`16 < 23` なので、答えは `mid` より右にある。`lo` を `mid + 1 = 5` へ動かし、左半分を捨てる。", "len": 1.6,
+     "set": {"code": {"hl": 6}, "lo": {"index": 5}, "nlo": {"value": 5}, "nrange": {"value": 5},
+             "arr": {"cellFill": {"0": "line", "1": "line", "2": "line", "3": "line", "4": "line"}}}},
+    {"caption": "まだ `lo <= hi`。", "set": {"code": {"hl": 3}}},
+    {"caption": "新しい真ん中は `mid = (5 + 9) // 2 = 7`。", "set": {"code": {"hl": 4}, "mid": {"index": 7}, "nmid": {"value": 7}}},
+    {"caption": "`a[7] = 56` は `t` と等しくない。", "set": {"code": {"hl": 5}, "arr": {"cellFill": {"7": "warn"}}}},
+    {"caption": "`56 > 23` なので、答えは左にある。`hi` を `mid - 1 = 6` へ動かす。", "len": 1.6,
+     "set": {"code": {"hl": 7}, "hi": {"index": 6}, "nhi": {"value": 6}, "nrange": {"value": 2},
+             "arr": {"cellFill": {"7": "line", "8": "line", "9": "line"}}}},
+    {"caption": "まだ `lo <= hi`。候補は 2 個。", "set": {"code": {"hl": 3}}},
+    {"caption": "`mid = (5 + 6) // 2 = 5`。", "set": {"code": {"hl": 4}, "mid": {"index": 5}, "nmid": {"value": 5}}},
+    {"caption": "`a[5] = 23 = t`。見つかったので `5` を返す。", "set": {"code": {"hl": 5}, "arr": {"cellFill": {"5": "ok"}}}},
+    {"caption": "10 個の候補に対して、比較は **3 回**で済んだ。1 回ごとに候補がほぼ半分になるので、比較回数は `log₂ n` 程度になる。",
+     "set": {"code": {"hl": 0}, "lo": {"opacity": 0.35}, "hi": {"opacity": 0.35}}}
+  ]
+}
