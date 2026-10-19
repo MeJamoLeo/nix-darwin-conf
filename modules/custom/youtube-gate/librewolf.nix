@@ -22,6 +22,12 @@ pkgs.librewolf.override {
     lockPref("browser.privatebrowsing.autostart", true);
   '';
 
+  # 起動時に開くページ。autostart でプライベート固定でも StartPage="homepage" は効く。
+  extraPolicies.Homepage = {
+    URL = "https://musicforprogramming.net";
+    StartPage = "homepage";
+  };
+
   # ⚠ nixExtensions に乗り換えるな。あれは `ExtensionSettings."*"` を
   #   `installation_mode = "blocked"` で塗るので、LibreWolf が同じ経路で入れている
   #   **uBlock Origin が黙って消える**（uBO はビルドに同梱されておらず、上流 policies.json の
