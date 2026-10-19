@@ -1,24 +1,55 @@
-# cp-login (macOS port) — store the AtCoder REVEL_SESSION in the login Keychain.
+# cp-login (macOS port) — validate the AtCoder REVEL_SESSION, store it in
+# Bitwarden (D1), then cache it in the login Keychain for the launchd stopwatch.
 #
 # AtCoder has no API/token auth and CLI login is CAPTCHA-walled (2025), so the
 # ecosystem standard is pasting the browser session cookie (aclogin pattern).
-# x1nano's cp-login writes a plaintext cookie.jar for oj; this port stores the
-# cookie in the Keychain instead (no plaintext on disk — 2026-07-04 policy)
-# for stopwatch_poll.py's freeze detection. Re-run on expiry (~6 months).
+# x1nano's cp-login writes a plaintext cookie.jar for oj; this port never
+# writes plaintext to disk (2026-07-04 policy). Re-run on expiry (~6 months).
+#
+# Where the cookie lives (2026-10-13・rbw の統一):
+#   - Bitwarden `atcoder-revel-session` is canonical. cp-submit reads it via
+#     secret-get, so it works from ssh sessions too (the login Keychain cannot
+#     be opened over ssh: "User interaction is not allowed").
+#   - The Keychain item of the same name is a derived cache for
+#     stopwatch_poll.py (launchd has no pinentry). `secret-cache` rebuilds it.
+#
+# Order is validate → save (2026-10-14 audit: the previous version saved to D1
+# first, so an invalid cookie could sit in Bitwarden). rbw add/edit only take the
+# value through $EDITOR (no stdin/argv option in rbw 1.15.0), so we hand the
+# validated value to a throwaway editor shim via an environment variable.
+# The clipboard (pbpaste) is not used: over ssh it reads the Mac's pasteboard,
+# not the one you copied into.
 #
 # Known tradeoffs (accepted, single-user machine):
-#   - `security add-generic-password -w <val>` exposes the value in argv for
-#     ~1s (same class of exposure as x1nano's curl-based cp-submit).
-#   - The -T /usr/bin/security ACL lets any user-space process read the item
+#   - The value sits in the environment of rbw and the shim for a moment.
+#     Unlike argv, process environments are visible only to the same user.
+#   - secret-cache puts the value in argv of `security add-generic-password`
+#     for ~1s.
+#   - The -T /usr/bin/security ACL lets any user-space process read the cache
 #     silently via the security CLI — required for unattended launchd reads.
 #     The AtCoder session is a comparatively low-value secret.
 set -euo pipefail
 
+ENTRY="atcoder-revel-session"
 SERVICE="atcoder-revel-session"
 PROBE_URL="https://atcoder.jp/contests/abc086/submissions"
 UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
-echo "=== AtCoder Login (Keychain) ==="
+if ! rbw unlocked >/dev/null 2>&1; then
+    echo "Error: Bitwarden がロック中。先に \`rbw unlock\`" >&2
+    exit 1
+fi
+
+# 既存か・重複していないかを名前の完全一致で数える（`rbw get` の失敗は
+# 「同名複数」でも「無い」に見えて add で重複を増やす。2026-10-14 監査で実証）
+rbw sync >/dev/null 2>&1 || true
+N=$(rbw list --fields name | grep -Fxc -- "$ENTRY" || true)
+if [[ "$N" -gt 1 ]]; then
+    echo "Error: Bitwarden に $ENTRY が $N 個ある。GUI で1つに整理してから再実行" >&2
+    exit 1
+fi
+
+echo "=== AtCoder Login (Bitwarden) ==="
 echo ""
 echo "1. ブラウザで https://atcoder.jp にログイン"
 echo "2. DevTools → Application(Chrome)/Storage(Firefox) → Cookies → atcoder.jp"
@@ -33,13 +64,13 @@ if [[ -z "$SESSION" ]]; then
     exit 1
 fi
 if ! printf '%s' "$SESSION" | grep -qE '^[A-Za-z0-9%+_=.:-]+$'; then
-    echo "Error: invalid session format" >&2
+    echo "Error: invalid session format（何も保存していない）" >&2
     exit 1
 fi
 
 echo "Testing (要ログインの提出一覧が開けるか)..."
 # cookie は argv に晒さず --config を process substitution で渡す（ps 対策）。
-# ネットワーク失敗と cookie 無効は別扱い：前者では保存しない。
+# ネットワーク失敗と cookie 無効は別扱い：どちらも保存しない。
 # -L 必須: 無効 cookie は 302 → Sign In に飛ぶ（追わないと空ボディで検証をすり抜ける）
 BODY=$(curl -sfL --max-time 15 -A "$UA" \
         --config <(printf 'cookie = "REVEL_SESSION=%s"\n' "$SESSION") \
@@ -48,12 +79,43 @@ BODY=$(curl -sfL --max-time 15 -A "$UA" \
     exit 1
 }
 if printf '%s' "$BODY" | grep -q '<title>Sign In'; then
-    echo "Error: cookie が無効（Sign In に飛ばされた）。コピーし直して再実行を" >&2
+    echo "Error: cookie が無効（Sign In に飛ばされた）。何も保存していない。コピーし直して再実行" >&2
     exit 1
 fi
+unset BODY
 
-security add-generic-password -U -a "$USER" -s "$SERVICE" -w "$SESSION" -T /usr/bin/security
+# ── Bitwarden へ保存 ────────────────────────────────────────────────
+# rbw は $VISUAL を優先して $EDITOR を見る。両方をシムに向ける。
+# シムはファイルの1行目（password）だけを差し替え、2行目以降（notes）は残す。
+SHIM_DIR=$(mktemp -d)
+trap 'rm -rf "$SHIM_DIR"' EXIT
+cat > "$SHIM_DIR/editor" <<'EOF'
+#!/bin/sh
+set -eu
+f="$1"
+{ printf '%s\n' "$CP_LOGIN_VALUE"; tail -n +2 "$f"; } > "$f.cp-login"
+mv "$f.cp-login" "$f"
+EOF
+chmod 700 "$SHIM_DIR/editor"
 
-echo ""
-echo "OK: Keychain に保存した (service=$SERVICE)"
-echo "確認: security find-generic-password -s $SERVICE -w | head -c 8"
+if [[ "$N" -eq 1 ]]; then
+    CP_LOGIN_VALUE="$SESSION" VISUAL="$SHIM_DIR/editor" EDITOR="$SHIM_DIR/editor" rbw edit "$ENTRY"
+else
+    CP_LOGIN_VALUE="$SESSION" VISUAL="$SHIM_DIR/editor" EDITOR="$SHIM_DIR/editor" rbw add "$ENTRY"
+fi
+
+# 書けたかを読み戻して照合する（値は表示しない）
+SAVED=$(secret-get "$ENTRY") || exit 1
+if [[ "$SAVED" != "$SESSION" ]]; then
+    echo "Error: Bitwarden の $ENTRY が検証した値と一致しない（保存に失敗？ GUI で確認）" >&2
+    exit 1
+fi
+unset SESSION SAVED
+
+echo "OK: 検証済みの cookie を Bitwarden に保存した (entry=$ENTRY)"
+# launchd 用キャッシュ。ssh 越しだと書けない（exit 5）ので、そのときは案内だけ出して成功扱い。
+# 失敗理由は secret-cache 自身が stderr に出している。
+if ! secret-cache "$ENTRY" "$SERVICE"; then
+    echo "注意: Keychain キャッシュは未更新。stopwatch に効かせるには Mac の端末で" >&2
+    echo "      secret-cache $ENTRY $SERVICE" >&2
+fi

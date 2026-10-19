@@ -32,6 +32,8 @@ pkgs.writeText "claude-managed-settings.json" (builtins.toJSON {
     "Bash(rbw get:*)"
     "Bash(rbw code *)"
     "Bash(rbw code:*)"
+    "Bash(secret-get *)"
+    "Bash(secret-get:*)"
     "Bash(bw get *)"
     "Bash(bw get:*)"
     "Bash(pass show *)"

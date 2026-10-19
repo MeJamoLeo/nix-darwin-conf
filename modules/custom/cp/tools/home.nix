@@ -31,7 +31,7 @@ in {
   #   cp-test       oj test with language auto-detect (.py -> python3, .cpp -> g++)
   #   cp-submit     contest: curl auto-submit / practice: clipboard + browser;
   #                 arms the STOPWATCH fast watch on invocation
-  #   cp-login      paste REVEL_SESSION -> Keychain (stopwatch freeze detection)
+  #   cp-login      paste REVEL_SESSION -> Bitwarden; Keychain cache for stopwatch
   #
   # ⚠ alt-g は 2026-09-09 時点で **どこにもバインドされていない**。かつては
   # modules/apps/aerospace/home.nix が profile bin 経由で cp-go-launch を叩いていたが、

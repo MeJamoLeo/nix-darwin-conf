@@ -37,10 +37,10 @@ if /usr/bin/security find-generic-password -s "$NOVI_PASSWORD_SERVICE" -w >/dev/
     ok "NoviSteps password (Keychain) — cookie 失効時は自動ログインで復帰"
 elif /usr/bin/security find-generic-password -s "$NOVI_KEYCHAIN_SERVICE" -w >/dev/null 2>&1; then
     bad "NoviSteps cookie はあるが password が無い（失効したら手番が発生する）" \
-        "security add-generic-password -U -s $NOVI_PASSWORD_SERVICE -a '<NoviStepsのユーザ名>' -T /usr/bin/security -w '<パスワード>'"
+        "Bitwarden に novisteps（username=NoviSteps のユーザ名）を置き、Mac の端末で secret-cache --account-from-entry novisteps $NOVI_PASSWORD_SERVICE"
 else
     bad "NoviSteps の資格情報が Keychain に無い" \
-        "security add-generic-password -U -s $NOVI_PASSWORD_SERVICE -a '<NoviStepsのユーザ名>' -T /usr/bin/security -w '<パスワード>'"
+        "Bitwarden に novisteps（username=NoviSteps のユーザ名）を置き、Mac の端末で secret-cache --account-from-entry novisteps $NOVI_PASSWORD_SERVICE"
 fi
 
 # 3b. AtCoder cookie — stopwatch の凍結検出用（無くても公開データは描画される）
@@ -48,7 +48,7 @@ if /usr/bin/security find-generic-password -s "atcoder-revel-session" -w >/dev/n
     ok "AtCoder REVEL_SESSION (Keychain)"
 else
     bad "AtCoder REVEL_SESSION が Keychain に無い（stopwatch 用・盤面自体は動く）" \
-        "cp-login を実行（DevTools → Cookies → atcoder.jp → REVEL_SESSION。有効 ~6ヶ月）"
+        "Bitwarden に atcoder-revel-session があれば Mac の端末で secret-cache atcoder-revel-session atcoder-revel-session、無ければ cp-login（有効 ~6ヶ月）"
 fi
 
 # 4. ビルド成果物 — activation の swift ビルドが通ったか

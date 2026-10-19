@@ -106,10 +106,12 @@ def novisteps_session() -> str:
 
 
 def novisteps_credentials() -> tuple[str, str] | None:
-    """自動ログイン用の username/password。ユーザ名は acct 欄に置く規約：
+    """自動ログイン用の username/password。ユーザ名は acct 欄に置く規約。
 
-        security add-generic-password -U -s novisteps-password \
-            -a '<NoviSteps のユーザ名>' -T /usr/bin/security -w '<パスワード>'
+    正史は Bitwarden の `novisteps`（2026-10-13・rbw の統一）。Keychain はその派生
+    キャッシュで、launchd から読むために置く。作り直しは Mac の端末で：
+
+        secret-cache --account-from-entry novisteps novisteps-password
     """
     env_user = os.environ.get("CP_NOVISTEPS_USER")
     env_pass = os.environ.get("CP_NOVISTEPS_PASSWORD")
@@ -343,7 +345,9 @@ def handle_cookie_expired(output_path: Path, exc: CookieExpired) -> None:
     print(f"[novisteps] COOKIE_EXPIRED: {exc}\n"
           f"  → 自動ログインも失敗。Keychain の "
           f"service={NOVISTEPS_PASSWORD_KEYCHAIN_SERVICE} "
-          f"（acct=ユーザ名 / パスワード）を確認する", file=sys.stderr)
+          f"（acct=ユーザ名 / パスワード）を確認する。正史は Bitwarden の novisteps → "
+          f"`secret-cache --account-from-entry novisteps "
+          f"{NOVISTEPS_PASSWORD_KEYCHAIN_SERVICE}` で作り直す", file=sys.stderr)
     notify("NoviSteps 取得が停止",
            "auth_session 失効かつ自動ログイン失敗。Keychain の "
            "novisteps-password を確認して。")

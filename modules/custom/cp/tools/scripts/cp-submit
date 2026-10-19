@@ -5,13 +5,13 @@
 #                人間がブラウザで貼って出す。atcoder.jp/posts/1456）
 #
 # x1nano 版からの適応: wl-copy→pbcopy / firefox→open /
-# cookie.jar→Keychain（cp-login が格納・平文ファイル禁止の 2026-07-04 方針）/
+# cookie.jar→Bitwarden（cp-login が格納・平文ファイル禁止の 2026-07-04 方針）/
 # GNU grep -oP→bash パラメータ展開。
 # 呼び出し時に STOPWATCH の臨戦マーカーを書く（提出＝最強のアーミング信号）。
 set -euo pipefail
 
 SOLUTION="${1:-main.py}"
-SERVICE="atcoder-revel-session"
+ENTRY="atcoder-revel-session"  # Bitwarden（D1）の項目名
 UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
 SOLUTION=$(realpath "$SOLUTION" 2>/dev/null || echo "$SOLUTION")
@@ -82,12 +82,13 @@ echo "Mode:     $([ "$IN_CONTEST" = "yes" ] && echo "CONTEST (auto)" || echo "PR
 echo ""
 
 if [[ "$IN_CONTEST" == "yes" ]]; then
-    # --- Contest mode: curl POST（cookie は Keychain・argv に晒さない）---
-    SESSION=$(security find-generic-password -s "$SERVICE" -w 2>/dev/null || true)
-    if [[ -z "$SESSION" ]]; then
-        echo "Error: No cookie in Keychain. Run cp-login first." >&2
+    # --- Contest mode: curl POST（cookie は Bitwarden・argv に晒さない）---
+    # Keychain ではなく secret-get：ssh 越しのセッションでは login Keychain が
+    # 見えないため（2026-10-13・rbw の統一）。Keychain の同名項目は stopwatch 用キャッシュ。
+    SESSION=$(secret-get "$ENTRY") || {
+        echo "Error: cookie を取れない（上の案内を見る。未保存なら cp-login）" >&2
         exit 1
-    fi
+    }
 
     TMPHTML=$(mktemp)
     trap 'rm -f "$TMPHTML"' EXIT

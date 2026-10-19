@@ -119,17 +119,16 @@ if [ -n "$BODY" ]; then
 fi
 
 # ── token ───────────────────────────────────────────────────────────
-command -v rbw >/dev/null 2>&1 || die "rbw が無い（darwin-rebuild switch は済んでる？）" 4
+# 項目名は bot token に限る。--entry / DISCORD_TOKEN_ENTRY で任意の項目（campus password
+# 等）を選べると、その値を Bot ヘッダとして Discord に送れてしまう（2026-10-14 監査で実証。
+# 宛先は discord.com 固定だが第三者への送出には変わりない）。
+case "$ENTRY" in
+    discord-bot-token-*) ;;
+    *) die "--entry は discord-bot-token-* に限る（指定: ${ENTRY}）" 2 ;;
+esac
 
-if ! rbw unlocked >/dev/null 2>&1; then
-    printf 'discord-api: Bitwarden がロック中。先に `rbw unlock` を実行して\n' >&2
-    printf '  （pinentry-mac のダイアログでマスターパスワードを聞かれる）。\n' >&2
-    exit 4
-fi
-
-TOKEN=$(rbw get "$ENTRY" 2>/dev/null) \
-    || die "Bitwarden に '$ENTRY' が無い（rbw sync 済み？ 名前は rbw ls で確認）" 4
-[ -n "$TOKEN" ] || die "'$ENTRY' の password フィールドが空" 4
+# 解錠確認・失敗時の案内は secret-get（modules/apps/bitwarden）に集約。案内は stderr に出る。
+TOKEN=$(secret-get "$ENTRY") || exit 4
 
 # ── 送信 ────────────────────────────────────────────────────────────
 # `[ ... ] && cmd` を最終文にすると set -e が偽で即 exit するので if で書く
@@ -149,7 +148,7 @@ while :; do
     RC=$?
     set -e
 
-    [ "$RC" -eq 0 ] || die "curl 失敗（exit $RC）: ネットワーク/タイムアウト" 5
+    [ "$RC" -eq 0 ] || die "curl 失敗（exit ${RC}）: ネットワーク/タイムアウト" 5
 
     CODE="${RESP##*$'\n'}"
     OUT="${RESP%$'\n'*}"

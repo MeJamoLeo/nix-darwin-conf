@@ -6,7 +6,7 @@
   #  価値の中心が自作スクリプトなので custom バケツ（modules/CLAUDE.md の決定手順 2）。
   #  Discord.app 本体は既製品なので modules/base/homebrew-base/darwin.nix の cask。
   #
-  #    discord-api   rbw get → curl。token を argv/stdout に載せずに API を叩く。
+  #    discord-api   secret-get（rbw）→ curl。token を argv/stdout に載せずに API を叩く。
   #                  GET 以外は --write 必須、DELETE は --allow-delete も必須。
   #    discord-apply spec JSON を正本にカテゴリ/チャンネルを収束させる（削除機能なし）。
   #                  state を持たず毎回 Discord を読む＝別の正史を作らない。
@@ -17,7 +17,7 @@
   #  discord-apply に --export（現構成を spec 形式で吐く）を足すほうが筋が良い。
   #
   #  依存（いずれも PATH 解決。宣言元を書いておく）:
-  #    rbw   modules/apps/bitwarden/home.nix
+  #    secret-get   modules/apps/bitwarden/home.nix（rbw の共通入口）
   #    jq    modules/apps/core-packages/home.nix
   #    curl  modules/base/homebrew-base/darwin.nix（brews。nixpkgs 版は macOS で不調）
   #

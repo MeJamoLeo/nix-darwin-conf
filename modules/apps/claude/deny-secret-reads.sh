@@ -68,7 +68,9 @@ deny() {
 
 # 語の直前が「識別子の一部ではない」ことを要求する接頭辞。`grep-rbw` のような
 # 別コマンドに誤爆せず、`| rbw` や `$(rbw` や `sh -c "rbw` は拾う。
-B='(^|[^A-Za-z0-9_./-])'
+# `/` と `.` は除外しない：以前は除外していて、`/nix/store/…/bin/secret-get` や
+# `~/.nix-profile/bin/rbw get` のような**絶対パス呼び出しが素通りした**（2026-10-14 監査で実証）。
+B='(^|[^A-Za-z0-9_-])'
 
 # シェルのメタ文字を空白に潰した正規化版に対して照合する。
 # こうしないと `a=$(security ... -w)` のように**閉じ括弧が語の直後に来る形**を
@@ -82,12 +84,20 @@ if has "${B}rbw[[:space:]]+(get|code)([[:space:]]|$)"; then
   deny "rbw get/code は秘密の平文を stdout に出すため禁止（2026-09-04 に campus password をコンテキストに載せた事故の再発防止）。存在確認は 'rbw list' か 'rbw get <name> >/dev/null 2>&1' の終了コードを使うこと。値が必要な処理は、値を消費するスクリプト自身に読ませる。人間が値を見たい場合はユーザー自身が端末で実行する。"
 fi
 
+# secret-get（modules/apps/bitwarden）は rbw get の共通入口なので同じ扱い。
+# secret-cache は stdout に値を出さないので許可（Keychain へ書くだけ）。
+if has "${B}secret-get([[:space:]]|$)"; then
+  deny "secret-get は rbw get の共通入口で、秘密の平文を stdout に出すため禁止（理由と代替は rbw get と同じ）。存在確認は 'rbw list'。値が必要な処理は、値を消費するスクリプト自身に secret-get させる。"
+fi
+
 if has "${B}bw[[:space:]]+(get|list)([[:space:]]|$)"; then
   deny "公式 Bitwarden CLI (bw) の get/list は秘密を JSON ごと出しうるため禁止。理由と代替は rbw と同じ。"
 fi
 
 # security(1) は -w / -g を付けたときだけ値を出す。付けない形（存在確認・属性表示）は許可。
-if has "security[[:space:]]+find-(generic|internet)-password" && has "[[:space:]]-(w|g)([[:space:]]|$)"; then
+# フラグはまとめ書き（`-ws` `-gw`）でも効くので、w か g を含むフラグ塊を拾う
+# （以前は単独の -w / -g だけ見ていて、まとめ書きが素通りした。2026-10-14 監査で実証）。
+if has "security[[:space:]]+find-(generic|internet)-password" && has "[[:space:]]-[A-Za-z]*[wg][A-Za-z]*([[:space:]]|$)"; then
   deny "security find-*-password の -w / -g は Keychain の平文を出すため禁止。存在確認は -w を付けずに実行するか、'security find-generic-password -s <svc> >/dev/null 2>&1' の終了コードを見ること。値が必要な処理は、値を消費するスクリプト自身に読ませる。"
 fi
 
