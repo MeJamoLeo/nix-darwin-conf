@@ -69,6 +69,6 @@
 - `flake.nix` の `homeModules.forge = import ./modules/base/forge/home.nix;`（◆ x1nano が消費。
   同上）。
 - `modules/apps/nixvim/home.nix` の out-of-store symlink 先 `.../modules/custom/cp/snippets`
-  （`my.forgeDir` 起点の絶対パス。cp を動かしたらここも直す）。
+  （`my.flakeDir` 起点の絶対パス。cp を動かしたらここも直す）。
 - `modules/base/remote-access/darwin.nix` の `import ../../../keys.nix`（バケツで1階層深いので
   `../` が3つ。トピックの階層が変わったら数え直す）。

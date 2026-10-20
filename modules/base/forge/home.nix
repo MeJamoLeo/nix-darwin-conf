@@ -27,6 +27,14 @@ in {
     description = "プロジェクト作業 repo を集約する単一親ディレクトリ（旧 ~/Box の後継）。他 module はこの値からパスを派生させる。";
   };
 
+  # nix-darwin-conf 自身の置き場。編集頻度が高く Forge 配下に置くと遠いので $HOME 直下にする
+  # （2026-10-20 に ~/Forge から移動）。forgeDir とは別の単一源。
+  options.my.flakeDir = lib.mkOption {
+    type = lib.types.str;
+    default = "${config.home.homeDirectory}/nix-darwin-conf";
+    description = "この設定 flake（nix-darwin-conf）の checkout。nh の NH_DARWIN_FLAKE 等はここから派生させる。";
+  };
+
   config = {
     # 対話シェルで $FORGE。cp-go 等のスクリプトは実行時にこれを読める。
     home.sessionVariables.FORGE = config.my.forgeDir;

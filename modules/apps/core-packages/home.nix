@@ -74,8 +74,7 @@
     #
     # `darwinFlake` は NH_DARWIN_FLAKE を張るだけでなく、nh のバージョンを見て
     # 4.0.0 未満なら旧名 FLAKE に切り替える分岐まで持っている（手書き env var では
-    # 再現できない）。値は my.forgeDir 由来＝$FORGE と同じ単一源
-    # （modules/base/forge/home.nix）。
+    # 再現できない）。値は my.flakeDir（modules/base/forge/home.nix）が単一源。
     #
     # 移行後の対応：
     #   just darwin        → nh darwin switch      （ホスト名は nh が自動解決）
@@ -92,7 +91,7 @@
     #   設定すると定義衝突で eval が落ちるので、触るときは claude 側を見ること。
     nh = {
       enable = true;
-      darwinFlake = "${config.my.forgeDir}/nix-darwin-conf";
+      darwinFlake = config.my.flakeDir;
 
       # 旧 Justfile の clean/gc レシピ（手で打つ・打った記憶がない）を定期実行へ。
       # darwin では launchd.agents.nh-clean が生える。

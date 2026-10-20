@@ -19,7 +19,7 @@
     config.allowUnfree = true;
   };
 
-  flakeDir = "${config.my.forgeDir}/nix-darwin-conf";
+  flakeDir = config.my.flakeDir;
   claudeInput = "nixpkgs-claude";
 
   # `nh` を自作ラッパで差し替える（programs.nh.package は modules/apps/
