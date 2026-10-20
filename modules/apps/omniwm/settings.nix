@@ -446,6 +446,10 @@
   # 既定は false。omniwmctl 用のソケットを開かせる（差分 1）。
   general.ipcEnabled = true;
 
+  # 既定 true。アップデート通知を切る。更新は home.nix の version を上げて管理するので
+  # アプリ側の更新チェックは要らない（live の settings.toml で `updateChecksEnabled` を実測）。
+  general.updateChecksEnabled = false;
+
   # 既定 false。niri の move-column-to-workspace は既定で追従する（focus=true）ので、
   # niri 準拠のためには true が正しい。経緯と実測は冒頭の差分10を参照。
   focus.followsWindowToMonitor = true;
