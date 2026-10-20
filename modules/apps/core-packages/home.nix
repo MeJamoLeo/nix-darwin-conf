@@ -86,9 +86,6 @@
     #
     # 逃げ道：nh が壊れたら
     #   sudo darwin-rebuild switch --flake "$NH_DARWIN_FLAKE#$(hostname -s)"
-    # ⚠ `programs.nh.package` は **modules/apps/claude/home.nix が上書きしている**
-    #   （claude-code を rebuild ごとに bump する nh ラッパ）。ここで package を
-    #   設定すると定義衝突で eval が落ちるので、触るときは claude 側を見ること。
     nh = {
       enable = true;
       darwinFlake = config.my.flakeDir;
