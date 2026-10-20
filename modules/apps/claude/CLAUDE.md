@@ -29,6 +29,6 @@ claude-obsidian の vault：`/Users/treo/Forge/claude-obsidian`。
 
 ## 設定・知識の置き場所ポリシー
 
-- **user-level（`~/.claude` 等）で便利なもの**は手動で置かず **nix-darwin-conf**（`~/Forge/nix-darwin-conf`）で宣言的に管理する。user-level に生ファイルを作らない。
+- **user-level（`~/.claude` 等）で便利なもの**は手動で置かず **nix-darwin-conf**（`~/nix-darwin-conf`）で宣言的に管理する。user-level に生ファイルを作らない。
 - **記憶・知識**は vault（上記）。**プロジェクト固有の skill / agent** はそのプロジェクトの `.claude/` に置く。
 - `~/.claude/settings.json` だけは可変ファイルとして手動管理（home-manager で所有しない決定済み）。

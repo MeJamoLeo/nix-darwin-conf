@@ -75,6 +75,6 @@ app.run()
    /usr/bin/env -i HOME="$HOME" PATH="/usr/bin:/bin" \
      SDKROOT="$(/usr/bin/xcrun --sdk macosx --show-sdk-path)" \
      /usr/bin/xcrun swiftc -O -o /tmp/caldash-spike \
-     "$HOME/Forge/nix-darwin-conf/modules/custom/calendar-dashboard/dashboard/swift/caldash-spike.swift"
+     "$HOME/nix-darwin-conf/modules/custom/calendar-dashboard/dashboard/swift/caldash-spike.swift"
    実行:  /tmp/caldash-spike
 */
