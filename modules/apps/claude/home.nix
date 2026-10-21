@@ -41,16 +41,16 @@ in {
   #   バージョンは永久に止まる**。実測：pkgs.claude-code は 2.1.220 のまま
   #   上流 2.1.287 まで67版ぶん取り残されていた（`nix flake update` を打つ理由が
   #   日常に無いので誰も打たない）。だから更新を「意図的な操作」にせず、
-  #   rebuild の alias `nhs` に埋め込んだ（下）。
+  #   rebuild の alias `nhds` に埋め込んだ（下）。
   # GUI の Claude デスクトップ版は nixpkgs 非収録のため cask のまま (modules/homebrew-base/darwin.nix)。
   home.packages = [pkgsClaude.claude-code];
 
-  # claude-code の更新は `nhs`（= nh darwin switch -U nixpkgs-claude）で行う。
+  # claude-code の更新は `nhds`（= nh darwin switch -U nixpkgs-claude）で行う。
   # nh 4.x の --update-input が nixpkgs-claude だけを bump する。以前は nh を自作ラッパで
   # 差し替えて自動 commit までしていたが、version 引き継ぎ・git ピン・失敗メッセージの
   # 誤誘導など壊れやすさが見合わないので廃止（2026-10-20）。flake.lock は手で commit する。
   # 素の `nh darwin switch` は bump しない（壊れた疑いのときの逃げ道にもなる）。
-  home.shellAliases.nhs = "nh darwin switch -U nixpkgs-claude";
+  home.shellAliases.nhds = "nh darwin switch -U nixpkgs-claude";
 
   home.file =
     {

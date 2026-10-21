@@ -17,7 +17,7 @@
   #
   #  ## package = null の理由
   #
-  #  本体は home.nix が pkgsClaude.claude-code（nixpkgs-claude・`nhs` で bump）
+  #  本体は home.nix が pkgsClaude.claude-code（nixpkgs-claude・`nhds` で bump）
   #  を入れている。ここで package を立てると二重インストールになるので null。
   #  null のとき HM は「最新版」とみなして personal-plugin 経路を使う。
   #
