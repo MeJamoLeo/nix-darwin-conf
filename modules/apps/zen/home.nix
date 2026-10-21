@@ -897,7 +897,6 @@ in {
             "claude-ai".reference = "claude.ai";
             "claude-com".reference = "claude.com";
             "grok".reference = "grok.com";
-            "gemini".reference = "gemini.google.com";
             "huggingface".reference = "huggingface.co";
           };
         };
