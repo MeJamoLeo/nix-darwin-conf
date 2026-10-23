@@ -1,8 +1,23 @@
 {
+  config,
   pkgs,
   username,
   ...
 }: {
+  # brew-drift — 「宣言に無いのに入っている brew の物」を一覧するだけ（消さない）。
+  # cleanup="none" のままにする代わりの棚卸し口（2026-10-23）。
+  # 自動削除（cleanup="uninstall"）を採らない理由：宣言外の brew を「一時利用」として
+  # 使う運用と衝突し、宣言漏れのツール（python3 等）が switch 一発で消えるため。
+  # 経緯：_archive に退役させた cs3354 の gitkraken / slack / visualvm が、
+  # cleanup="none" のせいで ogasawara に残り続けていた。
+  # 消すときは出力を見て `brew uninstall [--cask] <name>` を手で叩く。
+  environment.systemPackages = [
+    (pkgs.writeShellScriptBin "brew-drift" ''
+      exec /opt/homebrew/bin/brew bundle cleanup \
+        --file=${pkgs.writeText "Brewfile" config.homebrew.brewfile} "$@"
+    '')
+  ];
+
   homebrew = {
     enable = true;
 
@@ -49,7 +64,7 @@
     casks = [
       # Browsers
       "google-chrome" # Web browser
-      "brave-browser" # Privacy-focused web browser
+      # "brave-browser" # 引退 2026-10-23。使っていないため（`brew uninstall --cask` 済み）
       # "zen" — 2026-08-27 に cask をやめ、flake の home-manager モジュールへ移した
       #   （modules/apps/zen/home.nix・flake.nix の zen-browser input）。
       #   2026-08-03 に cask を選んだ理由は「nix に固定すると日常ブラウザの自動更新が死ぬ」
@@ -68,7 +83,7 @@
 
       # Development
       "visual-studio-code" # Code editor
-      "cursor" # AI-first code editor
+      # "cursor" # 引退 2026-10-23。使っていないため（`brew uninstall --cask` 済み）
       # zed は nixpkgs の zed-editor で管理 (modules/core-packages/home.nix)
       "claude" # Anthropic's AI assistant (GUI デスクトップ版。nixpkgs 非収録のため cask)
       # claude-code (CLI) は nixpkgs 管理へ移行 (modules/claude/home.nix)。cask だと
@@ -90,7 +105,8 @@
 
       # Productivity & Organization
       "libreoffice" # Free office suite
-      "obsidian" # Knowledge base that works on top of markdown files
+      # "obsidian" # 引退 2026-10-23。vault は Claude がファイル直書きで運用しており
+      #            （transport=filesystem）、アプリを使っていないため
       # "dynalist" # 2026-08-24 に宣言から外した。cask 自体が homebrew-cask から削除された
       #            （`brew search --cask dynalist` で出てこない）。残っているのは
       #            /opt/homebrew/Caskroom/dynalist/.metadata の stub だけで、これは
@@ -115,6 +131,7 @@
       # 2026-07-30 棚卸し：nix 未宣言のまま brew に居残っていた gitkraken / slack /
       # visualvm を削除した（起動履歴：gitkraken 2026-04-21 が最後、slack と visualvm は
       # 一度も起動なし）。意図的に採用しなかったので宣言は足さない。
+      # ogasawara にも残っていたので 2026-10-23 に同様に削除（cmux も）。
       # aerospace は nixpkgs 管理へ移行 (2026-07-08) 後、WM ごと OmniWM へ置き換えて
       # 退役した (2026-09-09, modules/_archive/aerospace)。旧 cask の手動 uninstall は
       # 両機で完了済み（.app / cask / tap / launchd / 設定ファイルの不在を実測確認）。

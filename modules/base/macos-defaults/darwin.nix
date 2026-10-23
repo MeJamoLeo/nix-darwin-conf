@@ -46,10 +46,8 @@
           #    バンドル ID は cask 版と同じ app.zen-browser.zen・署名の TeamIdentifier も
           #    9V5K9TP787 のまま＝1Password 等の Team ID 統合は維持される）
           "/Users/${username}/Applications/Home Manager Apps/Zen Browser (Beta).app"
-          "/Applications/Cursor.app"
           "/Users/${username}/Applications/Home Manager Apps/Zed.app"
           "/Applications/Discord.app"
-          "/Applications/Obsidian.app"
           "/Applications/Dynalist.app"
           "/Applications/Spotify.app"
           "/System/Applications/System Settings.app"
