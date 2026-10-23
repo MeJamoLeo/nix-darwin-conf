@@ -77,15 +77,24 @@
   # 全体を上書きしない理由は上のコメント（email・ログイン状態は rbw の持ち物）。
   # 冪等: 既に目的の値なら何もしない。ファイルが無ければ最小構成で作る
   # （新しい機体で `rbw login` 前に activation が走っても壊れないように）。
+  #
+  # lock_timeout も同じ手で当てる（2026-10-23・3600 → 28800 = 8時間）。
+  # 理由: 毎回の unlock 入力が負担で使われなくなる方が害が大きい。
+  # トレードオフ: 解錠中は同一ユーザーの全プロセス（Claude を含む）が秘密を
+  # 取り出せるので、prompt injection を受けたときに被害が起き得る時間が延びる。
+  # 緩和策の候補（未着手）: スリープ・画面ロック時に `rbw lock`。
   home.activation.rbwPinentry = lib.hm.dag.entryAfter ["writeBoundary"] ''
     cfg="$HOME/Library/Application Support/rbw/config.json"
     want="pinentry-curses"
+    wantLock=28800
     mkdir -p "$(dirname "$cfg")"
     if [ ! -e "$cfg" ]; then
-      printf '{"pinentry":"%s"}\n' "$want" > "$cfg"
-    elif [ "$(${pkgs.jq}/bin/jq -r '.pinentry // ""' "$cfg")" != "$want" ]; then
+      printf '{"pinentry":"%s","lock_timeout":%s}\n' "$want" "$wantLock" > "$cfg"
+    elif [ "$(${pkgs.jq}/bin/jq -r '.pinentry // ""' "$cfg")" != "$want" ] \
+      || [ "$(${pkgs.jq}/bin/jq -r '.lock_timeout // ""' "$cfg")" != "$wantLock" ]; then
       tmp="$(mktemp)"
-      ${pkgs.jq}/bin/jq --arg v "$want" '.pinentry = $v' "$cfg" > "$tmp" && mv "$tmp" "$cfg"
+      ${pkgs.jq}/bin/jq --arg v "$want" --argjson l "$wantLock" \
+        '.pinentry = $v | .lock_timeout = $l' "$cfg" > "$tmp" && mv "$tmp" "$cfg"
     fi
   '';
 }
