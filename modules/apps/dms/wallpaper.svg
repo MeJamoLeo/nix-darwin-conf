@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="2160" height="1350" viewBox="0 0 2160 1350">
-  <defs>
+<defs>
     <filter id="paper" x="0" y="0" width="100%" height="100%">
       <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" seed="3"/>
       <feColorMatrix values="0 0 0 0 0.45  0 0 0 0 0.40  0 0 0 0 0.32  0 0 0 0.10 0"/>
@@ -34,120 +34,68 @@
       <rect width="2" height="40" fill="#a2a6a9"/>
     </pattern>
   </defs>
-
-  <!-- 紙 -->
-  <rect width="2160" height="1350" fill="#f3eee2" filter="url(#paper)"/>
-
-  <!-- 題字 -->
-  <text x="1080" y="250" text-anchor="middle" font-family="Dancing Script" font-weight="700" font-size="176" fill="#25272a">Texas Barbecue</text>
-  <text x="1080" y="322" text-anchor="middle" font-family="DejaVu Sans" font-size="32" letter-spacing="5" fill="#3d7a37">SMOKED LOW &amp; SLOW · AUSTIN, TX</text>
-
-  <!-- 空の線（雲） -->
-  <path filter="url(#ink)" fill="none" stroke="#25272a" stroke-width="2.2" stroke-linecap="round"
-        d="M600 420 q45 -34 95 -4 q40 -30 90 2 q55 -38 110 -2 M1010 400 q50 -32 100 2 q45 -28 92 4 M1290 410 q40 -30 88 -2 q55 -36 112 0 q38 -26 80 6"/>
-
-  <!-- 木（水彩） -->
-  <g filter="url(#wc)">
-    <ellipse cx="900" cy="640" rx="230" ry="175" fill="#8fc274"/>
-    <ellipse cx="1130" cy="575" rx="270" ry="190" fill="#7db863"/>
-    <ellipse cx="1380" cy="650" rx="245" ry="185" fill="#6dab57"/>
-    <ellipse cx="770" cy="740" rx="150" ry="120" fill="#7db863"/>
-    <ellipse cx="1480" cy="780" rx="170" ry="130" fill="#5f9e4c"/>
-    <ellipse cx="1010" cy="700" rx="170" ry="95" fill="#4e8e40" opacity="0.7"/>
-    <ellipse cx="1300" cy="720" rx="160" ry="95" fill="#4a893c" opacity="0.7"/>
-    <ellipse cx="1180" cy="500" rx="120" ry="70" fill="#a4d088" opacity="0.8"/>
-  </g>
-  <!-- 枝と葉のひっかき線 -->
-  <g filter="url(#ink)" fill="none" stroke="#2f4a2a" stroke-width="2" stroke-linecap="round">
-    <path d="M880 760 q-20 -80 -70 -130 M880 700 q30 -60 20 -120 M1360 760 q10 -90 70 -150 M1400 690 q-40 -50 -30 -110 M1520 820 q-30 -40 -20 -80"/>
-    <path d="M700 640 q10 -12 22 -4 M760 560 q12 -10 24 0 M980 470 q10 -12 22 -2 M1260 430 q12 -10 24 0 M1560 600 q10 -10 20 2 M1600 700 q12 -8 20 4 M1620 760 c6 -8 14 -8 18 0"/>
-    <circle cx="1635" cy="700" r="5"/><circle cx="1650" cy="725" r="4"/><circle cx="1640" cy="745" r="3"/>
-  </g>
-
-  <!-- 地面の影 -->
-  <ellipse cx="1060" cy="1085" rx="560" ry="40" fill="#cfcabd" filter="url(#wc)" opacity="0.8"/>
-
-  <!-- 左の倉庫 -->
-  <g filter="url(#wcs)">
-    <polygon points="550,810 815,770 825,1075 550,1075" fill="url(#siding)"/>
-    <polygon points="540,815 815,770 830,786 552,830" fill="#9a9ea2"/>
-    <rect x="640" y="900" width="95" height="175" fill="#a9adb0"/>
-  </g>
-  <g filter="url(#ink)" fill="none" stroke="#25272a" stroke-width="2.4" stroke-linejoin="round">
-    <polygon points="550,810 815,770 825,1075 550,1075"/>
-    <path d="M540 815 L815 770 L830 786 M560 830 L815 790"/>
-    <rect x="640" y="900" width="95" height="175"/>
-    <path d="M592 1075 L592 965"/><rect x="574" y="925" width="36" height="42" fill="#f3eee2"/>
-    <path d="M580 800 q8 -6 14 0 M640 790 q8 -6 14 0 M700 782 q8 -6 14 0"/>
-  </g>
-
-  <!-- 煙突と煙 -->
-  <g filter="url(#wcs)">
-    <ellipse cx="1300" cy="430" rx="70" ry="38" fill="#c7c9c9" opacity="0.65"/>
-    <ellipse cx="1360" cy="370" rx="85" ry="42" fill="#d4d5d4" opacity="0.55"/>
-    <ellipse cx="1250" cy="480" rx="45" ry="30" fill="#bcbfc0" opacity="0.6"/>
-    <rect x="1212" y="520" width="34" height="250" fill="#6e5236"/>
-    <rect x="1202" y="508" width="54" height="20" fill="#5b432c"/>
-    <rect x="1262" y="610" width="24" height="160" fill="#7d5f40"/>
-    <rect x="980" y="470" width="12" height="140" fill="#6e5236"/>
-    <rect x="964" y="470" width="44" height="64" rx="6" fill="#b1b4b6"/>
-  </g>
-  <g filter="url(#ink)" fill="none" stroke="#25272a" stroke-width="2.4">
-    <rect x="1212" y="520" width="34" height="250"/><rect x="1202" y="508" width="54" height="20"/>
-    <rect x="1262" y="610" width="24" height="160"/>
-    <path d="M986 534 L986 610"/><rect x="964" y="470" width="44" height="64" rx="6"/>
-    <path stroke="#6f7478" stroke-width="2" d="M1230 500 c-20 -30 30 -40 10 -70 c-15 -25 35 -40 60 -60 M1250 495 c30 -20 10 -50 50 -70 c35 -18 30 -50 70 -60"/>
-  </g>
-
-  <!-- 本体の小屋 -->
-  <g filter="url(#wcs)">
-    <!-- 正面 -->
-    <polygon points="830,765 1290,795 1290,1080 830,1062" fill="url(#corr)"/>
-    <polygon points="830,825 1290,850 1290,960 830,948" fill="#66653b"/>
-    <!-- 側面 -->
-    <polygon points="1290,795 1440,765 1440,1045 1290,1080" fill="url(#corrDark)"/>
-    <polygon points="1290,850 1440,822 1440,935 1290,960" fill="#55542f"/>
-    <!-- 看板の箱 -->
-    <polygon points="895,600 1195,612 1195,752 895,740" fill="#4a4036"/>
-    <!-- 屋根の梁 -->
-    <polygon points="805,742 1300,772 1455,740 1455,762 1300,796 805,764" fill="#6e5236"/>
-    <!-- 支柱 -->
-    <rect x="1292" y="790" width="16" height="292" fill="#6e5236"/>
-    <rect x="1440" y="758" width="15" height="290" fill="#6e5236"/>
-  </g>
-  <g filter="url(#ink)" fill="none" stroke="#25272a" stroke-width="2.6" stroke-linejoin="round">
-    <polygon points="830,765 1290,795 1290,1080 830,1062"/>
-    <polygon points="1290,795 1440,765 1440,1045 1290,1080"/>
-    <path d="M830 825 L1290 850 L1440 822 M830 948 L1290 960 L1440 935"/>
-    <!-- 窓の桟 -->
-    <path stroke="#d8d2b0" stroke-width="5" d="M930 831 L930 951 M1040 837 L1040 954 M1150 843 L1150 957 M1240 848 L1240 959 M835 880 L1288 900 M1340 841 L1340 950 M1390 832 L1390 943"/>
-    <polygon points="895,600 1195,612 1195,752 895,740"/>
-    <polygon points="805,742 1300,772 1455,740 1455,762 1300,796 805,764"/>
-    <rect x="1292" y="790" width="16" height="292"/><rect x="1440" y="758" width="15" height="290"/>
-    <path d="M1308 800 L1440 1000 M1440 790 L1308 1010"/>
-  </g>
-
-  <!-- ネオン看板 -->
-  <text x="1045" y="655" text-anchor="middle" font-family="DejaVu Sans" font-weight="700" font-size="44" letter-spacing="3" fill="#f2b632" stroke="#25272a" stroke-width="1.5">TEXAS</text>
-  <text x="1045" y="735" text-anchor="middle" font-family="DejaVu Sans" font-weight="700" font-size="104" letter-spacing="8" fill="none" stroke="#25272a" stroke-width="12" stroke-linejoin="round">BBQ</text>
-  <text x="1045" y="735" text-anchor="middle" font-family="DejaVu Sans" font-weight="700" font-size="104" letter-spacing="8" fill="#e8572a" stroke="#fff1d0" stroke-width="3">BBQ</text>
-
-  <!-- 駐車場 -->
-  <g filter="url(#wcs)" fill="#e9b52c">
-    <polygon points="560,1100 1300,1112 1460,1072 1470,1082 1305,1124 560,1112"/>
-    <rect x="880" y="1112" width="9" height="46"/><rect x="1000" y="1114" width="9" height="46"/>
-    <rect x="1120" y="1116" width="9" height="46"/><rect x="1240" y="1118" width="9" height="40"/>
-    <rect x="1316" y="1010" width="14" height="80"/><rect x="1350" y="1004" width="14" height="78"/>
-    <rect x="1462" y="985" width="13" height="78"/>
-  </g>
-  <g filter="url(#ink)" fill="none" stroke="#25272a" stroke-width="2">
-    <rect x="1316" y="1010" width="14" height="80"/><rect x="1350" y="1004" width="14" height="78"/>
-    <rect x="1462" y="985" width="13" height="78"/>
-  </g>
-
-  <!-- 帯 -->
-  <g filter="url(#ink)" stroke="#25272a" stroke-width="2.2">
-    <path d="M660 1185 L1500 1185 M660 1258 L1500 1258"/>
-  </g>
-  <text x="1080" y="1235" text-anchor="middle" font-family="DejaVu Sans" font-weight="700" font-size="40" letter-spacing="8" fill="#3d7a37">BRISKET · SAUSAGE · RIBS</text>
+<rect width="2160" height="1350" fill="#f3eee2" filter="url(#paper)"/>
+<text x="1080" y="230" text-anchor="middle" font-family="Dancing Script" font-weight="700" font-size="176" fill="#25272a">Terry Black’s</text>
+<text x="1080" y="302" text-anchor="middle" font-family="DejaVu Sans" font-size="32" letter-spacing="5" fill="#3d7a37">ORIGINAL TEXAS BARBECUE · AUSTIN, TX</text>
+<path filter="url(#ink)" fill="none" stroke="#25272a" stroke-width="2.2" stroke-linecap="round" d="M560 400 q45 -34 95 -4 q40 -30 90 2 q55 -38 110 -2 M990 385 q50 -32 100 2 q45 -28 92 4 M1300 395 q40 -30 88 -2 q55 -36 112 0 q38 -26 80 6"/>
+<g filter="url(#wc)">
+<ellipse cx="860" cy="640" rx="210" ry="150" fill="#8fc274" opacity="1"/>
+<ellipse cx="1080" cy="560" rx="240" ry="170" fill="#7db863" opacity="1"/>
+<ellipse cx="1330" cy="560" rx="230" ry="170" fill="#6dab57" opacity="1"/>
+<ellipse cx="1560" cy="690" rx="200" ry="160" fill="#7db863" opacity="1"/>
+<ellipse cx="720" cy="760" rx="150" ry="120" fill="#7db863" opacity="1"/>
+<ellipse cx="1660" cy="820" rx="140" ry="110" fill="#5f9e4c" opacity="1"/>
+<ellipse cx="1000" cy="690" rx="170" ry="90" fill="#4e8e40" opacity="0.75"/>
+<ellipse cx="1420" cy="690" rx="180" ry="100" fill="#4a893c" opacity="0.75"/>
+<ellipse cx="1180" cy="470" rx="130" ry="70" fill="#a4d088" opacity="1"/>
+<ellipse cx="1500" cy="560" rx="120" ry="70" fill="#9ccb80" opacity="1"/>
+</g>
+<g filter="url(#ink)" fill="none" stroke="#2f4a2a" stroke-width="2" stroke-linecap="round">
+<path d="M1000 724 q8 -10 18 -2 M1547 888 q8 -10 18 -2 M1287 653 q8 -10 18 -2 M685 729 q8 -10 18 -2 M1403 395 q8 -10 18 -2 M622 854 q8 -10 18 -2 M1194 406 q8 -10 18 -2 M1382 729 q8 -10 18 -2 M962 505 q8 -10 18 -2 M1403 395 q8 -10 18 -2 M1205 709 q8 -10 18 -2 M1166 436 q8 -10 18 -2 M1799 793 q8 -10 18 -2 M1531 650 q8 -10 18 -2 M640 864 q8 -10 18 -2 M1356 684 q8 -10 18 -2 M1084 733 q8 -10 18 -2 M1529 652 q8 -10 18 -2 M802 657 q8 -10 18 -2 M1040 557 q8 -10 18 -2 M677 642 q8 -10 18 -2 M1466 418 q8 -10 18 -2 M1394 595 q8 -10 18 -2 M1365 739 q8 -10 18 -2 M997 723 q8 -10 18 -2 M1047 715 q8 -10 18 -2 M1417 574 q8 -10 18 -2 M1097 539 q8 -10 18 -2 M1474 697 q8 -10 18 -2 M1708 926 q8 -10 18 -2 M1735 606 q8 -10 18 -2 M1564 737 q8 -10 18 -2 M1425 719 q8 -10 18 -2 M1556 527 q8 -10 18 -2 M1174 430 q8 -10 18 -2 M1282 462 q8 -10 18 -2 M974 511 q8 -10 18 -2 M1679 931 q8 -10 18 -2 M606 679 q8 -10 18 -2 M1256 680 q8 -10 18 -2 M1018 728 q8 -10 18 -2 M1066 681 q8 -10 18 -2 M1784 876 q8 -10 18 -2 M1308 387 q8 -10 18 -2 M1563 580 q8 -10 18 -2 M1228 716 q8 -10 18 -2 M1119 389 q8 -10 18 -2 M1691 565 q8 -10 18 -2 M655 649 q8 -10 18 -2 M1273 453 q8 -10 18 -2 M1484 691 q8 -10 18 -2 M1394 595 q8 -10 18 -2 M960 711 q8 -10 18 -2 M720 756 q8 -10 18 -2 M1659 833 q8 -10 18 -2 M1565 557 q8 -10 18 -2 M863 640 q8 -10 18 -2 M1265 674 q8 -10 18 -2 M1061 692 q8 -10 18 -2 M878 462 q8 -10 18 -2 M888 452 q8 -10 18 -2 M567 767 q8 -10 18 -2 M974 716 q8 -10 18 -2 M1014 746 q8 -10 18 -2 M679 878 q8 -10 18 -2"/>
+<path d="M860 760 q-20 -80 -70 -130 M870 700 q30 -60 20 -120 M1560 800 q10 -90 70 -150 M1600 720 q-40 -50 -30 -110 M1180 620 q-10 -60 30 -110"/>
+</g>
+<g filter="url(#wcs)"><ellipse cx="1290" cy="450" rx="70" ry="38" fill="#c7c9c9" opacity="0.65"/><ellipse cx="1350" cy="390" rx="85" ry="42" fill="#d4d5d4" opacity="0.55"/><ellipse cx="1245" cy="500" rx="45" ry="30" fill="#bcbfc0" opacity="0.6"/><rect x="1205" y="540" width="34" height="210" fill="#6e5236"/><rect x="1195" y="528" width="54" height="20" fill="#5b432c"/><rect x="1255" y="620" width="24" height="130" fill="#7d5f40"/><rect x="975" y="500" width="12" height="130" fill="#6e5236"/><rect x="959" y="500" width="44" height="64" rx="6" fill="#b1b4b6"/></g>
+<g filter="url(#ink)" fill="none" stroke="#25272a" stroke-width="2.4"><rect x="1205" y="540" width="34" height="210"/><rect x="1195" y="528" width="54" height="20"/><rect x="1255" y="620" width="24" height="130"/><path d="M981 564 L981 630"/><rect x="959" y="500" width="44" height="64" rx="6"/><path stroke="#6f7478" stroke-width="2" d="M1222 520 c-20 -30 30 -40 10 -70 c-15 -25 35 -40 60 -60 M1242 515 c30 -20 10 -50 50 -70 c35 -18 30 -50 70 -60"/></g>
+<polygon filter="url(#wc)" opacity="0.7" fill="#cfcabd" points="520.0,995.5 1330.0,1111.0 1560.0,1042.0 1560.0,1058.3 1330.0,1139.0 520.0,1013.8"/>
+<g filter="url(#wcs)">
+<polygon points="540.0,832.9 830.0,838.2 830.0,1041.3 540.0,1003.8" fill="url(#siding)"/>
+<polygon points="558.5,837.3 838.0,842.2 982.0,834.9 741.7,830.4" fill="#a3a7aa"/>
+<polygon points="640.0,889.3 730.0,894.0 730.0,1028.4 640.0,1016.8" fill="#a9adb0"/>
+</g>
+<g filter="url(#ink)" fill="none" stroke="#25272a" stroke-width="2.4" stroke-linejoin="round">
+<polygon points="540.0,832.9 830.0,838.2 830.0,1041.3 540.0,1003.8"/><polygon points="558.5,837.3 838.0,842.2 982.0,834.9 741.7,830.4"/><polygon points="640.0,889.3 730.0,894.0 730.0,1028.4 640.0,1016.8"/>
+<path stroke-width="1.4" d="M595 836 L867 841 M632 835 L896 839 M668 833 L924 838 M705 832 L953 836"/>
+<path d="M585 1010 L585 895"/><rect x="568" y="860" width="34" height="40" fill="#f3eee2"/>
+</g>
+<g filter="url(#wcs)">
+<polygon points="800.0,754.8 1330.0,740.0 1330.0,1090.0 800.0,1025.2" fill="url(#corr)"/>
+<polygon points="800.0,808.9 1330.0,810.0 1330.0,943.0 800.0,911.6" fill="#66653b"/>
+<polygon points="1330.0,740.0 1490.0,750.2 1490.0,1045.3 1330.0,1090.0" fill="url(#corrDark)"/>
+<polygon points="1330.0,810.0 1490.0,809.2 1490.0,921.4 1330.0,943.0" fill="#55542f"/>
+<polygon points="905.0,563.0 1195.0,526.2 1195.0,724.0 905.0,734.7" fill="#4a4036"/>
+<polygon points="780.0,736.6 1338.0,715.2 1505.0,730.9 1505.0,751.2 1338.0,739.8 780.0,755.3" fill="#6e5236"/>
+<rect x="1322.0" y="715.5" width="16" height="374.5" fill="#6e5236"/><rect x="1484.0" y="729.5" width="14" height="315.8" fill="#6e5236"/>
+</g>
+<g filter="url(#ink)" fill="none" stroke="#25272a" stroke-width="2.6" stroke-linejoin="round">
+<polygon points="800.0,754.8 1330.0,740.0 1330.0,1090.0 800.0,1025.2"/><polygon points="1330.0,740.0 1490.0,750.2 1490.0,1045.3 1330.0,1090.0"/>
+<path d="M800.0 808.9 L1330.0 810.0 L1490.0 809.2"/>
+<path d="M800.0 911.6 L1330.0 943.0 L1490.0 921.4"/>
+<path stroke="#d8d2b0" stroke-width="5" d="M1238 809.8 L1238 937.6 M1136 809.6 L1136 931.5 M1024 809.3 L1024 924.9 M906 809.1 L906 917.9 M1385 809.7 L1385 935.6 M1440 809.5 L1440 928.1 M804.0 852.2 L1324.0 865.8 M1338.0 865.5 L1484.0 856.8"/>
+<polygon points="905.0,563.0 1195.0,526.2 1195.0,724.0 905.0,734.7"/><polygon points="780.0,736.6 1338.0,715.2 1505.0,730.9 1505.0,751.2 1338.0,739.8 780.0,755.3"/>
+<rect x="1322.0" y="715.5" width="16" height="374.5"/><rect x="1484.0" y="729.5" width="14" height="315.8"/>
+<path d="M1340.0 747.6 L1482.0 1017.7 M1482.0 755.6 L1340.0 1052.5"/>
+</g>
+<g transform="translate(1050.0,624.6) skewY(-5.03)"><text x="0" y="0" text-anchor="middle" font-family="DejaVu Sans" font-weight="700" font-size="29" fill="#f2b632" stroke="#25272a" stroke-width="1.2" letter-spacing="0.5">TERRY BLACK’S</text></g>
+<g transform="translate(1050.0,707.8) skewY(-2.72)"><text x="0" y="0" text-anchor="middle" font-family="DejaVu Sans" font-weight="700" font-size="104" letter-spacing="8" fill="none" stroke="#25272a" stroke-width="12" stroke-linejoin="round">BBQ</text><text x="0" y="0" text-anchor="middle" font-family="DejaVu Sans" font-weight="700" font-size="104" letter-spacing="8" fill="#e8572a" stroke="#fff1d0" stroke-width="3">BBQ</text></g>
+<g filter="url(#wcs)" fill="#e9b52c">
+<polygon points="560.0,1035.7 1330.0,1149.5 1560.0,1071.8 1560.0,1080.0 1330.0,1160.0 560.0,1042.7"/>
+<polygon points="876.0,1091.4 884.0,1091.4 870.0,1153.4 862.0,1153.4"/>
+<polygon points="996.0,1109.7 1004.0,1109.7 990.0,1171.7 982.0,1171.7"/>
+<polygon points="1116.0,1128.0 1124.0,1128.0 1110.0,1190.0 1102.0,1190.0"/>
+<polygon points="1236.0,1146.3 1244.0,1146.3 1230.0,1208.3 1222.0,1208.3"/>
+</g>
+<g filter="url(#wcs)" fill="#e9b52c"><rect x="1293.0" y="1036.0" width="14" height="78"/><rect x="1253.0" y="1027.2" width="14" height="78"/><rect x="1373.0" y="1021.3" width="14" height="78"/><rect x="1443.0" y="997.0" width="14" height="78"/></g>
+<g filter="url(#ink)" fill="none" stroke="#25272a" stroke-width="2"><rect x="1293.0" y="1036.0" width="14" height="78"/><rect x="1253.0" y="1027.2" width="14" height="78"/><rect x="1373.0" y="1021.3" width="14" height="78"/><rect x="1443.0" y="997.0" width="14" height="78"/></g>
+<g filter="url(#ink)" stroke="#25272a" stroke-width="2.2"><path d="M660 1205 L1500 1205 M660 1278 L1500 1278"/></g>
+<text x="1080" y="1255" text-anchor="middle" font-family="DejaVu Sans" font-weight="700" font-size="40" letter-spacing="8" fill="#3d7a37">BRISKET  SAUSAGE &amp; RIBS</text>
 </svg>

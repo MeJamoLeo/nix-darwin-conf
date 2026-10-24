@@ -24,8 +24,9 @@
 # skipping the need to invent the JSON from scratch.
 
 let
-  # 壁紙：テキサス BBQ 小屋の手描き風イラスト（./wallpaper.svg、2026-10-24 に Claude が
-  # 描いたオリジナル。店名・ロゴは入れていない＝public repo に置いてよい）。
+  # 壁紙：Terry Black's（オースティンの BBQ 屋）の小屋を、手持ちの T シャツの雰囲気で
+  # 描いた手描き風イラスト（./wallpaper.svg、2026-10-24 に Claude が描いた。T シャツの絵の
+  # 写しではない）。斜め前から見た2点透視。店名は私的な壁紙として入れている。
   # 絵を変えたいときは SVG を書き換えて switch するだけ。PNG は nix が x1nano の
   # 画面サイズ（2160x1350）で描く。フォントも nixpkgs から固定するので機体で見た目が変わらない。
   wallpaper =
