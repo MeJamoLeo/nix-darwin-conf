@@ -222,6 +222,14 @@ in {
         "browser.shell.checkDefaultBrowser" = false;
         # Space を切り替えたとき、前回そこで見ていたタブに戻る（区画の記憶）。
         "zen.workspaces.continue-where-left-off" = true;
+
+        # 見た目の骨格を機体間で揃える（2026-10-23）。x1nano だけ縦タブが右・URL バーが常時
+        # フロート・ブックマークバー無しになっていて「なんか変」だった（どれも実行時に
+        # GUI で切り替わった値が prefs.js に残っていたもの）。値は mac の現状＝Zen の既定
+        # （1.23.4b の omni.ja で確認）なので、mac 側の見た目は変わらない。
+        "zen.tabs.vertical.right-side" = false;
+        "zen.urlbar.behavior" = "floating-on-type";
+        "browser.toolbars.bookmarks.visibility" = "always";
         # 下の extensions.packages で置いた拡張を起動時に自動で有効化する。
         #
         # ⚠⚠ これは「プロファイルに置かれた拡張の承認プロンプト」を消す設定＝防御の弱体化。
