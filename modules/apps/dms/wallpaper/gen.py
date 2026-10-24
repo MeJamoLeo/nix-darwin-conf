@@ -6,8 +6,8 @@
 # ★ 構図は「駐車場に立つ1人のカメラ」から全部計算する（物ごとに手で置くと視点がばらける）。
 #   G(X, Z, Yw)：地面の座標（m。X=右、Z=奥、Yw=高さ）→ 画面。目の高さ EYE=1.5m、地平線 HY。
 #   ピットハウスは正面が TH 傾いた箱で、W(s, t, h) で指す（s=角から正面沿いに左奥へ、
-#   t=角から側面沿いに右奥へ、h=高さ m）。左の家は画面と平行（正面向き）で、奥に下がって床が高い。
-#   駐車場の線は視心 (CVX, HY) へ集まる1点透視。構図を動かすときは HY / CVX / D / TH だけを触る。
+#   t=角から側面沿いに右奥へ、h=高さ m）。左の家は THH だけ振った箱で Hp(s, d, h) で指す（s=右手前の角から正面沿いに左奥へ、
+#   d=奥行き、負なら家の前）。奥に下がって床が高い。駐車場は家の向きに揃える。構図を動かすときは HY / CVX / D / TH だけを触る。
 #   PNG 化は ../home.nix の nix ビルドで行う。
 import math, sys, random
 mode = sys.argv[1]; out = sys.argv[2]
@@ -72,12 +72,21 @@ def quadS(t0,t1,h0,h1,s=0.0): return [W(s,t0,h1),W(s,t1,h1),W(s,t1,h0),W(s,t0,h0
 def poly(pts, **kw):
   attr=" ".join(f'{k.replace("_","-")}="{v}"' for k,v in kw.items()); return f'<polygon points="{P(*pts)}" {attr}/>'
 def seg(p,q): return f"M{p[0]:.1f} {p[1]:.1f} L{q[0]:.1f} {q[1]:.1f}"
+# 左の家（THH 振った箱）
+THH = math.radians(30.0)
+UH = (-math.cos(THH), math.sin(THH)); VH = (math.sin(THH), math.cos(THH))
+HR = (-1.6, 21.5)                       # 右手前の角（ピットハウスの裏に隠れる）
+HLEN, HDEP, DECK, HTOP, RIDGE = 10.0, 7.0, 0.8, 3.8, 6.0
+def Hxz(s_,d): return (HR[0]+s_*UH[0]+d*VH[0], HR[1]+s_*UH[1]+d*VH[1])
+def Hp(s_,d,h=0.0):
+  X,Z=Hxz(s_,d); return G(X,Z,h)
+def hq(s0,s1,h0,h1,d=0.0): return [Hp(s0,d,h1),Hp(s1,d,h1),Hp(s1,d,h0),Hp(s0,d,h0)]
 
 # ---------- 木（右を重く、左の家の屋根の上は空を抜く） ----------
 random.seed(4)
-cl=[(1150,560,260,170,"t2"),(1420,500,280,180,"t3"),(1700,560,260,190,"t2"),(1930,680,220,170,"t1"),(1290,700,230,120,"tdark"),
-    (1600,700,220,120,"tdark"),(1020,680,170,120,"t1"),(1500,410,150,80,"tlight"),(1800,470,130,70,"tlight"),(2080,800,150,140,"t4"),
-    (230,790,200,150,"t1"),(90,720,160,140,"t2"),(330,860,140,90,"tdark")]
+cl=[(1150,560,260,170,"t2"),(1420,500,280,180,"t3"),(1700,560,260,190,"t2"),(1930,680,220,170,"t1"),(1290,760,240,170,"tdark"),
+    (1600,780,240,170,"tdark"),(1020,680,170,120,"t1"),(1500,410,150,80,"tlight"),(1800,470,130,70,"tlight"),(2080,840,170,150,"t4"),
+    (230,790,200,150,"t1"),(90,720,160,140,"t2"),(330,880,170,110,"tdark")]
 a('<g filter="url(#wc)">'+"".join(f'<ellipse cx="{x}" cy="{y}" rx="{rx}" ry="{ry}" fill="{C[c]}" opacity="{0.8 if c=="tdark" else 1}"/>' for x,y,rx,ry,c in cl)+'</g>')
 segs=[]
 for _ in range(90):
@@ -87,17 +96,27 @@ for _ in range(90):
 a(f'<g filter="url(#ink)" fill="none" stroke="{"#2f4a2a" if not N else "#0a1410"}" stroke-width="2" stroke-linecap="round"><path d="{" ".join(segs)}"/><path d="M1180 760 q-10 -90 40 -160 M1760 800 q10 -90 70 -150 M1800 720 q-40 -50 -30 -110 M260 880 q0 -60 -40 -110"/></g>')
 
 # ---------- 地面と駐車場（平らな物は建物より先に描く） ----------
-gnd=[(0,1000),(2160,1000),(2160,1350),(0,1350)]
-a(poly(gnd, fill=C["ground"], opacity="0.4", filter="url(#wc)"))
-# ピットハウス脇の通路（側面に沿って VPR へ）
-VPRs=(CVX+D*math.tan(TH),HY)
+random.seed(21)
+edge=[(x, 965+random.uniform(-14,14)) for x in range(0,2161,120)]
+gnd=edge+[(2160,1350),(0,1350)]
+a(f'<linearGradient id="gfade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{C["ground"]}" stop-opacity="0.6"/><stop offset="0.75" stop-color="{C["ground"]}" stop-opacity="0.5"/><stop offset="1" stop-color="{C["ground"]}" stop-opacity="0.1"/></linearGradient>')
+a(poly(gnd, fill="url(#gfade)", filter="url(#wc)"))
+# ピットハウス脇の通路（側面に沿って奥へ）
 a(poly([(1590,1350),(2160,1350),(2160,1180),(1760,1060),(1600,1075)], fill=C["ground"], opacity="0.25", filter="url(#wc)"))
+# 駐車場は左の家の向きに揃える（区画の線は家の奥行き方向 = 消失点 (CVX+D·tanTHH, HY) へ）
 lw=0.16
 lines=[]
-for X in (-12.0,-9.3,-6.6,-3.9):
-  z0,z1=22.5,6.0
-  lines.append(poly([G(X-lw/2,z0),G(X+lw/2,z0),G(X+lw/2,z1),G(X-lw/2,z1)]))
-lines.append(poly([G(-13.5,22.5),G(-1.6,22.5),G(-1.6,22.0),G(-13.5,22.0)]))   # 車止めライン
+def stall(s0, d0, d1):
+  lines.append(poly([Hp(s0-lw/2,d0),Hp(s0+lw/2,d0),Hp(s0+lw/2,d1),Hp(s0-lw/2,d1)]))
+for s0 in (0.9, 3.6, 6.3, 9.0):          # 奥の列（家の前・区画の奥行き 5.5m）
+  stall(s0, -1.6, -7.1)
+# 手前の列：通路をはさんで手前。家と同じ向きで、奥の端を地面の座標で並べる
+for k in range(7):
+  X0,Z0=-7.0+k*2.7*(-UH[0]), 16.0+k*2.7*(-UH[1])
+  X1,Z1=X0-5.5*VH[0], Z0-5.5*VH[1]
+  ox,oz=lw/2*(-UH[0]),lw/2*(-UH[1])
+  lines.append(poly([G(X0-ox,Z0-oz),G(X0+ox,Z0+oz),G(X1+ox,Z1+oz),G(X1-ox,Z1-oz)]))
+lines.append(poly([Hp(-0.6,-1.4),Hp(10.4,-1.4),Hp(10.4,-1.6),Hp(-0.6,-1.6)]))   # 車止めライン
 a(f'<g filter="url(#wcs)" fill="{C["line"]}" stroke="{C["ink"]}" stroke-opacity="0.35" stroke-width="1.2">{"".join(lines)}</g>')
 
 # ---------- 石垣（ピットハウスの右奥、通路の向こう） ----------
@@ -111,32 +130,35 @@ for r in range(6):
       x,y=G(X,26,Yw); stn.append(f'<ellipse cx="{x:.0f}" cy="{y:.0f}" rx="{px(0.33,26):.0f}" ry="{px(0.18,26):.0f}"/>')
 a(f'<g filter="url(#ink)" fill="none" stroke="{C["ink"]}" stroke-width="1.6" opacity="0.7">{"".join(stn)}</g>')
 
-# ---------- 左の家（正面向き・Z=23・床 0.8m・寄棟） ----------
-HZ, HX0, HX1, DECK, HTOP = 23.0, -10.5, -1.6, 0.8, 3.8
-wall=[G(HX0,HZ,HTOP),G(HX1,HZ,HTOP),G(HX1,HZ,DECK),G(HX0,HZ,DECK)]
-roof=[G(HX0-0.5,22.5,HTOP),G(HX1+0.5,22.5,HTOP),G(HX1-2.2,26.5,6.0),G(HX0+2.4,26.5,6.0)]
-deckf=[G(HX0-0.3,22.0,DECK),G(HX1+0.3,22.0,DECK),G(HX1+0.3,22.0,0),G(HX0-0.3,22.0,0)]
-wins=[(-9.9,-8.7),(-8.2,-7.0),(-4.2,-3.0)]
-door=(-6.2,-5.0)
+# ---------- 左の家（THH 振った箱・床 0.8m・寄棟） ----------
+wall=hq(HLEN,0,DECK,HTOP)
+rend=[Hp(0,0,HTOP),Hp(0,HDEP,HTOP),Hp(0,HDEP,DECK),Hp(0,0,DECK)]          # 右の妻側（見える面）
+e1,e2,e3=Hp(HLEN+0.5,-0.5,HTOP),Hp(-0.5,-0.5,HTOP),Hp(-0.5,HDEP+0.5,HTOP)
+r1,r2=Hp(HLEN-HDEP/2,HDEP/2,RIDGE),Hp(HDEP/2,HDEP/2,RIDGE)
+roof=[e1,e2,r2,r1]; hip=[e2,e3,r2]
+deckf=hq(HLEN+0.3,-0.3,0,DECK,d=-1.0)
+wins=[(9.4,8.2),(7.6,6.4),(2.6,1.4)]
+door=(5.0,3.8)
 a('<g filter="url(#wcs)">')
+a(poly(rend, fill="url(#sidingp)", opacity="0.85")); a(poly(hip, fill="url(#shinglep)", opacity="0.85"))
 a(poly(wall, fill="url(#sidingp)")); a(poly(roof, fill="url(#shinglep)")); a(poly(deckf, fill=C["rail"], opacity="0.55"))
-for x0,x1 in wins: a(poly([G(x0,HZ,3.2),G(x1,HZ,3.2),G(x1,HZ,1.7),G(x0,HZ,1.7)], fill=C["win"]))
-a(poly([G(door[0],HZ,3.3),G(door[1],HZ,3.3),G(door[1],HZ,DECK),G(door[0],HZ,DECK)], fill="#7a3b2e"))
-mx,my=G(-5.85,HZ,2.6); a(f'<circle cx="{mx:.0f}" cy="{my:.0f}" r="{px(0.28,HZ):.0f}" fill="#e9b52c"/>')
-mx,my=G(-5.35,HZ,2.0); a(f'<circle cx="{mx:.0f}" cy="{my:.0f}" r="{px(0.24,HZ):.0f}" fill="#3f8f8a"/>')
-a(poly([G(-6.0,HZ,1.5),G(-5.2,HZ,1.5),G(-5.2,HZ,1.3),G(-6.0,HZ,1.3)], fill="#c94a3a"))
+for s0,s1 in wins: a(poly(hq(s0,s1,1.7,3.2), fill=C["win"]))
+a(poly(hq(door[0],door[1],DECK,3.3), fill="#7a3b2e"))
+hz=Hxz(4.4,0)[1]
+mx,my=Hp(4.65,0,2.6); a(f'<circle cx="{mx:.0f}" cy="{my:.0f}" r="{px(0.28,hz):.0f}" fill="#e9b52c"/>')
+mx,my=Hp(4.15,0,2.0); a(f'<circle cx="{mx:.0f}" cy="{my:.0f}" r="{px(0.24,hz):.0f}" fill="#3f8f8a"/>')
+a(poly(hq(4.8,4.0,1.3,1.5), fill="#c94a3a"))
 a('</g>')
 a(f'<g filter="url(#ink)" fill="none" stroke="{C["ink"]}" stroke-width="2.2" stroke-linejoin="round">')
-a(poly(wall)); a(poly(roof)); a(poly(deckf))
-for x0,x1 in wins:
-  a(poly([G(x0,HZ,3.2),G(x1,HZ,3.2),G(x1,HZ,1.7),G(x0,HZ,1.7)], stroke=C["winframe"], stroke_width="5"))
-  m=(x0+x1)/2; a(f'<path stroke="{C["winframe"]}" stroke-width="3.5" d="{seg(G(m,HZ,3.2),G(m,HZ,1.7))}"/>')
-a(poly([G(door[0],HZ,3.3),G(door[1],HZ,3.3),G(door[1],HZ,DECK),G(door[0],HZ,DECK)]))
-# 手すり（デッキの前、Z=22）
-rl=[seg(G(HX0-0.3,22.0,1.8),G(HX1+0.3,22.0,1.8))]
-X=HX0-0.3
-while X<=HX1+0.31:
-  rl.append(seg(G(X,22.0,0),G(X,22.0,1.8))); X+=1.3
+a(poly(rend)); a(poly(hip)); a(poly(wall)); a(poly(roof)); a(poly(deckf))
+for s0,s1 in wins:
+  a(poly(hq(s0,s1,1.7,3.2), stroke=C["winframe"], stroke_width="5"))
+  m=(s0+s1)/2; a(f'<path stroke="{C["winframe"]}" stroke-width="3.5" d="{seg(Hp(m,0,3.2),Hp(m,0,1.7))}"/>')
+a(poly(hq(door[0],door[1],DECK,3.3)))
+rl=[seg(Hp(HLEN+0.3,-1.0,1.8),Hp(-0.3,-1.0,1.8))]
+s_=HLEN+0.3
+while s_>=-0.31:
+  rl.append(seg(Hp(s_,-1.0,0),Hp(s_,-1.0,1.8))); s_-=1.3
 a(f'<path stroke="{C["rail"]}" stroke-width="6" d="{" ".join(rl)}"/>')
 a('</g>')
 
@@ -190,11 +212,14 @@ ty='<text x="0" y="0" text-anchor="middle" font-family="DejaVu Sans" font-weight
 bq_o='<text x="0" y="0" text-anchor="middle" font-family="DejaVu Sans" font-weight="700" font-size="{size}" letter-spacing="10" fill="none" stroke="#1b1612" stroke-width="16" stroke-linejoin="round">BBQ</text>'
 bq='<text x="0" y="0" text-anchor="middle" font-family="DejaVu Sans" font-weight="700" font-size="{size}" letter-spacing="10" fill="'+C["bboq"]+'" stroke="#fff1d0" stroke-width="3.5">BBQ</text>'
 SC=3.15
+fr=quadF(SC-1.75,SC+1.75,5.05,5.7,t=ub_t)
+sup="".join(seg(W(SC+d,ub_t,4.5),W(SC+d,ub_t,5.05)) for d in (-1.4,1.4))
+a(f'<g filter="url(#wcs)">{poly(fr, fill=C["roof"])}</g><g filter="url(#ink)" fill="none" stroke="{C["ink"]}" stroke-width="2.4">{poly(fr)}<path stroke-width="5" d="{sup}"/></g>')
 if N:
   gb='<text x="0" y="0" text-anchor="middle" font-family="DejaVu Sans" font-weight="700" font-size="{size}" letter-spacing="10" fill="#ff5a20" stroke="#ff7a30" stroke-width="18">BBQ</text>'
   gt='<text x="0" y="0" text-anchor="middle" font-family="DejaVu Sans" font-weight="700" font-size="{size}" letter-spacing="2" fill="#ffcf5a" stroke="#ffcf5a" stroke-width="10">TERRY BLACK’S</text>'
-  a('<g filter="url(#glow2)" opacity="0.9">'+plane_text(SC,3.95,1.0,gb)+plane_text(SC,5.25,0.36,gt)+'</g>')
-a(plane_text(SC,5.25,0.36,ty)); a(plane_text(SC,3.95,1.0,bq_o+bq))
+  a('<g filter="url(#glow2)" opacity="0.9">'+plane_text(SC,3.95,1.0,gb)+plane_text(SC,5.2,0.36,gt)+'</g>')
+a(plane_text(SC,5.2,0.36,ty)); a(plane_text(SC,3.95,1.0,bq_o+bq))
 # 柱とボラード
 posts=[(W(0,0,0),W(0,0,3.55),Wxz(0,0)[1]),(W(0,SL,0),W(0,SL,3.55),Wxz(0,SL)[1])]
 pr="".join(f'<rect x="{b[0]-px(0.1,z):.1f}" y="{t[1]:.1f}" width="{px(0.2,z):.1f}" height="{b[1]-t[1]:.1f}"/>' for b,t,z in posts)
@@ -207,22 +232,22 @@ a(f'<g filter="url(#ink)" fill="none" stroke="{C["ink"]}" stroke-width="2">{pr}{
 
 # ---------- 手前の小物（車止めブロック・標識） ----------
 cs=[]
-for Xc in (-10.65,-7.95,-5.25):
-  cs.append(poly([G(Xc-0.9,22.0,0.15),G(Xc+0.9,22.0,0.15),G(Xc+0.9,22.0,0),G(Xc-0.9,22.0,0)]))
+for sc in (7.65, 4.95, 2.25):
+  cs.append(poly([Hp(sc+0.9,-2.0,0.15),Hp(sc-0.9,-2.0,0.15),Hp(sc-0.9,-2.0,0),Hp(sc+0.9,-2.0,0)]))
 a(f'<g filter="url(#wcs)" fill="{C["yellow"]}">{"".join(cs)}</g>')
-sb,stp=G(-3.0,21.0,0),G(-3.0,21.0,2.1); sw_=px(0.45,21.0)
+sb,stp=G(-6.0,21.0,0),G(-6.0,21.0,2.1); sw_=px(0.45,21.0)
 a(f'<g filter="url(#ink)" stroke="{C["ink"]}" stroke-width="2.4"><path d="{seg(sb,stp)}"/><rect x="{stp[0]-sw_/2:.1f}" y="{stp[1]-sw_*1.1:.1f}" width="{sw_:.1f}" height="{sw_*1.1:.1f}" fill="{C["sign"]}"/></g>')
 # 街灯（夜）：家とピットハウスの間、少し手前
 if N:
-  lx,ly_=G(-2.4,21.0,4.2)
-  pb=G(-2.4,21.0,0)
+  lx,ly_=G(-2.9,21.0,4.2)
+  pb=G(-2.9,21.0,0)
   a(f'<path d="{seg(pb,(lx,ly_))}" stroke="#05070c" stroke-width="5"/>')
   a(f'<circle cx="{lx:.0f}" cy="{ly_:.0f}" r="70" fill="#6fa8ff" filter="url(#glow2)" opacity="0.9"/>')
   rays="".join(f'<path d="M{lx:.0f} {ly_:.0f} L{lx+math.cos(math.radians(t))*L:.0f} {ly_+math.sin(math.radians(t))*L:.0f}"/>' for t,L in [(200,420),(-35,380),(20,180),(160,200),(-90,160),(250,260),(290,150)])
   a(f'<g stroke="#9cc4ff" stroke-width="3" opacity="0.6" filter="url(#ink)">{rays}</g><circle cx="{lx:.0f}" cy="{ly_:.0f}" r="9" fill="#ffffff"/>')
 
-# ---------- 帯（駐車場の線の上に乗るので地色で下敷き） ----------
-a(f'<rect x="640" y="1212" width="880" height="86" fill="{C["bg"]}" opacity="0.88" filter="url(#wcs)"/>')
+# ---------- 帯（手前の区画線が下を通るので地色で薄く下敷き） ----------
+a(f'<rect x="640" y="1212" width="880" height="86" fill="{C["bg"]}" opacity="0.6" filter="url(#wcs)"/>')
 a(f'<g filter="url(#ink)" stroke="{C["title"]}" stroke-width="2.2"><path d="M660 1218 L1500 1218 M660 1291 L1500 1291"/></g>')
 a(f'<text x="1080" y="1268" text-anchor="middle" font-family="DejaVu Sans" font-weight="700" font-size="40" letter-spacing="8" fill="{C["sub"]}">BRISKET SAUSAGE &amp; RIBS</text>')
 a('</svg>')
