@@ -24,7 +24,7 @@ C = dict(
   smoke="#cfd0d0", bboq="#e85a2c", ty="#f2c230", sign="#2f6fb0", line="#e8b834",
   pipe="#8a5a3e", piped="#4a4644", shadow="#6f8bb0", steel="#2b2c2e", galv="#c5c9cc", galvd="#9ea3a7",
   metal="#8f8d88", door="#c4392f", streak="#a07a5a", signbox="#2b2622", asphalt="#55585d",
-  wood="#b8915e", cage="#2b2c2e", pole="#6e5a44", redroof="#b5463a")
+  railing="#5d6064", wood="#b8915e", cage="#2b2c2e", pole="#6e5a44", redroof="#b5463a")
 if N:
   C.update(bg="#0e1422", ink="#05070c", title="#f3eee2", sub="#8fc274", sky="#0e1422",
   t1="#1f3a2e", t2="#1a3228", t3="#183026", t4="#14281f", tdark="#0f1f18", tlight="#24443a",
@@ -33,7 +33,7 @@ if N:
   win="#e7a65a", winframe="#1c1a18", rail="#3a2c20", stone="#4c4d50", stonel="#3a3b3e", yellow="#c9a234", ground="#1b2130",
   smoke="#3a4252", line="#c9a234", pipe="#4a3426", piped="#2a2a2c", shadow="#2a3a6a", steel="#08090b",
   galv="#5a6070", galvd="#454b58", metal="#3e4148", door="#7a2420", streak="#4a3a30", signbox="#141210",
-  asphalt="#11151e", wood="#5a4630", cage="#08090b", pole="#2e2620", redroof="#5a2420")
+  asphalt="#11151e", railing="#2a2e36", wood="#5a4630", cage="#08090b", pole="#2e2620", redroof="#5a2420")
 def P(*p): return " ".join(f"{x:.1f},{y:.1f}" for x,y in p)
 o=[]; a=o.append
 a('<svg xmlns="http://www.w3.org/2000/svg" width="2160" height="1350" viewBox="0 0 2160 1350">')
@@ -168,11 +168,6 @@ for i in range(4):
   cg.append(f'{poly(q, fill=C["wood"], opacity="0.85")}<g fill="{C["streak"]}" stroke="{C["ink"]}" stroke-width="1">{logs}</g><path d="{grid}" stroke="{C["cage"]}" stroke-width="1.6"/>{poly(q, fill="none", stroke=C["cage"], stroke_width="3")}')
 a(f'<g filter="url(#ink)">{"".join(cg)}</g>')
 
-# ---------- 左端の赤い金属屋根の建物（家のさらに奥・左） ----------
-rw=[G(-18,27.5,3.0),G(-11.5,27.5,3.0),G(-11.5,27.5,0.6),G(-18,27.5,0.6)]
-rr=[G(-18.5,27.0,3.0),G(-11.0,27.0,3.0),G(-11.5,29.5,4.4),G(-18,29.5,4.4)]
-a(f'<g filter="url(#wcs)">{poly(rw, fill="url(#sidingp)")}{poly(rr, fill=C["redroof"])}</g><g filter="url(#ink)" fill="none" stroke="{C["ink"]}" stroke-width="2">{poly(rw)}{poly(rr)}</g>')
-
 # ---------- 左の家（THH 振った箱・床 0.8m・寄棟） ----------
 wall=hq(HLEN,0,DECK,HTOP)
 rend=[Hp(0,0,HTOP),Hp(0,HDEP,HTOP),Hp(0,HDEP,DECK),Hp(0,0,DECK)]          # 右の妻側（見える面）
@@ -218,14 +213,14 @@ a('</g>')
 # 台の上に銀色の箱・錆びた太い排気ダクト・黒い煙突。看板は台の左手前の端に立つ。
 # 台を支えるのは側面の外に立つ黒い鉄骨の柱と X 字の筋交い。屋根の縁に回転式の換気口。
 H18, H55 = WALL*(1-0.18), WALL*(1-0.55)
-PS0, PS1, PT1, PH0, PH1 = -0.75, 6.1, SL+2.6, 3.85, 4.15     # 鉄骨の台（s の範囲・奥行き・高さ）
+PS0, PS1, PT1, PH0, PH1 = -0.75, 6.1, SL+2.6, 3.95, 4.08     # 鉄骨の台（s の範囲・奥行き・高さ）
 def zof(s,t): return Wxz(s,t)[1]
 def tube(pts, d_m, col, z):
   d=f"M{pts[0][0]:.1f} {pts[0][1]:.1f} "+" ".join(f"Q{pts[i][0]:.1f} {pts[i][1]:.1f} {(pts[i][0]+pts[i+1][0])/2:.1f} {(pts[i][1]+pts[i+1][1])/2:.1f}" for i in range(1,len(pts)-1))+f" L{pts[-1][0]:.1f} {pts[-1][1]:.1f}"
   w=px(d_m,z)
   return f'<path d="{d}" fill="none" stroke="{C["ink"]}" stroke-width="{w+6:.1f}" stroke-linecap="butt"/><path d="{d}" fill="none" stroke="{col}" stroke-width="{w:.1f}" stroke-linecap="butt"/>'
 # 煙（煙突の先から）
-ch_b, ch_t = W(1.5,2.0,PH1), W(1.5,2.0,7.0); chz=zof(1.5,2.0)
+ch_b, ch_t = W(1.7,2.3,PH1), W(1.7,2.3,7.0); chz=zof(1.5,2.0)
 a(f'<g filter="url(#wcs)"><ellipse cx="{ch_t[0]+60:.0f}" cy="{ch_t[1]-35:.0f}" rx="75" ry="34" fill="{C["smoke"]}" opacity="0.6"/><ellipse cx="{ch_t[0]+170:.0f}" cy="{ch_t[1]-70:.0f}" rx="95" ry="40" fill="{C["smoke"]}" opacity="0.45"/></g>')
 # 壁・屋根の縁
 eF=quadF(-0.3,FL+0.35,3.1,3.4,t=-0.3); eS=quadS(-0.3,SL+0.3,3.1,3.4,s=-0.3)
@@ -264,14 +259,12 @@ a(f'<g filter="url(#ink)" stroke="{C["ink"]}" stroke-width="2">{"".join(tv)}</g>
 # 鉄骨の台：下面（見上げなので見える）→ 前面・右側面
 und=[W(PS0,0,PH0),W(PS1,0,PH0),W(PS1,PT1,PH0),W(PS0,PT1,PH0)]
 pF=quadF(PS0,PS1,PH0,PH1,t=0.0); pS=quadS(0.0,PT1,PH0,PH1,s=PS0)
-a(f'<g filter="url(#wcs)">{poly(und, fill=C["steel"], opacity="0.75")}{poly(pF, fill=C["steel"])}{poly(pS, fill=C["steel"])}</g>')
+a(f'<g filter="url(#wcs)">{poly(und, fill=C["steel"], opacity="0.35")}{poly(pF, fill=C["steel"])}{poly(pS, fill=C["steel"])}</g>')
 # 台の上：銀色の箱・黒い煙突・錆びたダクト
-bxF=quadF(1.9,3.4,PH1,5.4,t=0.7); bxS=quadS(0.7,2.2,PH1,5.4,s=1.9)
-a(f'<g filter="url(#wcs)">{poly(bxS, fill=C["galvd"])}{poly(bxF, fill=C["galv"])}</g><g filter="url(#ink)" fill="none" stroke="{C["ink"]}" stroke-width="2.2">{poly(bxF)}{poly(bxS)}</g>')
-a('<g filter="url(#ink)">'+tube([ch_b,ch_t], 0.6, C["steel"], chz)+'</g>')
-# 錆びた太いダクト：箱の上から立ち上がり、手前に曲がって台の前の縁へ下りる
-duct=[W(2.7,1.4,5.4),W(2.7,1.4,6.0),W(2.0,0.9,6.25),W(1.0,0.45,5.8),W(0.7,0.35,4.9),W(0.7,0.35,PH1)]
-a('<g filter="url(#ink)">'+tube(duct, 0.45, C["pipe"], zof(1.8,0.9))+'</g>')
+a('<g filter="url(#ink)">'+tube([ch_b,ch_t], 0.5, C["steel"], chz)+'</g>')
+# 錆びた太いダクト：看板の後ろを左から右へアーチで渡り、右で台へ下りる（正面の写真どおり）
+duct=[W(4.9,1.3,PH1),W(4.9,1.3,5.5),W(4.6,1.35,6.15),W(3.2,1.4,6.35),W(1.6,1.45,6.15),W(1.2,1.5,5.4),W(1.2,1.5,PH1)]
+a('<g filter="url(#ink)">'+tube(duct, 0.42, C["pipe"], zof(3.0,1.4))+'</g>')
 # 手すり（台の前の縁と右の縁）
 rl=[seg(W(PS0,0.05,4.95),W(PS1,0.05,4.95)), seg(W(PS0,0.05,4.55),W(PS1,0.05,4.55)),
     seg(W(PS0,0.05,4.95),W(PS0,PT1,4.95)), seg(W(PS0,0.05,4.55),W(PS0,PT1,4.55))]
@@ -279,25 +272,25 @@ s_=PS0
 while s_<=PS1: rl.append(seg(W(s_,0.05,PH1),W(s_,0.05,4.95))); s_+=0.9
 t_=0.05
 while t_<=PT1: rl.append(seg(W(PS0,t_,PH1),W(PS0,t_,4.95))); t_+=0.9
-a(f'<g filter="url(#ink)" fill="none" stroke="{C["steel"]}" stroke-width="3">{"".join(f"<path d=\"{d}\"/>" for d in rl)}</g>')
-a(f'<g filter="url(#ink)" fill="none" stroke="{C["ink"]}" stroke-width="2.4">{poly(pF)}{poly(pS)}</g>')
+a(f'<g filter="url(#ink)" fill="none" stroke="{C["railing"]}" stroke-width="1.6" opacity="0.8">{"".join(f"<path d=\"{d}\"/>" for d in rl)}</g>')
+a(f'<g filter="url(#ink)" fill="none" stroke="{C["ink"]}" stroke-width="1.6">{poly(pF)}{poly(pS)}</g>')
 # 看板：台の左手前の端。BBQ は1文字ずつ黒い枠に入る
 def plane_text(sc, h, cap_m, body, t=0.0):
   c=W(sc,t,h); p0=W(sc+1,t,h); p1=W(sc-1,t,h); Zc=zof(sc,t)
   dx=(p1[0]-p0[0])/2; dy=(p1[1]-p0[1])/2; k=D/Zc
   size=k*cap_m/0.73
   return f'<g transform="translate({c[0]:.1f},{c[1]:.1f}) matrix({dx/k:.4f},{dy/k:.4f},0,1,0,0)">'+body.format(size=f"{size:.1f}")+'</g>'
-LT=[("B",5.7),("B",4.95),("Q",4.2)]
-boxes="".join(poly(quadF(sc-0.36,sc+0.36,PH1,5.25,t=-0.05)) for _,sc in LT)
-bar=quadF(3.75,6.15,5.4,5.85,t=-0.05)
+LT=[("B",4.15),("B",3.3),("Q",2.45)]
+boxes="".join(poly(quadF(sc-0.4,sc+0.4,PH1+0.05,5.35,t=-0.05)) for _,sc in LT)
+bar=quadF(1.95,4.65,5.5,5.98,t=-0.05)
 a(f'<g filter="url(#wcs)" fill="{C["signbox"]}">{boxes}{poly(bar)}</g><g filter="url(#ink)" fill="none" stroke="{C["ink"]}" stroke-width="2">{boxes}{poly(bar)}</g>')
 ty='<text x="0" y="0" text-anchor="middle" font-family="DejaVu Sans" font-weight="700" font-size="{size}" letter-spacing="1" fill="'+C["ty"]+'" stroke="'+C["ink"]+'" stroke-width="1.2">TERRY BLACK’S</text>'
 def L(ch, fill, stroke, sw): return '<text x="0" y="0" text-anchor="middle" font-family="DejaVu Sans" font-weight="700" font-size="{size}" fill="'+fill+'" stroke="'+stroke+'" stroke-width="'+str(sw)+'">'+ch+'</text>'
 if N:
-  glow="".join(plane_text(sc,4.33,0.72,L(ch,"#ff5a20","#ff7a30",16),t=-0.06) for ch,sc in LT)+plane_text(4.95,5.5,0.3,'<text x="0" y="0" text-anchor="middle" font-family="DejaVu Sans" font-weight="700" font-size="{size}" letter-spacing="1" fill="#ffcf5a" stroke="#ffcf5a" stroke-width="8">TERRY BLACK’S</text>',t=-0.06)
+  glow="".join(plane_text(sc,4.4,0.8,L(ch,"#ff5a20","#ff7a30",16),t=-0.06) for ch,sc in LT)+plane_text(3.3,5.6,0.33,'<text x="0" y="0" text-anchor="middle" font-family="DejaVu Sans" font-weight="700" font-size="{size}" letter-spacing="1" fill="#ffcf5a" stroke="#ffcf5a" stroke-width="8">TERRY BLACK’S</text>',t=-0.06)
   a(f'<g filter="url(#glow2)" opacity="0.9">{glow}</g>')
-a(plane_text(4.95,5.5,0.3,ty,t=-0.06))
-for ch,sc in LT: a(plane_text(sc,4.33,0.72,L(ch,C["bboq"],"#fff1d0",3),t=-0.06))
+a(plane_text(3.3,5.6,0.33,ty,t=-0.06))
+for ch,sc in LT: a(plane_text(sc,4.4,0.8,L(ch,C["bboq"],"#fff1d0",3),t=-0.06))
 # NO OFFSITE ALCOHOL（正面の角寄り、網戸の上）
 na=quadF(0.35,1.0,1.75,2.6,t=-0.02)
 a(f'<g filter="url(#wcs)">{poly(na, fill="#f4f1ea")}</g><g filter="url(#ink)" fill="none" stroke="#c0322b" stroke-width="2.5">{poly(na)}</g>')
@@ -308,7 +301,7 @@ trim=[(W(0,0,0),W(0,0,3.1),zof(0,0))]
 pr="".join(f'<rect x="{b[0]-px(0.07,z):.1f}" y="{t[1]:.1f}" width="{px(0.14,z):.1f}" height="{b[1]-t[1]:.1f}"/>' for b,t,z in trim)
 sp=[]
 for t_ in (0.0, SL+0.3, PT1):
-  z=zof(PS0,t_); b=W(PS0,t_,0); tp=W(PS0,t_,PH0); w=px(0.2,z)
+  z=zof(PS0,t_); b=W(PS0,t_,0); tp=W(PS0,t_,PH0); w=px(0.13,z)
   sp.append(f'<rect x="{b[0]-w/2:.1f}" y="{tp[1]:.1f}" width="{w:.1f}" height="{b[1]-tp[1]:.1f}"/>')
 xb=[seg(W(PS0,0.0,0.9),W(PS0,SL+0.3,PH0)), seg(W(PS0,0.0,PH0),W(PS0,SL+0.3,0.9))]
 a(f'<g filter="url(#wcs)" fill="{C["rail"]}">{pr}</g>')
@@ -318,7 +311,7 @@ for s,t in ((0.9,-0.4),(3.2,-0.4),(-0.35,0.9),(-0.35,1.9),(-0.35,2.9)):
   bol.append(f'<rect x="{b[0]-w/2:.1f}" y="{tp[1]:.1f}" width="{w:.1f}" height="{b[1]-tp[1]:.1f}" rx="{w/3:.1f}"/>')
 a(f'<g filter="url(#wcs)" fill="{C["yellow"]}">{"".join(bol)}</g>')
 a(f'<g filter="url(#ink)" fill="none" stroke="{C["ink"]}" stroke-width="2">{pr}{"".join(bol)}</g>')
-a(f'<g filter="url(#ink)" fill="{C["steel"]}" stroke="{C["ink"]}" stroke-width="1.5">{"".join(sp)}</g><g filter="url(#ink)" fill="none" stroke="{C["steel"]}" stroke-width="{px(0.14,zof(PS0,1.6)):.1f}">{"".join(f"<path d=\"{d}\"/>" for d in xb)}</g>')
+a(f'<g filter="url(#ink)" fill="{C["steel"]}" stroke="{C["ink"]}" stroke-width="1.5">{"".join(sp)}</g><g filter="url(#ink)" fill="none" stroke="{C["steel"]}" stroke-width="{px(0.08,zof(PS0,1.6)):.1f}">{"".join(f"<path d=\"{d}\"/>" for d in xb)}</g>')
 cones=[]
 for s,t in ((-1.3,1.4),(-1.5,2.5),(-1.1,3.6)):
   X,Z=Wxz(s,t); b=G(X,Z,0); tp=G(X,Z,0.75); w=px(0.36,Z); bw=px(0.5,Z)
