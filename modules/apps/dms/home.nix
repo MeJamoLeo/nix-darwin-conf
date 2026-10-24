@@ -23,8 +23,35 @@
 # Nix, and add it below. That flow keeps everything reproducible while
 # skipping the need to invent the JSON from scratch.
 
-{
+let
+  # 壁紙：テキサス BBQ 小屋の手描き風イラスト（./wallpaper.svg、2026-10-24 に Claude が
+  # 描いたオリジナル。店名・ロゴは入れていない＝public repo に置いてよい）。
+  # 絵を変えたいときは SVG を書き換えて switch するだけ。PNG は nix が x1nano の
+  # 画面サイズ（2160x1350）で描く。フォントも nixpkgs から固定するので機体で見た目が変わらない。
+  wallpaper =
+    pkgs.runCommand "wallpaper-texas-bbq.png" {
+      nativeBuildInputs = [pkgs.librsvg];
+      FONTCONFIG_FILE = pkgs.makeFontsConf {
+        fontDirectories = [pkgs.dancing-script pkgs.dejavu_fonts];
+      };
+    } ''
+      export HOME=$TMPDIR
+      rsvg-convert -w 2160 -h 1350 ${./wallpaper.svg} -o $out
+    '';
+in {
   imports = [ dms.homeModules.dank-material-shell dms.homeModules.niri ];
+
+  # DMS は壁紙を ~/.local/state/dms/session.json の wallpaperPath に持つ。このファイルには
+  # 夜間モード等の実行時状態も DMS 自身が書くので、programs.dank-material-shell.session で
+  # 丸ごと store symlink にすると壊れる。switch 時に wallpaperPath のキーだけ書き込む
+  # （rbw・zen と同じ「必要なキーだけ宣言」方式）。DMS は変更を監視しているので起動中でも反映される。
+  home.activation.dmsWallpaper = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    f="${config.xdg.stateHome}/dms/session.json"
+    mkdir -p "$(dirname "$f")"
+    [ -s "$f" ] || echo '{}' > "$f"
+    tmp=$(mktemp)
+    ${pkgs.jq}/bin/jq --arg p "${wallpaper}" '.wallpaperPath = $p' "$f" > "$tmp" && mv "$tmp" "$f"
+  '';
 
   programs.dank-material-shell = {
     enable = true;
