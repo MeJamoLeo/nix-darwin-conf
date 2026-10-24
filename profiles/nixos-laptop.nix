@@ -52,6 +52,7 @@
       ../modules/apps/dms/home.nix
       ../modules/apps/kitty/home.nix
       ../modules/apps/wayvibes/home.nix
+      ../modules/apps/imv/home.nix
       # custom
       ../modules/custom/cp/tools/home.nix
       # 外部 flake 供給の HM モジュール

@@ -13,6 +13,7 @@
 #         audio → IINA
 #         pdf   → sioyek（設定は modules/apps/sioyek）
 #         code  → Zed
+#         svg   → LibreWolf（Chrome に吸われていた。画像はプレビューのまま）
 #    2. noTunes … Music 起動ブロック + 差し替え先 IINA
 #       （defaults だけではメディアキーの Music 起動は止められない）
 #
@@ -33,6 +34,10 @@ let
   # Dock persistent-apps と同じ HM Apps パス（modules/base/macos-defaults）
   zedApp = "${home}/Applications/Home Manager Apps/Zed.app";
   zedBundleId = "dev.zed.Zed";
+  # nix-darwin（system 側）の Nix Apps。youtube-gate が入れている（modules/custom/youtube-gate）。
+  # bundle id は上流の io.gitlab.librewolf-community ではなく nixpkgs ラッパーの org.nixos.librewolf。
+  librewolfApp = "/Applications/Nix Apps/LibreWolf.app";
+  librewolfBundleId = "org.nixos.librewolf";
 
   audioExtensions = [
     "mp3"
@@ -169,6 +174,15 @@ in {
       echo "file-defaults: pdf → ${sioyekBundleId}"
     else
       echo "file-defaults: sioyek not at ${sioyekApp}; skip pdf"
+    fi
+
+    # --- svg → LibreWolf ---
+    if [ -d "${librewolfApp}" ]; then
+      /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "${librewolfApp}" || true
+      $DUTI -s ${librewolfBundleId} .svg all || true
+      echo "file-defaults: svg → ${librewolfBundleId}"
+    else
+      echo "file-defaults: LibreWolf not at ${librewolfApp}; skip svg"
     fi
 
     # --- code → Zed ---
