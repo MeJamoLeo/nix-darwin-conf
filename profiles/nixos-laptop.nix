@@ -46,6 +46,7 @@
       ../modules/apps/claude/home.nix
       ../modules/apps/bitwarden/home.nix
       ../modules/apps/zen/home.nix
+      ../modules/apps/sioyek/home.nix
       # apps — Linux だけ
       ../modules/apps/niri/home.nix
       ../modules/apps/dms/home.nix

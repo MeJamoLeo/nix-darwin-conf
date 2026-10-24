@@ -1,9 +1,8 @@
-# LaTeX 用 Neovim 設定 (vimtex + texlab + 雛形挿入 + Skim 連携)。
-# texlive は同ディレクトリの darwin.nix。skim 本体は homebrew-base
-# （PDF 既定ビューアとして file-defaults と共有）。
+# LaTeX 用 Neovim 設定 (vimtex + texlab + 雛形挿入 + sioyek 連携)。
+# texlive は同ディレクトリの darwin.nix。sioyek 本体は modules/apps/sioyek
+# （PDF 既定ビューアとして mac・x1nano 共通）。
 {pkgs, ...}: {
   home.packages = with pkgs; [
-    neovim-remote # Skim からの逆検索用 (nvr)
     pandoc # Markdown → PDF。エンジンは texlive の xelatex（darwin.nix 側）
   ];
 
@@ -40,14 +39,14 @@
         mode = "n";
         options.desc = "[L]a[T]eX [C]ompile";
       }
-      # LaTeX: PDF を Skim で表示
+      # LaTeX: PDF を sioyek で表示
       {
         action = "<CMD>VimtexView<CR>";
         key = "<leader>ltv";
         mode = "n";
         options.desc = "[L]a[T]eX [V]iew";
       }
-      # LaTeX: プレビュー（コンパイル＋Skim表示）
+      # LaTeX: プレビュー（コンパイル＋sioyek表示）
       {
         action = "<CMD>VimtexView<CR>";
         key = "<leader>p";
@@ -88,9 +87,10 @@
       vimtex = {
         enable = true;
         settings = {
-          view_method = "skim";
-          view_skim_sync = 1;
-          view_skim_activate = 1;
+          # sioyek（2026-10-23 に Skim から移行）。順方向 SyncTeX は vimtex が --forward-search で、
+          # 逆方向（PDF をクリック → ソース行）は vimtex が sioyek に --inverse-search を渡して
+          # `nvim --headless -c VimtexInverseSearch` で戻ってくる（nvr は不要）。
+          view_method = "sioyek";
           view_automatic = 0;
         };
       };

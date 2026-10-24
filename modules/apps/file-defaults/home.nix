@@ -11,14 +11,14 @@
 #  系統:
 #    1. duti … 拡張子 → 既定アプリ（Get Info → すべて変更 の宣言版）
 #         audio → IINA
-#         pdf   → Skim
+#         pdf   → sioyek（設定は modules/apps/sioyek）
 #         code  → Zed
 #    2. noTunes … Music 起動ブロック + 差し替え先 IINA
 #       （defaults だけではメディアキーの Music 起動は止められない）
 #
 #  前提:
-#    - iina / notunes / skim … homebrew-base casks → /Applications
-#    - zed-editor … home.packages (core-packages) → ~/Applications/Home Manager Apps/Zed.app
+#    - iina / notunes … homebrew-base casks → /Applications
+#    - zed-editor / sioyek … nixpkgs（HM）→ ~/Applications/Home Manager Apps/<App>.app
 #    初回 rebuild 直後は未導入のことがあるので存在チェックで no-op。
 #
 ###################################################################################
@@ -28,8 +28,8 @@ let
   iinaApp = "/Applications/IINA.app";
   iinaBundleId = "com.colliderli.iina";
   notunesApp = "/Applications/noTunes.app";
-  skimApp = "/Applications/Skim.app";
-  skimBundleId = "net.sourceforge.skim-app.skim";
+  sioyekApp = "${home}/Applications/Home Manager Apps/sioyek.app";
+  sioyekBundleId = "info.sioyek.sioyek";
   # Dock persistent-apps と同じ HM Apps パス（modules/base/macos-defaults）
   zedApp = "${home}/Applications/Home Manager Apps/Zed.app";
   zedBundleId = "dev.zed.Zed";
@@ -159,12 +159,12 @@ in {
       echo "file-defaults: IINA not at ${iinaApp}; skip audio"
     fi
 
-    # --- pdf → Skim ---
-    if [ -d "${skimApp}" ]; then
-      $DUTI -s ${skimBundleId} .pdf all || true
-      echo "file-defaults: pdf → ${skimBundleId}"
+    # --- pdf → sioyek ---
+    if [ -d "${sioyekApp}" ]; then
+      $DUTI -s ${sioyekBundleId} .pdf all || true
+      echo "file-defaults: pdf → ${sioyekBundleId}"
     else
-      echo "file-defaults: Skim not at ${skimApp}; skip pdf"
+      echo "file-defaults: sioyek not at ${sioyekApp}; skip pdf"
     fi
 
     # --- code → Zed ---

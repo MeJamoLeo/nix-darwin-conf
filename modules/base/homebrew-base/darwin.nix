@@ -101,7 +101,6 @@
       "spotify" # Music streaming service
       "iina" # Local media player (default open-with for audio; modules/apps/file-defaults)
       "notunes" # Block Apple Music auto-launch (media keys / BT); modules/apps/file-defaults
-      "skim" # Default PDF viewer + LaTeX SyncTeX (was domain/latex; elevated for user-wide defaults)
 
       # Productivity & Organization
       "libreoffice" # Free office suite

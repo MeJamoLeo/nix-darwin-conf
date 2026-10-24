@@ -53,7 +53,8 @@
       # 戻すなら modules/_archive/README.md の aerospace 節を参照。
       ../modules/apps/omniwm/home.nix # 設定は omniwm/settings.nix が正本（UUID 層だけ実機の GUI が正）
       ../modules/apps/handy/home.nix
-      ../modules/apps/file-defaults/home.nix # IINA/Skim/Zed 関連付け + noTunes
+      ../modules/apps/file-defaults/home.nix # IINA/sioyek/Zed 関連付け + noTunes
+      ../modules/apps/sioyek/home.nix # 既定の PDF ビューア（x1nano と共通）
       ../modules/apps/zen/home.nix # 既定ブラウザ。Space/Folder を宣言的に固定する
 
       # custom — 自作システム
