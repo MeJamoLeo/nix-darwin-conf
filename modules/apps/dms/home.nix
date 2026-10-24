@@ -24,34 +24,44 @@
 # skipping the need to invent the JSON from scratch.
 
 let
-  # 壁紙：Terry Black's（オースティンの BBQ 屋）の小屋を、手持ちの T シャツの雰囲気で
-  # 描いた手描き風イラスト（./wallpaper.svg、2026-10-24 に Claude が描いた。T シャツの絵の
-  # 写しではない）。斜め前から見た2点透視。店名は私的な壁紙として入れている。
-  # 絵を変えたいときは SVG を書き換えて switch するだけ。PNG は nix が x1nano の
-  # 画面サイズ（2160x1350）で描く。フォントも nixpkgs から固定するので機体で見た目が変わらない。
-  wallpaper =
-    pkgs.runCommand "wallpaper-texas-bbq.png" {
-      nativeBuildInputs = [pkgs.librsvg];
+  # 壁紙：Terry Black's（オースティンの BBQ 屋）を描いた手描き風イラストを、light 用（昼）と
+  # dark 用（夜・ネオン）の2枚にしたもの。2026-10-24 に Claude が本物の写真と T シャツを参考に描いた
+  # （写しではない）。絵は ./wallpaper/gen.py が SVG を吐き、ここで x1nano の画面サイズ
+  # （2160x1350）の PNG にする。フォントは nixpkgs から固定するので機体で見た目が変わらない。
+  # 絵を変えたいときは gen.py を直して switch するだけ（2枚とも同じ構図から出る）。
+  wallpapers =
+    pkgs.runCommand "wallpaper-terry-blacks" {
+      nativeBuildInputs = [pkgs.librsvg pkgs.python3];
       FONTCONFIG_FILE = pkgs.makeFontsConf {
         fontDirectories = [pkgs.dancing-script pkgs.dejavu_fonts];
       };
     } ''
       export HOME=$TMPDIR
-      rsvg-convert -w 2160 -h 1350 ${./wallpaper.svg} -o $out
+      mkdir -p $out
+      for m in day night; do
+        python3 ${./wallpaper/gen.py} $m $TMPDIR/$m.svg
+        rsvg-convert -w 2160 -h 1350 $TMPDIR/$m.svg -o $out/$m.png
+      done
     '';
 in {
   imports = [ dms.homeModules.dank-material-shell dms.homeModules.niri ];
 
-  # DMS は壁紙を ~/.local/state/dms/session.json の wallpaperPath に持つ。このファイルには
+  # DMS は壁紙を ~/.local/state/dms/session.json に持つ。perModeWallpaper=true にすると
+  # light/dark の切り替えで wallpaperPathLight / wallpaperPathDark が入れ替わる（DMS の
+  # SessionData.qml の setLightMode → syncWallpaperForCurrentMode）。このファイルには
   # 夜間モード等の実行時状態も DMS 自身が書くので、programs.dank-material-shell.session で
-  # 丸ごと store symlink にすると壊れる。switch 時に wallpaperPath のキーだけ書き込む
+  # 丸ごと store symlink にすると壊れる。switch 時に壁紙のキーだけ書き込む
   # （rbw・zen と同じ「必要なキーだけ宣言」方式）。DMS は変更を監視しているので起動中でも反映される。
   home.activation.dmsWallpaper = lib.hm.dag.entryAfter ["writeBoundary"] ''
     f="${config.xdg.stateHome}/dms/session.json"
     mkdir -p "$(dirname "$f")"
     [ -s "$f" ] || echo '{}' > "$f"
     tmp=$(mktemp)
-    ${pkgs.jq}/bin/jq --arg p "${wallpaper}" '.wallpaperPath = $p' "$f" > "$tmp" && mv "$tmp" "$f"
+    ${pkgs.jq}/bin/jq \
+      --arg l "${wallpapers}/day.png" --arg d "${wallpapers}/night.png" \
+      '.perModeWallpaper = true | .wallpaperPathLight = $l | .wallpaperPathDark = $d
+       | .wallpaperPath = (if .isLightMode then $l else $d end)' \
+      "$f" > "$tmp" && mv "$tmp" "$f"
   '';
 
   programs.dank-material-shell = {
