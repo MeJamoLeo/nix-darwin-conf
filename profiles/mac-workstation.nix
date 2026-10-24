@@ -36,6 +36,7 @@
     imports = [
       # base — 機体の土台規約
       ../modules/base/forge/home.nix # ◆ homeModules.forge として外部公開中
+      ../modules/base/remote-access/home.nix # 機体どうしの ssh（ogasawara は 2222）
       # apps — 既製品 + 設定値
       ../modules/apps/shell/home.nix
       ../modules/apps/core-packages/home.nix

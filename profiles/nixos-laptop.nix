@@ -35,6 +35,8 @@
     imports = [
       # base
       ../modules/base/forge/home.nix
+      ../modules/base/remote-access/home.nix
+      ../modules/domain/school/cs4371/home.nix
       # apps — mac と共通
       ../modules/apps/shell/home.nix
       ../modules/apps/core-packages/home.nix
