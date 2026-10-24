@@ -160,7 +160,11 @@ in {
     fi
 
     # --- pdf → sioyek ---
+    # nix 由来の .app は初回 switch の時点で LaunchServices に未登録のことがあり、その状態の
+    # duti -s は黙って効かない（2026-10-23 に踏んだ：switch 後も pdf → Skim のままだった）。
+    # 先に lsregister で知らせてから既定にする。
     if [ -d "${sioyekApp}" ]; then
+      /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "${sioyekApp}" || true
       $DUTI -s ${sioyekBundleId} .pdf all || true
       echo "file-defaults: pdf → ${sioyekBundleId}"
     else
