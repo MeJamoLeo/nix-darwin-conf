@@ -12,20 +12,23 @@
 import math, sys, random
 mode = sys.argv[1]; out = sys.argv[2]
 N = mode == "night"
+# 色は手持ちの T シャツの刷りに寄せる（2026-10-24）：白に近い地・まだらの黄緑〜濃緑の木・
+# グレーの波板（足元に青い影）・オリーブ色の窓・オリーブ茶の梁と煙突・黄色い駐車場の線。
 C = dict(
-  bg="#f3eee2", ink="#25272a", title="#25272a", sub="#3d7a37",
-  sky="#cfe3ee", t1="#8fc274", t2="#7db863", t3="#6dab57", t4="#5f9e4c", tdark="#4a893c", tlight="#a4d088",
-  rust="#9a5b34", rustd="#7a4426", screen="#4a3d2f", frame="#c9b48a", skirt="#ecebe4", skirtl="#c9cac4",
-  skirtS="#d7d7d0", skirtSl="#b5b6b0", roof="#3b342d", house="#dccaa4", housel="#c4b088", shingle="#8f8e88",
-  win="#3c4650", winframe="#f4f1e8", rail="#7a5a3c", stone="#b9b6ad", yellow="#e9b52c", ground="#d8d2c3",
-  smoke="#c9cbcb", bboq="#e8572a", ty="#f2b632", sign="#2f6fb0", line="#fbfaf5")
+  bg="#f6f5f0", ink="#2a2a28", title="#2a2a28", sub="#3f8a3a",
+  sky="#cfe3ee", t1="#8cc063", t2="#74b250", t3="#5f9f45", t4="#4c8f3d", tdark="#3d7f36", tlight="#aad27f",
+  rust="#a7aaab", rustd="#80858a", screen="#857a43", frame="#c6c5bc", skirt="#a9adb1", skirtl="#7c838a",
+  skirtS="#959aa0", skirtSl="#6d747c", roof="#4f4a35", house="#bdbcb5", housel="#9d9d97", shingle="#8a8c8d",
+  win="#4f5359", winframe="#efeee8", rail="#6d5f36", stone="#a3a6a8", yellow="#e8b834", ground="#e2e1da",
+  smoke="#cfd0d0", bboq="#e85a2c", ty="#f2c230", sign="#2f6fb0", line="#e8b834",
+  pipe="#7b6a3f", piped="#5f5232", shadow="#6f8bb0")
 if N:
   C.update(bg="#0e1422", ink="#05070c", title="#f3eee2", sub="#8fc274", sky="#0e1422",
   t1="#1f3a2e", t2="#1a3228", t3="#183026", t4="#14281f", tdark="#0f1f18", tlight="#24443a",
-  rust="#4a3426", rustd="#3a281d", screen="#2b4f86", frame="#5a4a36", skirt="#a9b6cc", skirtl="#8592a8",
-  skirtS="#7f8aa0", skirtSl="#667087", roof="#141820", house="#5b5446", housel="#4a4438", shingle="#353a44",
-  win="#e7a65a", winframe="#9a9a92", rail="#3a2c20", stone="#4a4c52", yellow="#c99a24", ground="#1b2130",
-  smoke="#3a4252", line="#c8ccd4")
+  rust="#4b5058", rustd="#3a3f47", screen="#2b4f86", frame="#5c5a4c", skirt="#8f9bb0", skirtl="#6c778c",
+  skirtS="#6f7a8e", skirtSl="#566074", roof="#1a1a14", house="#4f5156", housel="#404246", shingle="#33363c",
+  win="#e7a65a", winframe="#8e8e88", rail="#3a3420", stone="#45484e", yellow="#c9a234", ground="#1b2130",
+  smoke="#3a4252", line="#c9a234", pipe="#4a4230", piped="#3a3326", shadow="#2a3a6a")
 def P(*p): return " ".join(f"{x:.1f},{y:.1f}" for x,y in p)
 o=[]; a=o.append
 a('<svg xmlns="http://www.w3.org/2000/svg" width="2160" height="1350" viewBox="0 0 2160 1350">')
@@ -99,7 +102,7 @@ a(f'<g filter="url(#ink)" fill="none" stroke="{"#2f4a2a" if not N else "#0a1410"
 random.seed(21)
 edge=[(x, 965+random.uniform(-14,14)) for x in range(0,2161,120)]
 gnd=edge+[(2160,1350),(0,1350)]
-a(f'<linearGradient id="gfade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{C["ground"]}" stop-opacity="0.6"/><stop offset="0.75" stop-color="{C["ground"]}" stop-opacity="0.5"/><stop offset="1" stop-color="{C["ground"]}" stop-opacity="0.1"/></linearGradient>')
+a(f'<linearGradient id="gfade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{C["ground"]}" stop-opacity="{0.6 if N else 0.5}"/><stop offset="0.75" stop-color="{C["ground"]}" stop-opacity="{0.5 if N else 0.35}"/><stop offset="1" stop-color="{C["ground"]}" stop-opacity="0.1"/></linearGradient>')
 a(poly(gnd, fill="url(#gfade)", filter="url(#wc)"))
 # ピットハウス脇の通路（側面に沿って奥へ）
 a(poly([(1590,1350),(2160,1350),(2160,1180),(1760,1060),(1600,1075)], fill=C["ground"], opacity="0.25", filter="url(#wc)"))
@@ -170,12 +173,12 @@ sw=px(0.42,skz)
 sk2=[W(1.5,1.2,3.6),W(1.5,1.2,5.0)]; s2z=Wxz(1.5,1.2)[1]
 vp=[W(5.6,0.9,3.6),W(5.6,0.9,5.5)]; vz=Wxz(5.6,0.9)[1]
 a(f'<g filter="url(#wcs)"><ellipse cx="{bend[0]+40:.0f}" cy="{bend[1]-50:.0f}" rx="85" ry="42" fill="{C["smoke"]}" opacity="0.6"/><ellipse cx="{bend[0]+110:.0f}" cy="{bend[1]-120:.0f}" rx="100" ry="48" fill="{C["smoke"]}" opacity="0.5"/>'
-  f'<rect x="{vp[0][0]-px(0.06,vz):.1f}" y="{vp[1][1]:.1f}" width="{px(0.12,vz):.1f}" height="{vp[0][1]-vp[1][1]:.1f}" fill="{C["rustd"]}"/>'
+  f'<rect x="{vp[0][0]-px(0.06,vz):.1f}" y="{vp[1][1]:.1f}" width="{px(0.12,vz):.1f}" height="{vp[0][1]-vp[1][1]:.1f}" fill="{C["piped"]}"/>'
   f'<rect x="{vp[1][0]-px(0.3,vz):.1f}" y="{vp[1][1]-px(0.8,vz):.1f}" width="{px(0.6,vz):.1f}" height="{px(0.8,vz):.1f}" rx="6" fill="{"#b1b4b6" if not N else "#4a505c"}"/></g>')
 pd=f"M{sk[0][0]:.1f} {sk[0][1]:.1f} L{top[0]:.1f} {top[1]+px(0.6,skz):.1f} Q{top[0]:.1f} {top[1]:.1f} {bend[0]:.1f} {bend[1]:.1f}"
 pd2=seg(*sk2)
-a(f'<g filter="url(#ink)" fill="none" stroke-linecap="round"><path d="{pd}" stroke="{C["ink"]}" stroke-width="{sw+7:.1f}"/><path d="{pd}" stroke="{C["rust"]}" stroke-width="{sw:.1f}"/>'
-  f'<path d="{pd2}" stroke="{C["ink"]}" stroke-width="{px(0.3,s2z)+6:.1f}"/><path d="{pd2}" stroke="{C["rustd"]}" stroke-width="{px(0.3,s2z):.1f}"/>'
+a(f'<g filter="url(#ink)" fill="none" stroke-linecap="round"><path d="{pd}" stroke="{C["ink"]}" stroke-width="{sw+7:.1f}"/><path d="{pd}" stroke="{C["pipe"]}" stroke-width="{sw:.1f}"/>'
+  f'<path d="{pd2}" stroke="{C["ink"]}" stroke-width="{px(0.3,s2z)+6:.1f}"/><path d="{pd2}" stroke="{C["piped"]}" stroke-width="{px(0.3,s2z):.1f}"/>'
   f'<rect x="{vp[1][0]-px(0.3,vz):.1f}" y="{vp[1][1]-px(0.8,vz):.1f}" width="{px(0.6,vz):.1f}" height="{px(0.8,vz):.1f}" rx="6" stroke="{C["ink"]}" stroke-width="2.4"/>'
   f'<path stroke="{"#6f7478" if not N else "#556070"}" stroke-width="2" d="M{bend[0]:.0f} {bend[1]:.0f} c25 -25 0 -50 40 -70 c30 -15 25 -45 60 -60"/></g>')
 # 上部の箱（目より上なので天面は見えない。鉛直の面だけ）
@@ -190,7 +193,10 @@ a(poly(ubF, fill=C["roof"])); a(poly(ubS, fill=C["roof"], opacity="0.85"))
 a(poly(quadF(0,FL,H18,WALL), fill="url(#rustp)")); a(poly(quadF(0,FL,H55,H18), fill=C["screen"])); a(poly(quadF(0,FL,0,H55), fill="url(#skirtp)"))
 a(poly(quadS(0,SL,H18,WALL), fill="url(#rustp)")); a(poly(quadS(0,SL,H55,H18), fill=C["screen"], opacity="0.9")); a(poly(quadS(0,SL,0,H55), fill="url(#skirtSp)"))
 a(poly(soffit, fill=C["rustd"], opacity="0.8"))
-a(poly(eF, fill="url(#rustp)")); a(poly(eS, fill="url(#rustp)"))
+a('</g>')
+a(f'<g filter="url(#wc)" opacity="{0.45 if not N else 0.35}">'+poly(quadF(0.2,FL-0.2,0,0.55), fill=C["shadow"])+poly(quadS(0.2,SL-0.2,0,0.7), fill=C["shadow"])+'</g>')
+a('<g>')
+a(poly(eF, fill=C["rail"])); a(poly(eS, fill=C["rail"]))
 a('</g>')
 if N:
   a(poly(quadF(0.1,FL-0.1,H55+0.1,H18-0.1), fill="#6fa8ff", opacity="0.55", filter="url(#glow)"))
