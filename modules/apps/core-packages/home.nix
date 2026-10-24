@@ -1,5 +1,6 @@
 {
   config,
+  lib,
   pkgs,
   hunk,
   ...
@@ -89,6 +90,8 @@
     nh = {
       enable = true;
       darwinFlake = config.my.flakeDir;
+      # NixOS（x1nano）では `nh os switch` が読む NH_OS_FLAKE。mac では張らない。
+      osFlake = lib.mkIf pkgs.stdenv.hostPlatform.isLinux config.my.flakeDir;
 
       # 旧 Justfile の clean/gc レシピ（手で打つ・打った記憶がない）を定期実行へ。
       # darwin では launchd.agents.nh-clean が生える。

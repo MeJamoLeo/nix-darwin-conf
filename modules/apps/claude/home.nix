@@ -50,7 +50,11 @@ in {
   # 差し替えて自動 commit までしていたが、version 引き継ぎ・git ピン・失敗メッセージの
   # 誤誘導など壊れやすさが見合わないので廃止（2026-10-20）。flake.lock は手で commit する。
   # 素の `nh darwin switch` は bump しない（壊れた疑いのときの逃げ道にもなる）。
-  home.shellAliases.nhds = "nh darwin switch -U nixpkgs-claude";
+  # NixOS（x1nano）では同じことを `nhos`（= nh os switch -U nixpkgs-claude）で。
+  home.shellAliases =
+    if pkgs.stdenv.hostPlatform.isDarwin
+    then {nhds = "nh darwin switch -U nixpkgs-claude";}
+    else {nhos = "nh os switch -U nixpkgs-claude";};
 
   home.file =
     {

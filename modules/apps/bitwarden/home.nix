@@ -84,7 +84,11 @@
   # 取り出せるので、prompt injection を受けたときに被害が起き得る時間が延びる。
   # 緩和策の候補（未着手）: スリープ・画面ロック時に `rbw lock`。
   home.activation.rbwPinentry = lib.hm.dag.entryAfter ["writeBoundary"] ''
-    cfg="$HOME/Library/Application Support/rbw/config.json"
+    cfg="${
+      if pkgs.stdenv.hostPlatform.isDarwin
+      then "$HOME/Library/Application Support/rbw/config.json"
+      else "\${XDG_CONFIG_HOME:-$HOME/.config}/rbw/config.json"
+    }"
     want="pinentry-curses"
     wantLock=28800
     mkdir -p "$(dirname "$cfg")"

@@ -8,7 +8,12 @@
     # ためのシステム集合。nix-systems/default は全 4 systems を返し、その中の
     # x86_64-darwin は nixpkgs 26.11 でサポートが落ちたため、他の flake の per-system
     # 評価が throw する。全ホスト aarch64-darwin なので絞って安全。
-    systems.url = "github:nix-systems/aarch64-darwin";
+    #   2026-10-23：x1nano（x86_64-linux）を足したので、nix-systems の固定リポジトリ
+    #   ではなく repo 内の nix/systems（aarch64-darwin + x86_64-linux）を指す。
+    systems = {
+      url = "path:./nix/systems";
+      flake = false;
+    };
 
     # git だけ安定版にピン留めするための独立 nixpkgs。
     #   unstable の git 2.54.0 は「長い unicode ファイル名」を含む作業ツリーの
@@ -173,6 +178,34 @@
       url = "github:sahaj-b/ghostty-cursor-shaders";
       flake = false;
     };
+
+    # ── NixOS 機（x1nano）用 ──────────────────────────────────────
+    #   2026-10-23 に x1nano をこの flake の4台目として新設計した（旧 nixos-cp の吸収）。
+    #   OS は nixos-unstable：mac 側（nixpkgs-unstable）と同じ版の線に乗せ、共有の
+    #   home モジュール（modules/apps/*/home.nix）が両 OS で同じ版の home-manager /
+    #   nixvim で評価されるようにする。home-manager・nixvim・herdr・zen-browser 等は
+    #   mac と同じ input を使い回す（NixOS 専用に増やすのは下の4本だけ）。
+    nixpkgs-nixos.url = "github:nixos/nixpkgs/nixos-unstable";
+
+    # niri-flake は設定面（programs.niri.settings）と `niri validate` だけ使う。
+    # niri 本体は nixpkgs の programs.niri から。
+    niri = {
+      url = "github:sodiboo/niri-flake";
+      inputs.nixpkgs.follows = "nixpkgs-nixos";
+    };
+
+    # DankMaterialShell（niri 上のバー・ランチャ等）。HM モジュールが settings を
+    # 宣言的に持てるので nixpkgs の programs.dms-shell ではなくこちら。
+    dms = {
+      url = "github:AvengeMedia/DankMaterialShell/stable";
+      inputs.nixpkgs.follows = "nixpkgs-nixos";
+    };
+
+    # wayvibes: Wayland でキー打鍵音を鳴らす（soundpack は flake のソースツリー内）。
+    wayvibes = {
+      url = "github:sahaj-b/wayvibes";
+      inputs.nixpkgs.follows = "nixpkgs-nixos";
+    };
   };
 
   ##################################################################################
@@ -242,7 +275,40 @@
           }
         ];
       };
+
+    # NixOS 機。hosts/<name>.nix → profiles/nixos-laptop.nix → modules/*/nixos.nix・home.nix
+    # の組み立ては mac と同じ。違うのは OS の土台（nixosSystem）と home ディレクトリだけ。
+    mkNixosConfig = hostname: system: let
+      specialArgs =
+        inputs
+        // {
+          inherit username hostname;
+        };
+    in
+      inputs.nixpkgs-nixos.lib.nixosSystem {
+        inherit system specialArgs;
+        modules = [
+          {
+            nixpkgs.overlays = [
+              inputs.herdr.overlays.default
+              inputs.firefox-addons.overlays.default
+            ];
+          }
+          ./hosts/${hostname}.nix
+          home-manager.nixosModules.home-manager
+          {
+            home-manager.useGlobalPkgs = true;
+            home-manager.useUserPackages = true;
+            home-manager.backupFileExtension = "hm-backup";
+            home-manager.extraSpecialArgs = specialArgs;
+          }
+        ];
+      };
   in {
+    nixosConfigurations = {
+      x1nano = mkNixosConfig "x1nano" "x86_64-linux"; # ThinkPad X1 Nano
+    };
+
     darwinConfigurations = {
       ogasawara = mkDarwinConfig "ogasawara"; # Mac mini M4
       tanegashima = mkDarwinConfig "tanegashima"; # MacBook Air M1

@@ -95,6 +95,7 @@ in {
   users.users.${username}.openssh.authorizedKeys.keys = [
     keys.ogasawara
     keys.tanegashima
+    keys.x1nano
     # keys.iphone-blink   # Blink で鍵を生成したら台帳に登録して有効化
   ];
 }

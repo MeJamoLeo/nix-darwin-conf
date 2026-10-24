@@ -184,9 +184,15 @@ let
   #   `~/Library/Application Support/zen/Profiles/<ランダム名>` を `zen.Default` へ改名し、
   #   `installs.ini` の該当ハッシュも同じ先を向かせる。**両方直さないと効かない**
   #   （profiles.ini だけでは dedicated profile の解決に負ける。上の節を参照）。
+  #
+  # x1nano（Linux）は ~/.config/zen/ 直下に Zen が作ったランダム名のまま（152MB・拡張5個の
+  # 既存プロファイルを引き継ぐ。2026-10-23 に nixos-cp から移したとき実在を確認）。
   zenProfile = {
     name = "Default";
-    path = "zen.Default";
+    path =
+      if pkgs.stdenv.hostPlatform.isDarwin
+      then "zen.Default"
+      else "n0eh4sv1.Default Profile";
   };
 in {
   programs.zen-browser = {
