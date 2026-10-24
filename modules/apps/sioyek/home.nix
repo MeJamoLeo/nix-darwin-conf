@@ -13,7 +13,32 @@
   pkgs,
   ...
 }: {
-  programs.sioyek.enable = true;
+  programs.sioyek = {
+    enable = true;
+    # ⚠ macOS の一時回避（2026-10-23）：nixpkgs の sioyek（2.0.0-unstable-2026-09-24）は
+    #   shaders/・keys.config・prefs.config・tutorial.pdf を .app の Contents/MacOS/ に置くが、
+    #   本体は Contents/Resources/ を探す → シェーダが読めずページが真っ白、既定キーも無効。
+    #   Resources 側から見えるように symlink を張る（本体が自分の実体パスから探すので、
+    #   後付けのラッパーではなく overrideAttrs で .app 自体に入れる必要がある）。
+    #   nixpkgs 側で直ったら package ごと外す。homebrew cask は Gatekeeper 不合格で
+    #   2026-09-01 に無効化されているので逃げ先にならない。
+    package =
+      if pkgs.stdenv.hostPlatform.isDarwin
+      then
+        pkgs.sioyek.overrideAttrs (old: {
+          postInstall =
+            (old.postInstall or "")
+            + ''
+              c=$out/Applications/sioyek.app/Contents
+              for f in shaders keys.config prefs.config tutorial.pdf; do
+                if [ -e "$c/MacOS/$f" ] && [ ! -e "$c/Resources/$f" ]; then
+                  ln -s "../MacOS/$f" "$c/Resources/$f"
+                fi
+              done
+            '';
+        })
+      else pkgs.sioyek;
+  };
 
   home.activation.sioyekPdfDefault = lib.mkIf pkgs.stdenv.hostPlatform.isLinux (
     lib.hm.dag.entryAfter ["writeBoundary"] ''
