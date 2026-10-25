@@ -34,12 +34,25 @@
     # You need to install all these Apps manually first so that your apple account have records for them.
     # otherwise Apple Store will refuse to install them.
     # For details, see https://github.com/mas-cli/mas
-    masApps = {
-      DisplayMenu = 549083868; # Menu bar tool for display management
-      Keeby = 6760791739; # Mechanical keyboard sound effects
-      LINE = 539883307; # Messaging app
-      Xcode = 497799835; # Apple's IDE for macOS/iOS development
-    };
+    #
+    # ★ 2026-10-25: activation から外した（masApps = {}）。理由:
+    #   - brew bundle はインストール判定を `mas list` の標準出力だけで行う
+    #     （Homebrew/bundle/extensions/mac_app_store.rb）。mas 7.0.0 はその一覧を
+    #     Spotlight の kMDItemAppStoreAdamID から作るので、索引が /Applications を
+    #     失うと空を返し、全件が「未インストール」判定になる。
+    #   - そうなると activation ごとに全件を再ダウンロードする。実測 15.5 GB・30分超で、
+    #     しかも1回の rebuild 内で複数周する。brew は mas の stderr を捨てるため
+    #     警告も出ず、無言で activation がブロックされる。
+    #   - nix-darwin 自身、masApps から消してもアンインストールはされないと明記して
+    #     おり、元から「追加だけ強制・削除不可」で収束を保証できない。
+    #   正常時の価値はゼロ（何もしない）、異常時の損失は大きいという非対称なので、
+    #   記録だけ残して実行しない形にする。新機体では以下を手で1回実行する:
+    #     mas install 549083868 6760791739 539883307 497799835
+    #   DisplayMenu = 549083868;   # Menu bar tool for display management
+    #   Keeby       = 6760791739;  # Mechanical keyboard sound effects
+    #   LINE        = 539883307;   # Messaging app
+    #   Xcode       = 497799835;   # Apple's IDE for macOS/iOS development
+    masApps = {};
 
     # nikitabobko/tap (aerospace) と FelixKratz/formulae (borders) は nixpkgs 移行で
     # 不要になり、各機で手動 `brew untap nikitabobko/tap felixkratz/formulae` 済み
@@ -56,7 +69,7 @@
     # `brew uninstall direnv wget gh lazygit borders`
     brews = [
       "curl" # HTTP client (don't install via nixpkgs, not working well on macOS!)
-      "mas" # Mac App Store CLI (required for `masApps` to work)
+      "mas" # Mac App Store CLI（masApps は空なので手動運用用。上のコメント参照）
       # "neovim"  # Terminal-based text editor (nixvim manages nvim)
     ];
 

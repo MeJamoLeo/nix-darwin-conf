@@ -9,15 +9,20 @@
   #  activate the license.
   #
   ##########################################################################
-  homebrew.masApps = {
-    "Microsoft Excel" = 462058435;
-    "Microsoft Outlook" = 985367838;
-    "Microsoft PowerPoint" = 462062816;
-    "Microsoft Word" = 462054704;
-    "OneDrive" = 823766827;
-    # Add when needed:
-    # "Microsoft OneNote" = 784801555;
-  };
+  # ★ 2026-10-25: activation から外した（masApps = {}）。理由の全文は
+  #   modules/base/homebrew-base/darwin.nix の masApps のコメント。
+  #   要点だけ言うと、Spotlight の索引が壊れると brew bundle が全件を再DLし、
+  #   この5本（計 10.5 GB）が毎回の activation を止める。
+  #   新機体・新学期に入れ直すときは手で1回:
+  #     mas install 462058435 985367838 462062816 462054704 823766827
+  #   "Microsoft Excel"      = 462058435;
+  #   "Microsoft Outlook"    = 985367838;
+  #   "Microsoft PowerPoint" = 462062816;
+  #   "Microsoft Word"       = 462054704;
+  #   "OneDrive"             = 823766827;
+  #   # Add when needed:
+  #   # "Microsoft OneNote" = 784801555;
+  homebrew.masApps = {};
 
   # Microsoft Teams is NOT on the Mac App Store (only third-party "join a
   # Teams meeting" clones are), so it has to come from the cask. The cask
