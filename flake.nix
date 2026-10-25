@@ -67,8 +67,15 @@
     # herdr: tmux ライクな “エージェント対応” ターミナルマルチプレクサ（Rust 単一バイナリ）。
     #   nixpkgs 未収録なので flake input として取り込み、overlay で pkgs.herdr を供給する
     #   （neru と同じ作法）。follows で nixpkgs を揃えて重複ビルド/eval コストを抑える。
+    #   ★ v0.9.3 に固定している（2026-10-25）。0.9.4 以降は --remote の OS 判定が
+    #     「PowerShell を先に試し、終了コードが非 0 なら Windows ではない」方式になり、
+    #     終了コードを伝搬しない SSH サーバ（Tailscale SSH on macOS, tailscale#18256）が
+    #     相手だと `remote command exited before producing its output marker` で落ちる。
+    #     0.9.3 は POSIX を先に試すので終了コードを見ず、同じ相手でも通る（x1nano で A/B 実測）。
+    #     解除の条件: herdr 側が marker 不在でも POSIX probe にフォールバックするようになる、
+    #     または Tailscale が macOS の終了コード伝搬を直す。どちらかが入ったら pin を外す。
     herdr = {
-      url = "github:ogulcancelik/herdr";
+      url = "github:ogulcancelik/herdr/v0.9.3";
       inputs.nixpkgs.follows = "nixpkgs-darwin";
     };
 

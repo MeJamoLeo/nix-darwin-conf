@@ -3,25 +3,10 @@
 {username, ...}: {
   imports = [../profiles/mac-workstation.nix];
 
-  # tailnet 向けの素の sshd（ポート 2222）。2026-10-24 に追加。
-  # ★ この機体は `tailscale up --ssh` で Tailscale SSH が有効なので、tailnet 越しの 22 番は
-  #   tailscaled が受ける。その Tailscale SSH は**リモートコマンドの終了コードを返さない**
-  #   （x1nano から `ssh ogasawara 'exit 5'` が 0 になる。`ssh -v` で remote software = Tailscale）。
-  #   herdr --remote は powershell.exe の失敗（非 0）で「Windows ではない」と判定するため、
-  #   ここで迷って `remote command exited before producing its output marker` で落ちていた。
-  #   Tailscale SSH は iPhone の鍵なし接続に使っているので止めず、機体どうしは 2222 の
-  #   macOS 標準 sshd（鍵だけ・200-remote-access.conf の硬化が効く）に入る。
-  #   クライアント側の向け先は modules/base/remote-access/home.nix。
-  # 待受は tailnet の IP だけ（en0 はグローバル IP 直付けなので全 IF にすると外に出る）。
-  # 起動直後で tailnet が未接続だと bind に失敗するが、KeepAlive が上がるまで再試行する。
-  launchd.daemons.sshd-tailnet.serviceConfig = {
-    Label = "com.treo.sshd-tailnet";
-    ProgramArguments = ["/usr/sbin/sshd" "-D" "-e" "-o" "ListenAddress=100.66.90.8:2222"];
-    RunAtLoad = true;
-    KeepAlive = true;
-    ThrottleInterval = 30;
-    StandardErrorPath = "/var/log/sshd-tailnet.log";
-  };
+  # ★ tailnet 越しの ssh は 22 番（Tailscale SSH）のまま。2026-10-24 に「Tailscale SSH が
+  #   リモートコマンドの終了コードを返さず herdr --remote が落ちる」対策として素の sshd を
+  #   2222 で立てたが、2026-10-25 に撤回した（自作 daemon を保守しない方針）。
+  #   代わりに herdr を v0.9.3 に固定している。経緯と解除条件は flake.nix の herdr input。
 
   # Hermes Agent はこの機体限定。**profile（＝全機共有）に入れない**理由：
   #   - hermes-agent#default は公開バイナリキャッシュが無く、実測で 1191 derivation の
