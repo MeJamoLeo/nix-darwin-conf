@@ -74,7 +74,8 @@ for c in canvas.http_get_json('/courses?enrollment_state=active&per_page=50'):
 ## 5. 必要なことを作業単位に割る
 
 課題1件＝1タスクにしない。**「次に手を動かせる単位」**まで割る。割った結果の置き場は
-**todo-board 一本**にする（`todo add "<項目>" --due <YYYY-MM-DD>`）。
+**todo-board 一本**にする（`todo add "<項目>" --due "M/D HH:MM" --size 1.5h`）。
+**日付は `M/D` 形式**——`YYYY-MM-DD` は `bad date` で弾かれる（2026-10-25 に実測）。
 ★ 別ファイルに作業リストを作らない——リストが2つあると必ず乖離する。
 
 割ったら §6 で課題の性質に応じて枝分かれする。
