@@ -63,13 +63,14 @@ in {
     package = pkgsStable.git;
     lfs.enable = true;
 
-    includes = [
-      {
-        # use diffrent email & name for work
-        path = "~/work/.gitconfig";
-        condition = "gitdir:~/work/";
-      }
-    ];
+    # includes（gitdir 条件つきの identity 切り替え）はここに書かない。
+    # 所属ごとの identity は、その所属のモジュールが自分で宣言する
+    # （例＝TxState: modules/domain/school/txst/home.nix の gitdir:~/Store/20_Courses/）。
+    #
+    # ★ 2026-10-25 に `gitdir:~/work/` → `~/work/.gitconfig` の1件を撤去した。
+    #   `~/work` は存在せず、指す先の .gitconfig も無い（＝参照しても何も起きないが、
+    #   `git config --list` の読み手に「work 用の identity がある」と誤解させる）。
+    #   条件が指すディレクトリを作る側の宣言が無かったので、最初から死に条件だった。
 
     # コミット署名 — GPG ではなく **SSH 署名**（2026-09-28）。
     #
