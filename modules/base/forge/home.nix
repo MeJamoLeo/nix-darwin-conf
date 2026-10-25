@@ -39,7 +39,7 @@ in {
     # 対話シェルで $FORGE。cp-go 等のスクリプトは実行時にこれを読める。
     home.sessionVariables.FORGE = config.my.forgeDir;
 
-    # rebuild 時にディレクトリの存在を保証（txst-setup と同型の書き方）。
+    # rebuild 時にディレクトリの存在を保証（他の ensure 系 activation と同型の書き方）。
     # 空ディレクトリを作るだけ＝冪等・非破壊。移動前に先回りで掘っておける。
     home.activation.ensureForge = lib.hm.dag.entryAfter ["writeBoundary"] ''
       run mkdir -p ${lib.escapeShellArg config.my.forgeDir}

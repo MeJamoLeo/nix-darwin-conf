@@ -1,6 +1,6 @@
 # ex-pdf <exNN> — zyBook Exercise のスキャン画像を Gradescope 提出用の 1 本の PDF にまとめる。
 #
-#   ex-pdf ex03        # ~/txst/CS4355/exercises/ex03/scans/* -> .../ex03/submit.pdf
+#   ex-pdf ex03        # ~/Store/20_Courses/CS4355/exercises/ex03/scans/* -> .../ex03/submit.pdf
 #   ex-pdf .           # カレントディレクトリを対象にする
 #
 # 設計：
@@ -26,7 +26,7 @@ arg="${1:-}"
 if [ -d "$arg" ]; then
   dir="$arg"
 else
-  dir="$HOME/txst/CS4355/exercises/$arg"
+  dir="$HOME/Store/20_Courses/CS4355/exercises/$arg"
 fi
 [ -d "$dir" ] || {
   echo "ex-pdf: そんな課題ディレクトリは無い: $arg" >&2

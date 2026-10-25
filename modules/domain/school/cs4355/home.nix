@@ -8,8 +8,8 @@
 # 「提出前に zyLab と同じ条件で通ることを確かめる」ことに尽きる。
 #
 # 科目の実務（zyBook / TopHat / Canvas / Gradescope / LeetCode）は全部ブラウザ側なので
-# nix の担当外。TxState 共通の git identity・SSH・~/txst/ の親ディレクトリは
-# modules/domain/school/txst/home.nix を参照。
+# nix の担当外。TxState 共通の git identity（gitdir:~/Store/20_Courses/）と SSH は
+# modules/domain/school/txst/home.nix を参照。作業場は ~/Store/20_Courses/CS4355/。
 #
 # 言語の根拠：Fall 2026 版シラバスは言語を明記していないが、同一教員・同一 zyBook の
 # Fall 2025 版に "comfortable with C++, basic data structures, recursion, and basic Big-O"
@@ -79,7 +79,8 @@
     ${builtins.readFile ./scripts/ex-pdf}
   '';
 
-  # ~/txst/CS4355/ の骨組み。**トップ階層＝配点カテゴリ**（週割りにしない：締切が付いて
+  # CS4355 の作業場（`~/Store/20_Courses/CS4355/`）の想定レイアウト。
+  # **トップ階層＝配点カテゴリ**（週割りにしない：締切が付いて
   # いるのは「zyLab 3本目」であって「第10週」ではないし、週割りだと同種の作業が16箇所に散る）。
   # 受信物（ref/）と自分の生成物を混ぜないのは CS3339 が CS3339 / CS3339_original / tmp に
   # 崩れた反省。概念ノートはここに置かず vault（3_Resources）へ——course dir に知識を溜めると
@@ -97,8 +98,8 @@
     "leetcode" # ボーナス 5%
   ];
 
-  # Exercise ×9（20%・最低1本ドロップ）。ex01 … ex09。
-  exerciseDirs = map (n: "exercises/ex${lib.fixedWidthNumber 2 n}") (lib.range 1 9);
+  # Exercise ×9（20%・最低1本ドロップ）は exercises/ の下に 1本目が来たときに切る。
+  # 先回りして ex01..ex09 を mkdir していたのをやめた理由は下の activation を参照。
 
   # compile_commands.json を撒く先。courseDirs から派生させて二重管理を避ける。
   zylabDirs = lib.filter (lib.hasPrefix "zylabs/") courseDirs;
@@ -134,49 +135,61 @@ in {
     pkgs.cmake
   ];
 
-  # ~/txst/CS4355/ の骨組みを作る。**mkdir -p だけ**なので冪等で、switch のたびに走ってよい。
+  # 作業場に種ファイルだけ置く。**既存ファイルには触らない**ので冪等。
   # home.file を使って作業ファイルを nix に所有させることは**しない**——store からの
   # 読み取り専用シンボリックリンクになって手で編集できなくなるし、既存の答案を
   # 壊しうる。.gitignore だけ「無ければ置く」種扱いにして、以後は本人のもの。
   # ドキュメント（README 等）はこのディレクトリに置かない方針（本人の指定）。
   # 締切・科目メタの正史は ref/syllabus-f26.pdf と vault 側。
-  # 親の ~/txst は modules/domain/school/txst/home.nix の txst-setup が作る。
-  home.activation.cs4355 = lib.hm.dag.entryAfter ["txst-setup"] ''
-    root="$HOME/txst/CS4355"
-    mkdir -p ${lib.concatMapStringsSep " " (d: ''"$root/${d}"'') (courseDirs ++ exerciseDirs)}
+  #
+  # ★ 2026-10-25: 置き場を `~/txst/CS4355` から `~/Store/20_Courses/CS4355` に移し、
+  #   **骨組みの mkdir をやめた**。Store の規則3が「中身が来てから作る（予定で空の
+  #   フォルダを作らない）」なので、配点カテゴリを先回りして掘るのは契約違反になる。
+  #   実際 ref/slides・exams/*・career・leetcode・exercises/ex01..09 は ~/txst 時代も
+  #   最後まで空のままだった（2026-10-25 の廃止時に全部空で確認）。
+  #   種を撒くのは「既にディレクトリがある所」だけにする。
+  #   ⚠ 副作用：新しい zylab ディレクトリを切った直後は compile_commands.json が無い
+  #     （clangd が libstdc++ ではなく Xcode の libc++ を読む）。**切ったら再 switch** する。
+  home.activation.cs4355 = lib.hm.dag.entryAfter ["writeBoundary"] ''
+    root="$HOME/Store/20_Courses/CS4355"
+    if [ -d "$root" ]; then
 
-    # 種ファイル：既にあれば触らない（本人の編集を尊重する）
-    if [ ! -e "$root/.gitignore" ]; then
-      cp ${./gitignore-template} "$root/.gitignore"
-      chmod u+w "$root/.gitignore"
-    fi
-
-    # compile_commands.json — clangd に「zyg++ と同じドライバ・同じフラグ」を教える種。
-    #
-    # 目的は **エディタの見え方を採点環境に寄せる**こと。zyLab は Linux + g++ + libstdc++
-    # なので、clangd が Xcode の libc++ を読んでいると手元と採点側で標準ライブラリが
-    # 別物になる。ここで g++ を名指しすると、clangd が --query-driver でその g++ に
-    # システム include を訊きに行き、**libstdc++ を読むようになる**
-    # （2026-09-10 実測：<bits/stdc++.h> が解決する＝libstdc++ であることの決定的証拠。
-    #  clangd --check のエラーも 5 → 0）。--query-driver の指定は
-    # modules/apps/zed/home.nix 側にある（両方揃って初めて効く）。
-    #
-    # ⚠️ 一致するのは**ヘッダと標準ライブラリだけ**。clangd の実体は clang なので
-    #    GCC 固有の診断は再現しない。**提出可否の正本は今までどおり zyg++**。
-    #
-    # .gitignore には既に compile_commands.json が入っているのでコミットされない。
-    for d in ${lib.concatStringsSep " " zylabDirs}; do
-      f="$root/$d/compile_commands.json"
-      if [ ! -e "$f" ]; then
-        # heredoc を使わないのは、nix の多行文字列がインデントを剥がすせいで
-        # 終端子を列0に置くのが壊れやすいため。printf なら位置に依存しない。
-        # （ついでに：この多行文字列の中に単引用符2つを並べると、そこで文字列が
-        #  閉じてしまう。コメントであっても書けない）
-        printf '[{"directory": "%s", "command": "%s -std=%s %s -c main.cpp", "file": "main.cpp"}]\n' \
-          "$root/$d" "${gxxPath}" "${zyStd}" "${zyWarn}" > "$f"
-        chmod u+w "$f"
+      # 種ファイル：既にあれば触らない（本人の編集を尊重する）
+      if [ ! -e "$root/.gitignore" ]; then
+        cp ${./gitignore-template} "$root/.gitignore"
+        chmod u+w "$root/.gitignore"
       fi
-    done
+
+      # compile_commands.json — clangd に「zyg++ と同じドライバ・同じフラグ」を教える種。
+      #
+      # 目的は **エディタの見え方を採点環境に寄せる**こと。zyLab は Linux + g++ + libstdc++
+      # なので、clangd が Xcode の libc++ を読んでいると手元と採点側で標準ライブラリが
+      # 別物になる。ここで g++ を名指しすると、clangd が --query-driver でその g++ に
+      # システム include を訊きに行き、**libstdc++ を読むようになる**
+      # （2026-09-10 実測：<bits/stdc++.h> が解決する＝libstdc++ であることの決定的証拠。
+      #  clangd --check のエラーも 5 → 0）。--query-driver の指定は
+      # modules/apps/zed/home.nix 側にある（両方揃って初めて効く）。
+      #
+      # ⚠️ 一致するのは**ヘッダと標準ライブラリだけ**。clangd の実体は clang なので
+      #    GCC 固有の診断は再現しない。**提出可否の正本は今までどおり zyg++**。
+      #
+      # .gitignore には既に compile_commands.json が入っているのでコミットされない。
+      for d in ${lib.concatStringsSep " " zylabDirs}; do
+        [ -d "$root/$d" ] || continue
+        f="$root/$d/compile_commands.json"
+        if [ ! -e "$f" ]; then
+          # heredoc を使わないのは、nix の多行文字列がインデントを剥がすせいで
+          # 終端子を列0に置くのが壊れやすいため。printf なら位置に依存しない。
+          # （ついでに：この多行文字列の中に単引用符2つを並べると、そこで文字列が
+          #  閉じてしまう。コメントであっても書けない）
+          printf '[{"directory": "%s", "command": "%s -std=%s %s -c main.cpp", "file": "main.cpp"}]\n' \
+            "$root/$d" "${gxxPath}" "${zyStd}" "${zyWarn}" > "$f"
+          chmod u+w "$f"
+        fi
+      done
+    else
+      echo "cs4355: $root が無いのでスキップ（科目が始まったらディレクトリを作る）"
+    fi
   '';
 
   # ── 意図的に入れていないもの ─────────────────────────────

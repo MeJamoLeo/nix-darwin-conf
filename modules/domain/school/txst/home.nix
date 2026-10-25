@@ -1,7 +1,17 @@
 # Texas State University - 共通ユーザー設定
 # - SSH (CS dept servers: eros / zeus / brooks / capi)
-# - TxState 用 git identity (~/txst/ 以下で自動適用)
-# - ~/txst/ ディレクトリ作成
+# - TxState 用 git identity (~/Store/20_Courses/ 以下で自動適用)
+#
+# ★ 2026-10-25: 作業場としての `~/txst/` を廃止した。
+#   「学期中は ~/txst、終わったら ~/Store/20_Courses へ移す」という二段構えが、
+#   実測で成立していなかった：Store 側に9科目 4.0GB があるのに対し ~/txst は
+#   CS3360(0B) と CS4355(148K) の骨組みだけで、しかも CS4355 / CS3360 は
+#   両方に存在していた（＝同じ授業の物が2箇所に割れた状態）。
+#   2026-09-26 に `30_Work/cs4371` と `20_Courses/CS4355` の割れを片付けたのと
+#   同じ失敗の再発なので、今回は入口を1つに倒した。
+#   ★ 移動のひと手間を必要とする設計は、その手間が踏まれないと二重化になる。
+#   授業の物は最初から `~/Store/20_Courses/<COURSE>/` に置く（Store の振り分け表 #2 のまま）。
+#   実データの合流記録は `~/Store/MOVES-2026-10-25-txst.tsv`。
 {lib, ...}: let
   txstIdentity = "~/.ssh/id_ed25519_txstate";
 
@@ -34,7 +44,7 @@ in {
     };
   };
 
-  # TxState 用 git identity。~/txst/ 配下のリポジトリで自動適用。
+  # TxState 用 git identity。授業の作業場（Store/20_Courses/）配下の repo で自動適用。
   home.file.".gitconfig-txst".text = ''
     [user]
       name = Reo Tajiri
@@ -44,14 +54,9 @@ in {
   programs.git.includes = [
     {
       path = "~/.gitconfig-txst";
-      condition = "gitdir:~/txst/";
+      condition = "gitdir:~/Store/20_Courses/";
     }
   ];
-
-  # ~/txst/ 親ディレクトリ作成。各科目はこの下にサブディレクトリを作る。
-  home.activation.txst-setup = lib.hm.dag.entryAfter ["writeBoundary"] ''
-    mkdir -p "$HOME/txst"
-  '';
 
   # SSH 鍵が無ければ生成手順を表示
   home.activation.txst-ssh-reminder = lib.hm.dag.entryAfter ["writeBoundary"] ''
