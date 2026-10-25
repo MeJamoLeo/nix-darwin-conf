@@ -11,9 +11,32 @@
 auto-memory は無効化済み（`autoMemoryEnabled: false`）。個人の文脈・記憶の正史は
 claude-obsidian の vault：`/Users/treo/Forge/claude-obsidian`。
 
-- 個人文脈が必要なときだけ読む：①`vault/wiki/hot.md`（直近、約500語）→②`vault/wiki/index.md`→③個別ページ。一般的なコーディング質問のためには読まない。
+- 個人文脈が必要なときだけ読む：①セッション冒頭に注入される `<personal-context>`（entry-map。
+  `.claude/hooks/vault-context-inject.sh` が `scripts/entry-map.py` から機械生成）→
+  ②`vault/wiki/index.md`→③個別ページ。一般的なコーディング質問のためには読まない。
+  （旧 `vault/wiki/hot.md` は 2026-09-11 に廃止済み。**存在しないので読みに行かない**。
+  hook 側は同日に entry-map へ切り替わっていたが、この記述が追従していなかった）
+- **git worktree の中にいるときは、vault 本体を読む。** worktree 内の `vault/wiki` は
+  そのブランチのコピーであって最新とは限らない（Orca は1タスク＝1 worktree で動く）。
+  文脈の参照先は常に `/Users/treo/Forge/claude-obsidian`。
 - **恒久的な事実・決定・好みに気づいたら訊かずに保存する**：claude-obsidian のセッション内ならその規約（save/wiki skill）で直接 vault へ。他プロジェクトからは `vault/.raw/inbox/` に捕獲メモ（md）を置く（inbox への追加は許容されている。次の claude-obsidian セッションが triage する）。保存したら一行報告のみ。
 - 常時効かせたい規律に気づいたら、本ファイルへの追記を**提案**する（勝手に書かない。本ファイルは nix-darwin-conf 管理）。
+
+## 一次資料は ~/Store が正本（fleet 共有のファイルサーバ）
+
+PDF・配布ファイル・原本・授業の物は `~/Store/` に置く。**振り分けの正本は
+`~/Store/README.md` の「振り分け」表**（上から1問ずつ、最初の Yes で決まる）。迷ったら
+まずその表を読む。要点だけ：
+
+- **授業に属する物は、資料でも自分の答案でも `~/Store/20_Courses/<COURSE>/`。**
+  学期中だけ別の場所で作業して後で移す、はしない（2026-10-25 に `~/txst` を廃止した。
+  移動のひと手間を要する設計は、その手間が踏まれないぶんだけ二重化になるため）。
+- 再取得できない原本＝`10_Records/`／蔵書＝`40_Library/`／授業以外の自作物＝`30_Work/`／
+  判定不能＝`90_Staging/`（TTL 30日で自動削除）。
+- `~/Forge` と `~/Store` の切れ目は「**git remote で機体を越えるか**」。Yes なら Forge の
+  まま、No で取っておくなら Store。Forge の成果物で完成して置いておく物だけ Store へ移す。
+- Store 全体を git で管理しない（配下の個別 repo は可）。Claude が Store に作る物は
+  Markdown。docx/xlsx/pptx は作らない。詳細は `~/Store/README.md` の「契約」。
 
 ## 生活雑務は end-to-end で拾う
 

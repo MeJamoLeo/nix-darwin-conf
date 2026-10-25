@@ -128,8 +128,10 @@ tutor-cp を読む。
      を Edit（日付付き観測。事実と推定を分ける）。
    - **L1 生ログ** ＝ 該当の `learning-*.md` に時系列で append。進捗の動的更新は
      `learning-journey.md`。
-   - 重要な更新は `$VAULT/wiki/log.md` に1行・`hot.md` の recency も既存慣習に従って更新
-     （hot.md は**完全上書き・4セクション・500語以内**。日付付き追記は禁止）。
+   - 重要な更新は `$VAULT/wiki/log.md` に1行だけ。
+     （旧規約にあった `hot.md` の recency 更新は**不要**。hot.md は 2026-09-11 に廃止され、
+     セッション冒頭の入口は `scripts/entry-map.py` の機械生成に置き換わった。生成物なので
+     書き手が要らない＝ここで更新する対象は無い）
 3. **変更がなければ書かない**。
 4. **commit**：claude-obsidian セッション外では auto-commit の Stop hook が走らないので、
    書き戻し後に自分でコミットする（hook の代替）：

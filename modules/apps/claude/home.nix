@@ -67,7 +67,7 @@ in {
         force = true; # 手動運用時代の ~/.claude/CLAUDE.md が残っていても上書きする
       };
 
-      # SessionStart hook: auto-memory 代替＝vault hot.md の全プロジェクト注入。
+      # SessionStart hook: auto-memory 代替＝vault の entry-map（機械生成）の全プロジェクト注入。
       # settings.json 側の登録は存在ガード付き1行（herdr-auto-name と同パターン。
       # settings.json 自体を所有しない理由は modules/apps/herdr/home.nix 参照）。
       ".claude/hooks/vault-context-inject.sh" = {
