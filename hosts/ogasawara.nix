@@ -1,7 +1,13 @@
 # ogasawara — Mac mini M4（母艦）。
 # 役割は mac-workstation そのもので、機体固有の差分は Hermes Agent だけ。
 {username, ...}: {
-  imports = [../profiles/mac-workstation.nix];
+  imports = [
+    ../profiles/mac-workstation.nix
+
+    # Orca（エージェント並列実行の ADE・homebrew cask）。dejima には配らないので
+    # profile ではなく mac 2台から個別に import する。
+    ../modules/apps/orca/darwin.nix
+  ];
 
   # ★ tailnet 越しの ssh は 22 番（Tailscale SSH）のまま。2026-10-24 に「Tailscale SSH が
   #   リモートコマンドの終了コードを返さず herdr --remote が落ちる」対策として素の sshd を
@@ -21,5 +27,9 @@
     ../modules/custom/todo-board/home.nix
     ../modules/custom/mail-check/home.nix
     # ../modules/custom/job-watch/home.nix # 一時停止(2026-10-18): job-watch/ が未追跡で評価が落ちるため。仕上げたら戻す
+
+    # REA（逆アセンブラを持つ MCP サーバ）。本体は npm global 運用なので、
+    # ここが宣言するのは Ghidra / JDK / npm prefix だけ。詳細はモジュール冒頭。
+    ../modules/apps/rea/home.nix
   ];
 }

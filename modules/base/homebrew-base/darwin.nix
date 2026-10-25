@@ -58,6 +58,9 @@
     # 不要になり、各機で手動 `brew untap nikitabobko/tap felixkratz/formulae` 済み
     # （2026-09-09 に tanegashima / ogasawara の両機で不在を実測確認）。
     # aerospace はさらに退役して modules/_archive/aerospace へ移した。
+    # ◆ 機体限定の tap / cask はここに書かない。例＝Orca は
+    #   modules/apps/orca/darwin.nix（mac 2台だけ・dejima は除外）が宣言する。
+    #   nix-darwin の taps / casks は listOf なので定義が増えても結合される。
     taps = [
       "homebrew/services"
     ];
