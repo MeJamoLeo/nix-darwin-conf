@@ -41,7 +41,9 @@ in {
         /usr/bin/killall handy 2>/dev/null || true
         # 旧プロセスの解放を待ってから起動（open -a が既存インスタンスに合流するのを避ける）
         for _ in 1 2 3 4 5; do /usr/bin/pgrep -x handy >/dev/null 2>&1 || break; sleep 0.5; done
-        /usr/bin/open -a Handy
+        # kill 直後は LaunchServices が旧プロセスを引きずって -600 (procNotFound) で落ちることが
+        # あり、set -e の activation ごと道連れになる（2026-10-25）。再試行し、最後は諦めて続行する。
+        for _ in 1 2 3 4 5; do /usr/bin/open -a Handy 2>/dev/null && break; sleep 1; done || true
       fi
     '');
 
