@@ -107,7 +107,7 @@
       # 「DLされたアプリ」確認が出て詰まるため。cleanup="none" なので旧 cask は
       # 自動削除されない → 各機で手動 `brew uninstall --cask claude-code`
       "grok-build" # xAI Grok CLI (https://x.ai/cli) — installs `grok` and `agent`
-      "kicad" # PCB 設計（自作キーボード ~/Forge/magic-split）。nixpkgs の kicad は darwin で broken のため cask
+      # kicad は ogasawara 限定（hosts/ogasawara.nix）
 
       # Communication & Meetings
       "discord" # Chat and voice communication platform

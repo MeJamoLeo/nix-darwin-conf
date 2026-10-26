@@ -14,6 +14,10 @@
   #   2222 で立てたが、2026-10-25 に撤回した（自作 daemon を保守しない方針）。
   #   代わりに herdr を v0.9.3 に固定している。経緯と解除条件は flake.nix の herdr input。
 
+  # KiCad は自作キーボード（~/Forge/magic-split）の基板設計用で、この機体でしか使わない。
+  # nixpkgs の kicad は darwin で broken なので cask。
+  homebrew.casks = ["kicad"];
+
   # Hermes Agent はこの機体限定。**profile（＝全機共有）に入れない**理由：
   #   - hermes-agent#default は公開バイナリキャッシュが無く、実測で 1191 derivation の
   #     ローカルビルド＋1.5GiB DL / 6.3GiB 展開（uv2nix が Python ホイールを大量に
