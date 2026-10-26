@@ -149,7 +149,10 @@ in {
     };
   };
 
-  home.activation.fileDefaultsDuti = lib.hm.dag.entryAfter ["writeBoundary"] ''
+  # linkGeneration の後に回す：HM Apps（sioyek / Zed）の .app は linkGeneration で生えるので、
+  # writeBoundary 直後だと初回／更新直後の switch で存在チェックに落ち、pdf が既定にならない
+  # （2026-10-25 に tanegashima で踏んだ。次の switch まで Skim のままだった）。
+  home.activation.fileDefaultsDuti = lib.hm.dag.entryAfter ["writeBoundary" "linkGeneration"] ''
     DUTI="${pkgs.duti}/bin/duti"
     if [ ! -x "$DUTI" ]; then
       echo "file-defaults: duti missing at $DUTI; skip"
