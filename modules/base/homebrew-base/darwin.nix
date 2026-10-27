@@ -80,6 +80,13 @@
     casks = [
       # Browsers
       "google-chrome" # Web browser
+      # Tor Browser。nixpkgs の tor-browser は meta.platforms が
+      # ["i686-linux" "x86_64-linux"] で **aarch64-darwin には無い**ので cask 一択
+      # （2026-10-26 に `nix eval nixpkgs#tor-browser.meta.platforms` で実測）。
+      # cask 側は auto_updates なので brew upgrade を待たずに自分で上がる。
+      # ◆ 本人が最初に言ったのは "Onion Browser" だが、あれは iOS / iPadOS 専用で
+      #   macOS 版は存在しない（Tor Project 公認・Mike Tigas 作）。Mac での対応物がこれ。
+      "tor-browser" # Web browser focusing on security (Tor)
       # "brave-browser" # 引退 2026-10-23。使っていないため（`brew uninstall --cask` 済み）
       # "zen" — 2026-08-27 に cask をやめ、flake の home-manager モジュールへ移した
       #   （modules/apps/zen/home.nix・flake.nix の zen-browser input）。
