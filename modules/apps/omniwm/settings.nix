@@ -39,7 +39,12 @@
 #
 # 🔴 **配列は全件書くか、一切書かないかの二択。** merge-settings.nu の deep-merge は
 #   record にしか再帰せず、配列はテンプレート側が丸ごと勝つ。だから `hotkeys` は
-#   169件を全件書いている（減らすと残りが Unassigned に飛ぶ）。逆に `workspaces` と
+#   **191件**を全件書いている（減らすと残りが Unassigned に飛ぶ）。
+#   ⚠ 「169件」は 0.6.4 時点の数。0.7.6 で 191 まで増えている。
+#   2026-10-26 の実測で `toggleFloatingFocus` が宣言から**抜けていた**
+#   （live には在り Unassigned）。ID が増えたら宣言も足すこと —— 抜けた ID は
+#   OmniWM が Unassigned で書き戻すので壊れないが、nix からは永久に割り当て不能になる。
+#   照合コマンド：live の `[[hotkeys]]` の id 集合と本ファイルの `(hk "…"` を comm する。逆に `workspaces` と
 #   `appRules` は**一切書かない**＝ live 側（＝ OmniWM の既定）がそのまま残る。
 #
 # ──────────────────────────────────────────────────────────────────────────
@@ -71,9 +76,12 @@
 #  ⚠ niri にあって OmniWM で**再現できない**もの（169 ID を全走査して不在を確認）：
 #    - `focus-monitor-{left,right,up,down}`（方向指定）
 #        OmniWM は Next / Previous / Last の3つだけ。
-#        → `Option+Shift+H` = Previous / `Option+Shift+L` = Next で代用する。
-#          2画面なら方向と一致する。3画面以上では単なる巡回に劣化する。
-#          `Option+Shift+J/K` は嘘になるので**わざと空けてある**。
+#        🔴 **→ 差分19 で改訂。** ここに書いていた「2画面なら方向と一致する」は
+#          **誤り**だった。2026-10-27 の実測で next / prev が走る順は
+#          **display の index 順**（isMain が先）で、**x 座標の順ではない**と判明。
+#          当時の構成では index 順が位置順の逆で、Previous が右・Next が左に動いて
+#          いた（＝ H で右・L で左）。割当は差分19で入れ替えた。
+#          `Option+Shift+J/K` は上下に対応する動作が無いので空けたまま。
 #    - `close-window`（`Mod+Q`）
 #        enum に `closeFocusedWindow` は在るが、0.6.4 の hotkey ID 169件には
 #        **露出していない**（live settings.toml と突き合わせ済み）。バインドできない。
@@ -91,13 +99,16 @@
 #
 #   2. 方向キーを矢印から H/J/K/L へ（既定で矢印だった12件すべて）
 #        focus.{left,down,up,right}      Option+矢印 → Option+H/J/K/L
+#          🔴 **→ 差分18 で矢印へ戻した**（Secure Input 対策。hjkl は Karabiner 経由）
 #        moveColumn.{left,right}         → Control+Option+H/L   （niri `Mod+Ctrl+H/L`）
 #        moveWindowDown / moveWindowUp   → Control+Option+J/K   （niri `Mod+Ctrl+J/K`）
 #        moveWindowToMonitor.{左下上右}  → Control+Option+Shift+H/J/K/L
-#      ※ 矢印キーは moveWorkspaceToMonitor.* だけが使う（差分9）。
-#      ※ `move.{left,down,up,right}` は **Unassigned にした**。niri layout では
-#        moveColumn（左右）と moveWindowDown/Up（上下）が同じ仕事をするため重複する。
-#        dwindle layout へ切り替えるなら復活させること。
+#      ※ 🔴 **→ 差分14/18 で改訂。** 当時は「矢印は moveWorkspaceToMonitor.* だけが
+#        使う（差分9）」「`move.{left,down,up,right}` は Unassigned」と書いたが、
+#        現在は矢印段を3つ使っている：
+#          Option+矢印              focus.*                （差分18）
+#          Control+Option+矢印      move.*                 （差分14）
+#          Control+Option+Shift+矢印 moveWorkspaceToMonitor.*（差分9・据え置き）
 #
 #   3. toggleWorkspaceLayout = Unassigned
 #        既定は Option+Shift+L だが、focusMonitorNext と衝突するため外した。
@@ -121,12 +132,15 @@
 #      ★ 差分の芯はここ。**カラムを ws N へ直接送る口**が今まで存在しなかった
 #        （moveColumnToWorkspace.0..8 が9件とも未割当だった）。相対送りの U/I しか
 #        無かったので、遠い ws へ送るのに連打が要った。
-#      ⚠ Control+Option+Shift+U/I は**意図的に空けてある**。
-#        moveColumnToIndex.1..9 を置きたくなったらそこか、上の Ctrl+Opt+Shift 数字列。
+#      ⚠ Control+Option+Shift+U/I は当時**意図的に空けてあった**が、
+#        🔴 **→ 差分15 で埋めた**（moveColumn.down = U / moveColumn.up = I）。
+#        moveColumnToIndex.1..9 を置きたくなったら上の Ctrl+Opt+Shift 数字列へ。
 #
 #   6. モニタ操作を Option+Shift 段へ（niri `Mod+Shift` = monitor に合わせる）
 #        focusMonitorNext      Control+Option+Tab       → Option+Shift+L
 #        focusMonitorPrevious  Control+Option+Shift+Tab → Option+Shift+H
+#          🔴 **→ 差分19 でこの2つを入れ替えた**（Next が左・Previous が右に動く
+#            ことが実測で判明したため。この行の割当は現在のコードと逆）
 #        focusMonitorLast      Control+Option+Grave     → Option+Shift+Grave
 #        workspaceBackAndForth Control+Option+Tab       → Option+Shift+Tab（据え置き）
 #      Tab の粒度：
@@ -197,6 +211,139 @@
 #  13. gestures.overviewGestureEnabled = true
 #        既定 false。3本指は列スクロールに使っているので Overview は既定の4本指のまま。
 #
+#  以下は縦向きディスプレイ対応（2026-10-26）。
+#
+#  ★ 前提：**OmniWM は縦長ディスプレイを自動検出して niri の軸を 90° 回す。**
+#    `Monitor.autoOrientation` が `frame.width >= frame.height ? .horizontal : .vertical`
+#    で、`monitorOrientationOverrides` が無ければこれが使われる
+#    （`MonitorConfigurationSettings.effectiveOrientation`）。縦向きではコンテナが
+#    上下に積まれ、コンテナ内の窓が左右に並ぶ。コンテナ index は**下から上**へ増える
+#    （`Direction.primaryStep`: vertical は `.up` = +1）。
+#
+#  ★ 問題：**縦向きだとコンテナを並べ替えるキーが1つも無かった。**
+#    `Direction.primaryStep(for:)` は軸外の方向に nil を返すので、vertical では
+#    `moveColumn.left/right`（Control+Option+H/L）が丸ごと無反応になる。そして
+#    `moveColumn.up/down` と `move.*` 4件がどちらも Unassigned だったため逃げ場が無かった。
+#    旧コメントの「move.* は moveColumn / moveWindowDown|Up と重複する」は
+#    **横向き前提でだけ正しい**判断だった。
+#
+#  14. move.{left,down,up,right} = Control+Option+矢印
+#        move.* は **191 ID の中で唯一、両軸とも実行時の orientation を見る**系。
+#        `NiriLayoutHandler+WindowMovement.swift:64` の
+#        `let movesAcrossContainers = direction.primaryStep(for: ctx.orientation) != nil`
+#        で主軸／副軸を振り分ける＝向きが変わっても「見えてる方向」に動く。
+#        公式 docs（guides/keyboard-shortcuts）も
+#        「Vertical orientation rotates those roles」と明記している。
+#        ⚠ niri に相当アクションは無い（niri に vertical orientation が無いため）。
+#          だから niri 準拠の hjkl 段（下の moveColumn + moveWindowDown|Up）は
+#          **一切触っていない**。move.* は別家族として矢印に同居させる。
+#        ⚠ `niri.moveWindowStacksIntoColumn` の既定は true ＝主軸の移動は
+#          「隣のコンテナに吸わせる」。false にすると「隣と入れ替える」になるが、
+#          それは moveColumn 側の仕事なので既定のまま触らない。
+#        🔴 **OmniWM 既定の Option+Shift+矢印は採らない。** `Opt+Shift+←/→` は
+#          macOS の「単語単位の選択」、`Opt+Shift+↑/↓` は「行頭/行末まで選択」で、
+#          Carbon のグローバルホットキーはイベントを食うので全アプリのテキスト欄が
+#          壊れる。`Opt+←/→`（単語単位カーソル移動）も同じ理由で使えない。
+#          ＝**Option 単独段と Option+Shift 段に矢印は置けない。** 残るのは
+#          Control+Option 段と Control+Option+Shift 段で、後者は
+#          moveWorkspaceToMonitor.* が既に占有（差分9・他に到達経路が無い系）。
+#          よって move.* は Control+Option+矢印に置く。
+#
+#  15. moveColumn.up/down = Control+Option+Shift+I / U
+#        縦向きでのコンテナ並べ替え。横向きでは primaryStep が nil なので無反応
+#        （副作用ゼロ）。Control+Option+矢印は差分14の move.* に明け渡したので、
+#        §文法が「意図的に空けてある」と書いていた Control+Option+Shift+U/I へ置いた
+#        （U=down / I=up は Option+U/I・Control+Option+U/I の上下向きと一致させている）。
+#        ⚠ 公式 docs は "Move Container Up / Down" を `Dwindle` と書いているが、
+#          `CommandHandler.moveContainer` は `.niri` でも
+#          `niriLayoutHandler.moveColumn(direction:)` に流すので Niri 縦向きでも効く。
+#        ⚠ moveColumnToIndex.1-9 の予約先はここではなくなった。要るなら
+#          Control+Option+Shift の数字列（今は focusColumn.0-8）と取り合うこと。
+#
+#  16. cycleWindowSecondarySpanForward = Control+Option+Shift+R
+#        niri `Mod+Ctrl+Shift+R`（switch-preset-window-height）の定位置。既定は未割当。
+#        ⚠ Command Palette の Windows モードのローカル shortcut（Remove Mark）と
+#          同じキーだが、docs 通りローカル側が global に譲る（ボタンは残る）。
+#        backward は niri に相当が無いので Unassigned のまま。
+#
+#  17. toggleFloatingFocus = Option+Shift+V
+#        niri `Mod+Shift+V`（switch-focus-between-floating-and-tiling）。
+#        0.7.x で増えた ID で、本ファイルの宣言から抜け落ちていた（上の🔴参照）。
+#
+#  18. focus.{left,down,up,right} = Option+矢印（Karabiner と対で成立する）
+#        2026-10-27 の実測：Secure Input が ON の間、`Option+O`（Option+英字）は
+#        効かず `Option+←`（Option+矢印）は効いた。上流 #788 の記述どおり。
+#        ★ Ghostty は `macos-auto-secure-input = true` が既定でパスワード入力を
+#          検出するたび Secure Input を入れるので、これは**日常的に踏んでいる**。
+#          **発見時点では割当 89 件中 46 件**（focus 4・ワークスペース 18 を含む）が
+#          止まっていた。この差分を当てた後は **97 件中 42 件**——`focus.*` の4件を
+#          矢印に逃がした分だけ減り、新たに割り当てた8件は全部 Control 段（安全側）。
+#          内訳は数字 18・英字 16・記号 8。
+#          ⚠ 数え直すときは live から採る（宣言側を grep するとコメント内の
+#            `(hk "…"` を拾って1件多く出る）：
+#              python3 -c 'import re,os;t=open(os.path.expanduser("~/.config/omniwm/settings.toml")).read();\
+#                rows=[(re.search(r"id = \"([^\"]+)\"",b).group(1), re.search(r"binding = \"([^\"]+)\"",b).group(1)) \
+#                for b in re.findall(r"^\[\[hotkeys\]\]\n((?:[a-zA-Z].*\n)+)",t,re.M)];\
+#                print(len(rows), len([r for r in rows if r[1]!="Unassigned"]))'
+#        対処：hjkl を捨てるのではなく、**Karabiner で Option+HJKL → Option+矢印 に
+#        変換し、OmniWM 側を矢印で受ける**（modules/apps/karabiner/home.nix）。
+#        指は hjkl のまま／物理矢印も効く／Secure Input でも死なない、を同時に満たす。
+#        変換の向きを逆（矢印→hjkl）にすると window server に Option+英字 が届くので
+#        **無意味になる**。
+#        ⚠ Karabiner のルールは Option **単独段だけ**。Control+Option 段と
+#          Option+Shift 段の hjkl は無傷（＝ niri 文法はそのまま）。
+#        🔴 代償：macOS の `Option+←/→`（単語移動）と `Option+↑/↓`（段落移動）が
+#          全アプリで効かなくなる。OmniWM がグローバルに食うため。
+#        ⚠ **数字列（Option+1-9・Option+Shift+1-9 の 18 件）は救えていない。**
+#          矢印に相当するキーが無く、Control/Command を足す段は既に埋まっている。
+#          ワークスペース切替は Secure Input 中は止まったまま。未解決。
+#
+#  19. focusMonitorNext / Previous の割当を入れ替えた（hjkl の向きと一致させる）
+#        focusMonitorNext      Option+Shift+L → **Option+Shift+H**（左へ）
+#        focusMonitorPrevious  Option+Shift+H → **Option+Shift+L**（右へ）
+#        2026-10-27 の実測（LG QHD x=-2560 / U32J59x x=0 の2画面）：
+#          LG(左) --prev--> U32J59x(右) ／ U32J59x(右) --next--> LG(左)
+#          どちらも端で**止まる**（循環しない。prev を2回押しても戻らない）
+#        原因＝ next / prev が走る順は **display の index 順**
+#        （display:1 = U32J59x = isMain、display:2 = LG）で、**x 座標の順ではない**。
+#        この構成では index 順が位置順の逆なので、名前と実際の向きが反転していた。
+#        ⚠ **この入れ替えは今の構成に依存する。** モニタを差し替えたり管理対象を
+#          3枚にすると index 順が変わって意味が反転しうる。確認手順：
+#            omniwmctl query displays --json                # x 座標で左右を見る
+#            omniwmctl command focus-monitor prev / next    # どっちに動くか実測
+#        ※ Sidecar（AirPlay）はワークスペースが未割当で、この巡回に**入らない**
+#          （実測：prev / next を連打しても LG と U32J59x の2つしか通らない）。
+#        ※ OmniWM 0.7.6 に方向指定のモニタフォーカスは無い（`focus-monitor` は
+#          prev|next|last のみ）。一方 `move-to-monitor` と
+#          `swap-workspace-with-monitor` は <left|right|up|down> を取る＝上流の穴。
+#          スクリプト化（`switch-workspace anywhere <N>` で代替）も検討したが、
+#          実測で単に名前が逆だっただけなので**入れ替えだけで足りた**。
+#        🔴 残件：`Option+Shift+文字` なので **Secure Input 中はこのペアは死ぬ**。
+#          `Option+Shift+矢印` は4つとも空いているが、そこは macOS の
+#          単語/段落単位の選択拡張なので、代償込みの判断が要る。未着手。
+#
+#  ▼ 縦向きで**やらなかった**こと（判断の記録）
+#    - Control+Option+H/J/K/L を move.* に載せ替える案：却下。niri の
+#      `Mod+Ctrl+H/J/K/L` = move-column-left / move-window-down / move-window-up /
+#      move-column-right にちょうど一致している現状を崩すため。move.* は
+#      コンテナに窓が2枚以上あるとき「コンテナごと動く」ではなく「その窓だけ expel」
+#      になるので、意味も等価ではない。
+#    - **矢印を hjkl の真のエイリアスにする**（niri は `Mod+Left` == `Mod+H` を
+#      全段でエイリアスにしている）：**OmniWM 単体では不可能**。
+#      `HotkeyTrigger` は `unassigned | chord(KeyBinding) | mouseButton` で
+#      `KeyBinding` は単一 keyCode（`HotkeyBinding.swift:216`）。TOML に同じ id を
+#      2行書いても `HotkeyBindingRegistry.swift:42` の
+#      `uniquingKeysWith: { first, _ in first }` で先着1個に潰れる。
+#      同一挙動の別 ID も存在しない。外部リマッパ（Karabiner / kanata で
+#      「修飾キー＋矢印 → 同じ修飾キー＋hjkl」）か skhd + omniwmctl が要る。
+#      🔴 **→ 2026-10-27 に Karabiner-Elements を導入して解決した**
+#      （`modules/apps/karabiner/home.nix`・差分18）。ただしエイリアス化したのは
+#      **Option 単独段の hjkl だけ**で、全段のエイリアスにはしていない。
+#    - R 段・F 段の niri 不一致（cycleSizeBackward が Control+Option+R で niri は
+#      `Mod+Shift+R`／toggleContainerFullPrimarySpan が Option+Shift+F で niri は
+#      `Mod+F`／toggleColumnTabbed が Option+T で niri は `Mod+W`）は**手付かず**。
+#      どれも既存の割当を動かす玉突きが要るので、追加だけで済む本バッチから外した。
+#
 #  ★ borders.enabled = true は「差分」ではなく**既定へ戻すための宣言**なので
 #    この一覧には入れない（経緯は下の該当コメント）。
 # ──────────────────────────────────────────────────────────────────────────
@@ -254,10 +401,12 @@
     (hk "switchWorkspace.previous" "Option+I")
 
     # ── 見る（niri Mod） ──
-    (hk "focus.left" "Option+H")
-    (hk "focus.down" "Option+J")
-    (hk "focus.up" "Option+K")
-    (hk "focus.right" "Option+L")
+    # ⚠ 矢印であって hjkl ではない。Karabiner が Option+HJKL をここへ変換する（差分18）。
+    #    指は hjkl のまま・物理矢印も効く・Secure Input でも死なない、の3つを同時に取るため。
+    (hk "focus.left" "Option+Left Arrow")
+    (hk "focus.down" "Option+Down Arrow")
+    (hk "focus.up" "Option+Up Arrow")
+    (hk "focus.right" "Option+Right Arrow")
     (hk "focusPrevious" "Option+Tab")
     (hk "focusDownOrLeft" "Unassigned")
     (hk "focusUpOrRight" "Unassigned")
@@ -286,11 +435,14 @@
     (hk "moveColumnToWorkspace.8" "Control+Option+9")
 
     # ── 動かす（niri Mod+Ctrl） ──
-    #    move.* は niri layout では moveColumn / moveWindowDown|Up と重複するので外す。
-    (hk "move.left" "Unassigned")
-    (hk "move.down" "Unassigned")
-    (hk "move.up" "Unassigned")
-    (hk "move.right" "Unassigned")
+    #    move.* は**向きに追従する統合移動**。主軸ならコンテナ間（consume/expel）、
+    #    副軸ならコンテナ内を動く（判定は Direction.primaryStep(for: orientation)）。
+    #    下の hjkl 段（moveColumn + moveWindowDown|Up）は niri の静的な対応表で、
+    #    縦向きだと左右が死ぬ。両者は別家族なので衝突しない。差分14を参照。
+    (hk "move.left" "Control+Option+Left Arrow")
+    (hk "move.down" "Control+Option+Down Arrow")
+    (hk "move.up" "Control+Option+Up Arrow")
+    (hk "move.right" "Control+Option+Right Arrow")
     (hk "moveWindowDown" "Control+Option+J")
     (hk "moveWindowUp" "Control+Option+K")
     (hk "moveWindowDownOrToWorkspaceDown" "Unassigned")
@@ -299,8 +451,25 @@
     (hk "expelWindowFromColumn" "Option+Period")
 
     # ── モニタ（niri Mod+Shift。方向 ID が無いので Next/Previous で代用） ──
-    (hk "focusMonitorNext" "Option+Shift+L")
-    (hk "focusMonitorPrevious" "Option+Shift+H")
+    # 🔴 **Next が左・Previous が右**。名前と逆なので、hjkl に素直に当てると
+    #    H で右・L で左に行って気持ち悪くなる（2026-10-27 の指摘）。
+    #    実測（LG QHD x=-2560 / U32J59x x=0 の2画面構成）：
+    #      LG(左) --prev--> U32J59x(右)、U32J59x(右) --next--> LG(左)
+    #      どちらも端で**止まる**（循環しない。prev を2回押しても戻らない）
+    #    理由＝ next/prev が走る順は **display の index 順**（display:1 =
+    #    U32J59x = isMain、display:2 = LG）で、**x 座標の順ではない**。
+    #    この構成では index 順が位置順の逆なので、next = 左 / prev = 右 になる。
+    #    ⚠ **この入れ替えは今の構成に依存する。** モニタを差し替えたり管理対象を
+    #      3枚にしたら index 順が変わって意味が反転しうる。確認は：
+    #        omniwmctl query displays --json   # x 座標で左右を見る
+    #        omniwmctl command focus-monitor prev / next  # どっちに動くか実測
+    #    ※ OmniWM 0.7.6 に**方向指定のモニタフォーカスは無い**
+    #      （`focus-monitor` は prev|next|last のみ。一方 `move-to-monitor` と
+    #      `swap-workspace-with-monitor` は <left|right|up|down> を取る＝上流の穴）。
+    #      なので「方向で指定する」には next/prev をこうして割り当てるしかない。
+    #    ※ Sidecar（AirPlay）はワークスペースが未割当で、この循環に入らない。
+    (hk "focusMonitorNext" "Option+Shift+H") # → 左へ
+    (hk "focusMonitorPrevious" "Option+Shift+L") # → 右へ
     (hk "focusMonitorLast" "Option+Shift+Grave")
     # 🔴 矢印キーの正書法は "Left Arrow" 等（" Arrow" 必須）。"Left" だけの表記は
     #   不正バインドとして**ファイル全体が拒否**され、settings.toml.corrupt.N へ隔離
@@ -319,8 +488,9 @@
     (hk "toggleNativeFullscreen" "Unassigned")
     (hk "moveColumn.left" "Control+Option+H")
     (hk "moveColumn.right" "Control+Option+L")
-    (hk "moveColumn.up" "Unassigned")
-    (hk "moveColumn.down" "Unassigned")
+    # 縦向き専用。横向きでは primaryStep が nil を返すので何も起きない（差分15）。
+    (hk "moveColumn.up" "Control+Option+Shift+I")
+    (hk "moveColumn.down" "Control+Option+Shift+U")
     (hk "moveColumnToFirst" "Control+Option+Home")
     (hk "moveColumnToLast" "Control+Option+End")
     (hk "toggleColumnTabbed" "Option+T")
@@ -329,7 +499,8 @@
 
     # ── カラムの絶対指定：数字列を ws に明け渡した玉突きでここへ退避 ──
     #    段の意味（モニタへ送る）としては浮いている。要らなければ9件とも Unassigned に。
-    #    普段は Option+H/L と Option+Home/End で回るので、使わないなら消してよい。
+    #    普段は Option+H/L（Karabiner が Option+矢印 に変換・差分18）と
+    #    Option+Home/End で回るので、使わないなら消してよい。
     (hk "focusColumn.0" "Control+Option+Shift+1")
     (hk "focusColumn.1" "Control+Option+Shift+2")
     (hk "focusColumn.2" "Control+Option+Shift+3")
@@ -363,7 +534,7 @@
     (hk "cycleSizeBackward" "Control+Option+R")
     (hk "cycleWindowPrimarySpanForward" "Unassigned")
     (hk "cycleWindowPrimarySpanBackward" "Unassigned")
-    (hk "cycleWindowSecondarySpanForward" "Unassigned")
+    (hk "cycleWindowSecondarySpanForward" "Control+Option+Shift+R")
     (hk "cycleWindowSecondarySpanBackward" "Unassigned")
     (hk "toggleContainerFullPrimarySpan" "Option+Shift+F")
     (hk "expandContainerToAvailablePrimarySpan" "Control+Option+F")
@@ -393,6 +564,7 @@
     (hk "raiseAllFloatingWindows" "Option+Shift+R")
     (hk "rescueOffscreenWindows" "Unassigned")
     (hk "toggleFocusedWindowFloating" "Option+V")
+    (hk "toggleFloatingFocus" "Option+Shift+V")
     (hk "openMenuAnywhere" "Control+Option+M")
     (hk "toggleWorkspaceBarVisibility" "Unassigned")
     (hk "toggleHiddenBarPanel" "Unassigned")

@@ -16,7 +16,11 @@
 
   # KiCad は自作キーボード（~/Forge/magic-split）の基板設計用で、この機体でしか使わない。
   # nixpkgs の kicad は darwin で broken なので cask。
-  homebrew.casks = ["kicad"];
+  # Karabiner-Elements は Option+HJKL → Option+矢印 の変換のためだけに入れている。
+  # 理由（Secure Input で Option+英字が全部死ぬ）は modules/apps/karabiner/home.nix 冒頭。
+  # nixpkgs は 15.7.0 で cask は 16.3.0。macOS 26.x のドライバ周りは新しい方を採る。
+  # ⚠ tanegashima（内蔵キーボード）へ広げる前に macOS の版を確認すること（同ファイル参照）。
+  homebrew.casks = ["kicad" "karabiner-elements"];
 
   # Hermes Agent はこの機体限定。**profile（＝全機共有）に入れない**理由：
   #   - hermes-agent#default は公開バイナリキャッシュが無く、実測で 1191 derivation の
@@ -35,5 +39,8 @@
     # REA（逆アセンブラを持つ MCP サーバ）。本体は npm global 運用なので、
     # ここが宣言するのは Ghidra / JDK / npm prefix だけ。詳細はモジュール冒頭。
     ../modules/apps/rea/home.nix
+
+    # Karabiner のルール（~/.config/karabiner/karabiner.json）。cask は上の homebrew.casks。
+    ../modules/apps/karabiner/home.nix
   ];
 }
