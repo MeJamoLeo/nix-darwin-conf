@@ -2,7 +2,9 @@
 """viz: validate a scroll-driven diagram spec (JSON) and bake it into a self-contained HTML page.
 
 usage: build.py SPEC.json [-o OUT.html] [--open] [--shot 1,2.5,4]
+       build.py SPEC.json --ascii [--cols 100]
   default OUT is SPEC with .html suffix; --shot writes OUT-s<step>.png via headless Chrome.
+  --ascii prints every step as a text frame to stdout instead (no HTML is written).
 """
 import argparse, html, json, os, re, shutil, subprocess, sys, tempfile
 from pathlib import Path
@@ -186,6 +188,8 @@ def main():
     ap.add_argument("-o", "--out")
     ap.add_argument("--open", action="store_true")
     ap.add_argument("--shot", help="comma-separated 1-based step positions, e.g. 1,2.5,4")
+    ap.add_argument("--ascii", action="store_true", help="print each step as a text frame (terminal)")
+    ap.add_argument("--cols", type=int, default=100, help="--ascii の横幅（既定 100）")
     a = ap.parse_args()
 
     src = Path(a.spec).expanduser()
@@ -196,6 +200,12 @@ def main():
     errs = validate(spec)
     if errs:
         sys.exit("viz: spec にエラー:\n  " + "\n  ".join(errs))
+
+    if a.ascii:
+        sys.path.insert(0, str(HERE))
+        import ascii as viz_ascii
+        print(viz_ascii.render(spec, cols=a.cols))
+        return
 
     page = (HERE / "template.html").read_text()
     blob = json.dumps(spec, ensure_ascii=False).replace("</", "<\\/")
