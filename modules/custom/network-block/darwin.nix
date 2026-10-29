@@ -1,18 +1,26 @@
-{lib, ...}:
+{
+  config,
+  lib,
+  ...
+}:
 ###################################################################################
 #
 #  Network-level content filtering.
 #
 #  /etc/hosts blacklist for pinpoint blocking.
 #
+#  /etc/hosts を書くのはこのモジュールだけ（下の WARNING）。他のモジュールが hosts で
+#  止めたいドメインは、自分で hosts を触らずに `my.networkBlock.extraDomains` へ足す。
+#  例：custom/youtube-gate（YouTube のページと API）。
+#
 ###################################################################################
 let
   # Domains routed to 0.0.0.0 / :: via /etc/hosts.
-  blockedDomains = [
-    # YouTube は custom/youtube-gate（システム全体プロキシ）へ移管。ここには戻さない
-    #   — hosts は全プロセスに効くため yt-dlp まで巻き添えで死ぬ。
-    "luna.amazon.com"
-  ];
+  blockedDomains =
+    [
+      "luna.amazon.com"
+    ]
+    ++ config.my.networkBlock.extraDomains;
 
   beginMark = "# >>> nix-darwin: network-block (managed) >>>";
   endMark = "# <<< nix-darwin: network-block (managed) <<<";
@@ -25,6 +33,12 @@ let
     + lib.concatMapStringsSep "\n" (d: "0.0.0.0 ${d}\n:: ${d}") blockedDomains
     + "\n${endMark}\n";
 in {
+  options.my.networkBlock.extraDomains = lib.mkOption {
+    type = lib.types.listOf lib.types.str;
+    default = [];
+    description = "他のモジュールが /etc/hosts で止めたいドメイン（完全一致。hosts はワイルドカード不可）。";
+  };
+
   # Marker-based /etc/hosts management.
   #
   # Why marker-based instead of full-file overwrite:
@@ -44,7 +58,7 @@ in {
   # silently (types.lines, undefined merge order).
   # Independent operations (notifications, unrelated chmod, etc.) in other
   # modules' postActivation are fine to leave separate.
-  system.activationScripts.postActivation.text = ''
+  config.system.activationScripts.postActivation.text = ''
     echo "applying /etc/hosts block (marker-based)..." >&2
 
     # Sweep up any sed -i.bak residue from a previously interrupted run.
