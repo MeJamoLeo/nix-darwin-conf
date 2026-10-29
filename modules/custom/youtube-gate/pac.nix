@@ -1,5 +1,5 @@
 {pkgs}:
-# youtube-gate の遮断ルール本体。darwin.nix（システム全体）と home.nix（Zen）の共有源。
+# youtube-gate の遮断ルール本体。darwin.nix（システム全体）・home.nix（Zen）・librewolf.nix の共有源。
 #
 # ⚠ ドメインを広げるときは Google 系を巻き込まないこと（`.google.com` を足すと検索も死ぬ）。
 #   googlevideo.com を含めているのは、ページを塞いでも埋め込みプレイヤーが

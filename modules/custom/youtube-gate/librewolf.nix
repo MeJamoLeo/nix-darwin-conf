@@ -1,26 +1,46 @@
-{pkgs}:
-# youtube-gate の唯一の逃げ道（システム全体 PAC を無視できる唯一のアプリ）。
+{
+  pkgs,
+  pac,
+  gate,
+}:
+# 履歴を残さない使い捨てブラウザ。
 #
-# なぜ他のブラウザではないか：WebKit 系はプロキシ設定を上書きできない／Chromium 系は
-# `--no-proxy-server` を起動フラグでしか渡せず .app の手組みが要る／Mullvad・Tor・Helium・
-# Floorp・Waterfox・Zen は nixpkgs に darwin ビルドが無い／素の firefox 系は uBO を同梱しない。
+# ## 2026-10-28：「YouTube の唯一の逃げ道」をやめた
+#
+# 旧構成は `lockPref("network.proxy.type", 0)` でシステムの PAC を無視させ、YouTube を見るための
+# 抜け道にしていた。YouTube を見すぎるので抜け道は塞ぎ、LibreWolf は「さっと調べて閉じたら
+# 何も残らない」ブラウザとして残す。gate（youtube-gate の enable）が true の間は、Zen と同じく
+# PAC ファイルを直接読ませる（システムの PAC 配布サーバが落ちても効く。lockPref なので
+# about:config からも外せない）。YouTube 用の拡張（おすすめ消し・再生速度）も外した。
+#
+# なぜ LibreWolf か（他のブラウザではないか）：WebKit 系はプロキシ設定を上書きできない／
+# Mullvad・Tor・Helium・Floorp・Waterfox・Zen は nixpkgs に darwin ビルドが無い／
+# 素の firefox 系は uBO を同梱しない。
 #
 # なぜ pref を policy ではなく AutoConfig で入れるか：enterprise policy の `Preferences`
-# allowlist に `browser.privatebrowsing.autostart` が無く、両 pref を lock できるのは lockPref だけ。
+# allowlist に `browser.privatebrowsing.autostart` が無く、pref を lock できるのは lockPref だけ。
 # 拡張のほうは逆に policy でしか入らないので、下の extraPolicies と併用している。
 #
 # キャッシュ非保存（Firefox Focus 相当）は LibreWolf 既定＋下の autostart で足りている：
 # `browser.cache.disk.enable=false` と `privacy.sanitize.sanitizeOnShutdown=true` が
 # 上流の mozilla.cfg に入っている（153.0 で確認）。ここに足す pref は無い。
 pkgs.librewolf.override {
-  extraPrefs = ''
-    // ⚠ この行を消すと逃げ道が黙って死ぬ。Firefox 系の既定は 5（システムのプロキシ設定に
-    //   追従）＝ darwin.nix の PAC に従って YouTube が見られなくなる。
-    lockPref("network.proxy.type", 0);
-    // ⚠ 切るとログイン状態が残り、おすすめ・再生履歴・アルゴリズムが育ち始める
-    //   （この逃げ道が「使い捨て」である根拠がこの1行）。
-    lockPref("browser.privatebrowsing.autostart", true);
-  '';
+  extraPrefs =
+    ''
+      // ⚠ 切るとログイン状態が残り、閲覧履歴が育ち始める
+      //   （このブラウザが「使い捨て」である根拠がこの1行）。
+      lockPref("browser.privatebrowsing.autostart", true);
+    ''
+    + (
+      if gate
+      then ''
+        // youtube-gate の柵。2 = PAC を使う。file:// の PAC は Firefox 系なら読める
+        // （macOS 側は file:// PAC を廃止済み。darwin.nix のヘッダ参照）。
+        lockPref("network.proxy.type", 2);
+        lockPref("network.proxy.autoconfig_url", "file://${pac}");
+      ''
+      else ""
+    );
 
   # 起動時に開くページ。autostart でプライベート固定でも StartPage="homepage" は効く。
   extraPolicies.Homepage = {
@@ -40,6 +60,11 @@ pkgs.librewolf.override {
   # ここが上流の policies.json を壊さない根拠：wrapper は
   # `jq -s '.[0] * .[1]'` で合成する＝**再帰マージ**なので、ExtensionSettings は
   # キー単位で足し算になる（uBO や検索エンジンの blocked は残り、下のエントリが増えるだけ）。
+  #
+  # 2026-10-28：YouTube 用の拡張（youtube-recommended-videos・videospeed）を外した。
+  # policy からキーを消すだけだと、既に入った拡張はプロファイルに残る（normal_installed は
+  # 「入れる」だけで「消す」はしない）。なので "blocked" を明示して消させる
+  # （blocked は「入れさせない＋入っていれば消す」）。
   extraPolicies.ExtensionSettings = let
     # AMO の "latest" を指すので自動更新される（＝ nix 側にバージョンもハッシュも持たない）。
     # slug は AMO API で実測した値。GUID 形式の id を URL に入れると波括弧のエスケープが
@@ -49,15 +74,14 @@ pkgs.librewolf.override {
       installation_mode = "normal_installed";
       # ⚠ 落とすと**拡張が丸ごと効かなくなる**。上の autostart で全ウィンドウが
       #   プライベートになるが、拡張はプライベートでは既定で無効だから。
-      #   このキーは Firefox 136+ / ESR 128.8+ の機能（LibreWolf 153 なので可）。
+      #   このキーは Firefox 136+ / ESR 128.8+ の機能（LibreWolf 158 なので可）。
       private_browsing = true;
     };
   in {
-    # YouTube のおすすめ・Shorts・コメントを消す。この逃げ道の主目的。
-    "myallychou@gmail.com" = fromAMO "youtube-recommended-videos";
     # キーボード操作（Zen 側にも入れてある）。
     "{d7742d87-e61d-4b78-b8a1-b469842139fa}" = fromAMO "vimium-ff";
-    # 再生速度の細かい制御。⚠ 上流は 2021-04 から更新が無い＝壊れたら代替を探す側。
-    "{7be2ba16-0f1e-4d93-9ebc-5164397477a9}" = fromAMO "videospeed";
+    # 外した YouTube 用の拡張。入っていれば消させる（上のコメント）。
+    "myallychou@gmail.com".installation_mode = "blocked"; # youtube-recommended-videos
+    "{7be2ba16-0f1e-4d93-9ebc-5164397477a9}".installation_mode = "blocked"; # videospeed
   };
 }
