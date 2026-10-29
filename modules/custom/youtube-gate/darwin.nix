@@ -7,6 +7,7 @@
 ###################################################################################
 #
 #  youtube-gate（システム層）— YouTube を柵の重ね掛けで塞ぐ。
+#  2026-10-29 から X と Instagram も同じ柵で塞いでいる（ドメインの正本は pac.nix と下の hostsDomains）。
 #
 #  ■ 柵の一覧（2026-10-28 時点。1枚外しても他が残るように重ねている）
 #    1. システム全体の PAC（このファイル）：CFNetwork / Chromium 系のアプリが従う。
@@ -77,6 +78,24 @@ let
     "s.ytimg.com"
     "yt3.ggpht.com"
     "redirector.googlevideo.com"
+    # X（2026-10-29 追加）
+    "x.com"
+    "www.x.com"
+    "mobile.x.com"
+    "api.x.com"
+    "twitter.com"
+    "www.twitter.com"
+    "mobile.twitter.com"
+    "api.twitter.com"
+    "abs.twimg.com"
+    "pbs.twimg.com"
+    "video.twimg.com"
+    "t.co"
+    # Instagram（2026-10-29 追加。Meta 共有の fbcdn.net は WhatsApp のために入れない）
+    "instagram.com"
+    "www.instagram.com"
+    "i.instagram.com"
+    "graph.instagram.com"
   ];
 
   # PAC を配る極小 HTTP サーバ。内容は起動時にメモリへ読み込む（nix store は不変）。
