@@ -664,4 +664,22 @@
   # ⚠ Overview の描画には**画面収録の権限**が要る（アクセシビリティ・入力監視と違い
   #   任意扱いなので未許可の可能性がある）。宣言できないので初回に GUI で許可する。
   gestures.overviewGestureEnabled = true;
+
+  # 画面の順位（GUI の Monitor Roles）。1位＝ main・2位＝ secondary・3位＝ tertiary で、
+  # workspaces の monitorAssignment はこの順位で画面に解決される。
+  # 未設定だと「メイン → 左にある順」になり、LG の左下に置いた Sidecar（x=0）が
+  # Samsung（x=2560）より先に secondary を取って、Samsung にワークスペースが
+  # 1つも来なくなった（2026-10-29 実測）。
+  #
+  # ★ 名前だけで書く（displayUUID / displayId を書かない）。v0.7.6 の
+  #   MonitorRanking.resolve は UUID が無いとき名前の一致（大小文字無視・一意なら）で
+  #   引くので、机の違う ogasawara / tanegashima で共有できる。つながっていない画面は
+  #   飛ばされて次が繰り上がる＝両機の画面を全部並べてよい。
+  #   名前は `omniwmctl query displays --fields name` の表記。
+  # ⚠ 配列なので nix が丸ごと勝つ。GUI で並べ替えても次の rebuild で戻る。
+  monitors.ranking = map (name: {inherit name;}) [
+    "LG QHD"
+    "U32J59x"
+    "Sidecar Display (AirPlay)"
+  ];
 }
