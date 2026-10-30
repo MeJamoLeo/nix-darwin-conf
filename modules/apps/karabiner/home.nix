@@ -126,6 +126,8 @@
     }
   ];
 
+  cfg = config.programs.karabiner;
+
   karabinerConfig = {
     global = {
       check_for_updates_on_startup = false; # cask 管理なのでアプリ側の更新確認は切る
@@ -156,70 +158,92 @@
         #     掴めているかの確認は /var/log/karabiner/core_service.log の
         #     "hid device events monitor is started (grabbed)" を見る。
         #     このモジュールは ogasawara 限定なのでベタ書きで持つ。
-        devices = [
-          {
-            identifiers = {
-              is_keyboard = true;
-              is_pointing_device = true;
-              vendor_id = 13652; # BT5.0 KB (Bluetooth Low Energy)
-              product_id = 64007;
-            };
-            ignore = false;
-          }
-        ];
+        devices = cfg.devices;
 
-        complex_modifications.rules = [
-          {
-            description = "Option+HJKL → Option+矢印（OmniWM focus / Secure Input 対策）";
-            # ⚠ `conditions`（frontmost_application 等）は**付けていない**＝全アプリで変換する。
-            #   OmniWM が止まっている間は `Option+HJKL` が macOS の単語/段落移動になる。
-            #   OmniWM が動いている間はそれをグローバルに食うので差は出ない。
-            #   アプリ単位で切りたくなったらここに conditions を足す。
-            manipulators =
-              map (k: {
-                type = "basic";
-                # `optional` を書かない＝ Option **だけ**のときに限定。
-                # Control+Option+H などは一致せずそのまま通る。
-                from = {
-                  key_code = k.from;
-                  modifiers.mandatory = ["option"];
-                };
-                to = [
-                  {
-                    key_code = k.to;
-                    modifiers = ["left_option"];
-                  }
-                ];
-              })
-              dirKeys;
-          }
-        ];
+        # 規則の本体は下の config で programs.karabiner.rules に入れる（他モジュールも足せる）。
+        complex_modifications.rules = cfg.rules;
       }
     ];
   };
 
   configFile = (pkgs.formats.json {}).generate "karabiner.json" karabinerConfig;
 in {
-  # ⚠ **同一ディレクトリに書いてから mv する**（install だけだと非原子的）。
-  #   Karabiner はこのファイルを監視して即リロードするので、書き込み途中の
-  #   中途半端な JSON を読まれうる。rename(2) なら読み手は旧か新のどちらかだけを見る。
-  home.activation.karabinerSettings = lib.hm.dag.entryAfter ["writeBoundary"] ''
-    run mkdir -p "${config.xdg.configHome}/karabiner"
-    run install -m 0644 ${configFile} "${config.xdg.configHome}/karabiner/.karabiner.json.new"
-    run mv -f "${config.xdg.configHome}/karabiner/.karabiner.json.new" \
-      "${config.xdg.configHome}/karabiner/karabiner.json"
-  '';
+  # 他モジュール（例: custom/earbud-ptt）から devices / rules を足すための口。
+  # リストは全モジュール分が連結される。規則は対象キー・デバイスが重ならない限り順序非依存。
+  options.programs.karabiner = {
+    devices = lib.mkOption {
+      type = lib.types.listOf lib.types.attrs;
+      default = [];
+      description = "karabiner.json の profiles[0].devices に入れるエントリ。";
+    };
+    rules = lib.mkOption {
+      type = lib.types.listOf lib.types.attrs;
+      default = [];
+      description = "karabiner.json の complex_modifications.rules に入れる規則。";
+    };
+  };
 
-  # 「ログイン時に開く」に Karabiner-Elements を**入れさせない**。
-  # 入っていると起動のたびに設定ウィンドウが前面に出る（公式 troubleshooting）。
-  # 本体は /Library/LaunchAgents/org.pqrs.* が起動するのでログイン項目は不要。
-  # ⚠ **失敗しても switch を止めない**。System Events の自動化許可（TCC）が無い文脈で
-  #   activation が走ると osascript が落ちるので `|| echo` で吸収する。
-  # ⚠ **timeout 20 を噛ませてある。** 許可が無いと TCC のプロンプトが出て、
-  #   誰も押さないまま AppleEvent のタイムアウト（既定で約2分）まで**ハングする**。
-  #   `|| echo` は失敗は拾えてもハングは拾えない。毎回の switch で走るので上限が要る。
-  #   許可が無い場合は手で外すことになるので、失敗時はその旨を出す。
-  home.activation.karabinerNoLoginItem = lib.hm.dag.entryAfter ["writeBoundary"] ''
-    run ${pkgs.coreutils}/bin/timeout 20 /usr/bin/osascript -e 'tell application "System Events"' -e 'if exists login item "Karabiner-Elements" then delete login item "Karabiner-Elements"' -e 'end tell' || echo "karabiner: ログイン項目を確認できなかった（System Events の自動化許可を確認。システム設定 > 一般 > ログイン項目 から手で外す）"
-  '';
+  config = {
+    # このモジュール自身の分（BT5.0 KB の grab と Option+HJKL）
+    programs.karabiner.devices = [
+      {
+        identifiers = {
+          is_keyboard = true;
+          is_pointing_device = true;
+          vendor_id = 13652; # BT5.0 KB (Bluetooth Low Energy)
+          product_id = 64007;
+        };
+        ignore = false;
+      }
+    ];
+    programs.karabiner.rules = [
+      {
+        description = "Option+HJKL → Option+矢印（OmniWM focus / Secure Input 対策）";
+        # ⚠ `conditions`（frontmost_application 等）は**付けていない**＝全アプリで変換する。
+        #   OmniWM が止まっている間は `Option+HJKL` が macOS の単語/段落移動になる。
+        #   OmniWM が動いている間はそれをグローバルに食うので差は出ない。
+        #   アプリ単位で切りたくなったらここに conditions を足す。
+        manipulators =
+          map (k: {
+            type = "basic";
+            # `optional` を書かない＝ Option **だけ**のときに限定。
+            # Control+Option+H などは一致せずそのまま通る。
+            from = {
+              key_code = k.from;
+              modifiers.mandatory = ["option"];
+            };
+            to = [
+              {
+                key_code = k.to;
+                modifiers = ["left_option"];
+              }
+            ];
+          })
+          dirKeys;
+      }
+    ];
+
+    # ⚠ **同一ディレクトリに書いてから mv する**（install だけだと非原子的）。
+    #   Karabiner はこのファイルを監視して即リロードするので、書き込み途中の
+    #   中途半端な JSON を読まれうる。rename(2) なら読み手は旧か新のどちらかだけを見る。
+    home.activation.karabinerSettings = lib.hm.dag.entryAfter ["writeBoundary"] ''
+      run mkdir -p "${config.xdg.configHome}/karabiner"
+      run install -m 0644 ${configFile} "${config.xdg.configHome}/karabiner/.karabiner.json.new"
+      run mv -f "${config.xdg.configHome}/karabiner/.karabiner.json.new" \
+        "${config.xdg.configHome}/karabiner/karabiner.json"
+    '';
+
+    # 「ログイン時に開く」に Karabiner-Elements を**入れさせない**。
+    # 入っていると起動のたびに設定ウィンドウが前面に出る（公式 troubleshooting）。
+    # 本体は /Library/LaunchAgents/org.pqrs.* が起動するのでログイン項目は不要。
+    # ⚠ **失敗しても switch を止めない**。System Events の自動化許可（TCC）が無い文脈で
+    #   activation が走ると osascript が落ちるので `|| echo` で吸収する。
+    # ⚠ **timeout 20 を噛ませてある。** 許可が無いと TCC のプロンプトが出て、
+    #   誰も押さないまま AppleEvent のタイムアウト（既定で約2分）まで**ハングする**。
+    #   `|| echo` は失敗は拾えてもハングは拾えない。毎回の switch で走るので上限が要る。
+    #   許可が無い場合は手で外すことになるので、失敗時はその旨を出す。
+    home.activation.karabinerNoLoginItem = lib.hm.dag.entryAfter ["writeBoundary"] ''
+      run ${pkgs.coreutils}/bin/timeout 20 /usr/bin/osascript -e 'tell application "System Events"' -e 'if exists login item "Karabiner-Elements" then delete login item "Karabiner-Elements"' -e 'end tell' || echo "karabiner: ログイン項目を確認できなかった（System Events の自動化許可を確認。システム設定 > 一般 > ログイン項目 から手で外す）"
+    '';
+  };
 }

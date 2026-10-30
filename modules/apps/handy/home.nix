@@ -13,8 +13,10 @@ in {
   options.programs.handy = {
     enable = lib.mkEnableOption "Handy speech-to-text settings management";
 
+    # attrsOf anything ＝ トップレベルのキーごとにマージ・優先度付け可能
+    # （custom/earbud-ptt などが一部キーだけ上書きできるようにするため）。
     settings = lib.mkOption {
-      type = lib.types.attrs;
+      type = lib.types.attrsOf lib.types.anything;
       default = {};
       description = "Handy settings to merge into settings_store.json.";
     };
@@ -50,7 +52,9 @@ in {
     programs.handy = {
       enable = true;
       settings = {
-        push_to_talk = true;
+        # mkDefault：custom/earbud-ptt が有効なときはトグル方式（false）に上書きされる。
+        # Handy は録音方式を1つしか持てないので、左 Ctrl(F18) も同じ方式に従う。
+        push_to_talk = lib.mkDefault true;
         # ログイン時にメインウィンドウを出さず tray 常駐だけにする（2026-07-30）。
         # Handy 自身の autostart_enabled=true が ~/Library/LaunchAgents/Handy.plist
         # (RunAtLoad, ProgramArguments=Handy.app/Contents/MacOS/handy) を生成するので、
