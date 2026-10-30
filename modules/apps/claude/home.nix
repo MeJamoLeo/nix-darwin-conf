@@ -45,6 +45,16 @@ in {
   # GUI の Claude デスクトップ版は nixpkgs 非収録のため cask のまま (modules/homebrew-base/darwin.nix)。
   home.packages = [pkgsClaude.claude-code];
 
+  # ★ 手で1回やること（新機体）：~/.claude/keybindings.json の "Chat" に
+  #     "cmd+z": "chat:undo"
+  #   を足す。無いと Orca のターミナルで Cmd+Z が `z` として入る（Orca が Cmd+Z を
+  #   kitty 形式の super+z で渡し、Claude Code の既定の取り消しは Ctrl+_ だけのため）。
+  #   nix で持たない理由：このファイルは Orca も書く（Settings → Agents の
+  #   「Claude subagent navigation」が ctrl+alt+g を足し、オフで消す）。home.file で
+  #   所有すると読み取り専用になり Orca が書けない。機体が2台なので手で済ませる判断
+  #   （2026-10-29）。3台目が増えたら、足したい割り当てだけを rebuild 時に混ぜ込む形
+  #   （omniwm の merge-settings.nu と同じ）にする。
+
   # claude-code の更新は `nhds`（= nh darwin switch -U nixpkgs-claude）で行う。
   # nh 4.x の --update-input が nixpkgs-claude だけを bump する。以前は nh を自作ラッパで
   # 差し替えて自動 commit までしていたが、version 引き継ぎ・git ピン・失敗メッセージの
