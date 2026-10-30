@@ -42,5 +42,8 @@
 
     # Karabiner のルール（~/.config/karabiner/karabiner.json）。cask は上の homebrew.casks。
     ../modules/apps/karabiner/home.nix
+
+    # EarPods のリモコンで Handy を操作（apps/karabiner のオプションに依存するので同じ機体に限定）。
+    ../modules/custom/earbud-ptt/home.nix
   ];
 }
