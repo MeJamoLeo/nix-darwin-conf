@@ -26,6 +26,16 @@
   # Scope is deliberately per-skill (not the whole ~/.claude/skills dir):
   # the skills directory also holds runtime-written skills (continuous-learning)
   # and ECC-installed ones, which must NOT be clobbered by Home Manager.
+  # 外部 skill：coji/natural-japanese（MIT）。日本語文書を書く／直す用。
+  # tag で固定し、中身（stdlib のみの python scripts・外部通信なし）を確認した版だけ入れる。
+  # 更新するときは rev と hash を一緒に差し替える（2026-10-30 に v1.6.4 を確認）。
+  naturalJapanese = pkgs.fetchFromGitHub {
+    owner = "coji";
+    repo = "natural-japanese";
+    rev = "v1.6.4";
+    hash = "sha256-tDyh0kd41cmjkkqiJAgVWP4RjG8x82Mhspq8vKq00pQ=";
+  };
+
   skillsDir = ./skills;
   skillNames =
     builtins.attrNames
@@ -101,6 +111,8 @@ in {
       # hunk 同梱の review skill（`hunk skill path` の中身）。自作 skill と違い
       # パッケージから直接 link し、バイナリと skill のバージョンを常に一致させる
       ".claude/skills/hunk-review".source = "${hunkPkg}/skills/hunk-review";
+
+      ".claude/skills/natural-japanese".source = "${naturalJapanese}/skills/natural-japanese";
     }
     // builtins.listToAttrs (map (name: {
         name = ".claude/skills/${name}";
