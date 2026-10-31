@@ -8,6 +8,8 @@
   # 電源プロファイルは power-profiles-daemon（DMS から切り替える）。TLP とは排他。
   services.power-profiles-daemon.enable = true;
   services.tlp.enable = false;
+  # DMS（Quickshell）は電池の残量・状態を UPower 経由で読む。無いと "No battery" になる。
+  services.upower.enable = true;
 
   # 電池の充電上限 80%（寿命のため）。起動時と復帰時に書く。
   systemd.services.battery-charge-threshold = {
