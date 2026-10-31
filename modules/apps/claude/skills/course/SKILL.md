@@ -26,7 +26,7 @@ Canvas を叩く前に、トークンが取れるか確認する。経路は Key
 | 欲しい物 | 正本 | 取り方 |
 |---|---|---|
 | 締切 | **Google カレンダー** | `mcp__claude_ai_Google_Calendar__list_events` / `search_events` |
-| 未処理の課題・今日の割り当て | **todo-board** | `todo`（ogasawara 本体。tanegashima は SSH ラッパ） |
+| 課題・作業単位・状態 | **Linear**（workspace `treo_sample`・team `LIF`） | `orca linear issue <LIF-n> --json` / `orca linear list-issues`。セッションが Linear issue に紐付いていればそれが起点 |
 | 過去の経緯・設計判断 | **vault**（`/Users/treo/Forge/claude-obsidian`） | entry-map → `vault/wiki/index.md` → 個別ページ |
 
 必要な分だけ読む。**全部を毎回読まない。** vault は worktree の中にいても本体を読む。
@@ -74,8 +74,20 @@ for c in canvas.http_get_json('/courses?enrollment_state=active&per_page=50'):
 ## 5. 必要なことを作業単位に割る
 
 課題1件＝1タスクにしない。**「次に手を動かせる単位」**まで割る。割った結果の置き場は
-**todo-board 一本**にする（`todo add "<項目>" --due "M/D HH:MM" --size 1.5h`）。
-**日付は `M/D` 形式**——`YYYY-MM-DD` は `bad date` で弾かれる（2026-10-25 に実測）。
+**Linear 一本**にする。課題の issue を親にして、作業単位を子 issue で切る：
+
+```sh
+orca linear save-issue --team LIF --parent-id <LIF-n> --title "<項目>" \
+  --due-date YYYY-MM-DD --estimate <🍅> --label <agent-ok|human-only> --json
+```
+
+- 先に `orca linear issue <LIF-n>` で既存の子を確認し、**同じ物を二度作らない**。
+- 担当は子単位で決める（親には付けない）。最後の子は「提出する」＝`external`（人の手番）。
+- 依存は `orca linear relation add` に加えて **issue body にも `blocked-by:` を書く**
+  （CLI が relation を返さないため）。
+- 規約の正史は vault の `task-execution-redesign-linear-orca`。
+- todo-board（`todo`）には書かない。2026-10-27 に人の面は Linear へ移った。
+
 ★ 別ファイルに作業リストを作らない——リストが2つあると必ず乖離する。
 
 割ったら §6 で課題の性質に応じて枝分かれする。
@@ -98,7 +110,7 @@ for c in canvas.http_get_json('/courses?enrollment_state=active&per_page=50'):
 ### 6b. 答えが無い課題（レポート・設計・プレゼン・自作物）
 
 **成果物の作り方を手順に落とす。** 答えが無いので、代わりに「どう進めれば完成するか」を
-作業単位に割って `todo add` する。1項目＝30〜90分で終わる粒度にする。
+作業単位に割って、§5 の形で Linear の子 issue にする。1項目＝30〜90分で終わる粒度にする。
 
 典型の割り方（課題に合わせて組み替える）：資料を読む → 主張/方針を1文で決める →
 骨組み（見出しだけ）→ 各節を埋める → 自己レビュー（rubric と突き合わせ）→ 清書。
