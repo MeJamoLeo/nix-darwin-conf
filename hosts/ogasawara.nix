@@ -45,5 +45,8 @@
 
     # EarPods のリモコンで Handy を操作（apps/karabiner のオプションに依存するので同じ機体に限定）。
     ../modules/custom/earbud-ptt/home.nix
+
+    # claudish-to-english（返信の平易化表示）。ollama がこの機体にしか無いので限定。
+    ../modules/apps/claudish/home.nix
   ];
 }
