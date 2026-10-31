@@ -108,6 +108,15 @@ in {
         force = true; # rebuild 前に手動配置した同名ファイルを上書きしてよい
       };
 
+      # statusline の中継：rate_limits を ~/.cache/claude-ratelimits/latest.json に保存してから
+      # Orca の statusline hook に渡す。無人 automation の precheck（枠が余っているか）用。
+      # settings.json の statusLine.command への登録は手動（settings.json を所有しない決定）。
+      ".claude/hooks/statusline-ratelimit-tee.sh" = {
+        source = ./statusline-ratelimit-tee.sh;
+        executable = true;
+        force = true;
+      };
+
       # hunk 同梱の review skill（`hunk skill path` の中身）。自作 skill と違い
       # パッケージから直接 link し、バイナリと skill のバージョンを常に一致させる
       ".claude/skills/hunk-review".source = "${hunkPkg}/skills/hunk-review";

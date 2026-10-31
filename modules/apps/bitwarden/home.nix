@@ -82,7 +82,13 @@
   # 理由: 毎回の unlock 入力が負担で使われなくなる方が害が大きい。
   # トレードオフ: 解錠中は同一ユーザーの全プロセス（Claude を含む）が秘密を
   # 取り出せるので、prompt injection を受けたときに被害が起き得る時間が延びる。
-  # 緩和策の候補（未着手）: スリープ・画面ロック時に `rbw lock`。
+  #
+  # 2026-10-31・28800 → 86400 = 24時間。無人のジョブ（launchd・Orca automation）が
+  # 鍵を使うため。タイマーは復号のたびにリセットされる（rbw-agent のソースで確認）ので、
+  # 毎日鍵を使うジョブが回っていればロックされない。金庫は自動化用の鍵だけを
+  # 入れる前提（個人の秘密は入れない）。agent が値を直接読まない hook は維持。
+  # 決定の経緯は vault の task-execution-redesign-linear-orca §2026-10-31。
+  # 旧「スリープ・画面ロック時に rbw lock」案は無人実行と両立しないので採らない。
   home.activation.rbwPinentry = lib.hm.dag.entryAfter ["writeBoundary"] ''
     cfg="${
       if pkgs.stdenv.hostPlatform.isDarwin
@@ -90,7 +96,7 @@
       else "\${XDG_CONFIG_HOME:-$HOME/.config}/rbw/config.json"
     }"
     want="pinentry-curses"
-    wantLock=28800
+    wantLock=86400
     mkdir -p "$(dirname "$cfg")"
     if [ ! -e "$cfg" ]; then
       printf '{"pinentry":"%s","lock_timeout":%s}\n' "$want" "$wantLock" > "$cfg"
