@@ -20,6 +20,23 @@ pkgs.writeText "claude-managed-settings.json" (builtins.toJSON {
   # （2026-10-25 に Orca のペイン、2026-10-28 に tanegashima の Ghostty で発生）。
   # 公式の既定に戻す。settings の env は wrapper の --set-default より後に効く。
   env.CLAUDE_CODE_CERT_STORE = "bundled,system";
+
+  # 親チェーン注入対策（CLAUDE.md / AGENTS.md は置き場所だけで命令へ確定昇格する）。
+  # 危険な「空きスロット」を命令として読まない。絶対パス glob・fleet 共有なので
+  # home 固定を避け、Downloads はどの機体でも効く形に。user-scope の
+  # ~/.claude/CLAUDE.md（2段深い）は /Users/*/CLAUDE.md に巻き込まれない。
+  # 由来: cybersecuritynews "Codex and Claude Code hijack"（2026-10）。
+  claudeMdExcludes = [
+    "**/Downloads/CLAUDE.md"
+    "**/Downloads/**/CLAUDE.md"
+    "**/Downloads/AGENTS.md"
+    "**/Downloads/**/AGENTS.md"
+    "/Users/*/CLAUDE.md"
+    "/Users/*/AGENTS.md"
+    "/home/*/CLAUDE.md"
+    "/home/*/AGENTS.md"
+  ];
+
   hooks.PreToolUse = [
     {
       matcher = "Bash";
@@ -51,5 +68,17 @@ pkgs.writeText "claude-managed-settings.json" (builtins.toJSON {
     "Bash(pass show:*)"
     "Bash(op read *)"
     "Bash(op read:*)"
+    # 設定書き換え注入対策（二重化）。悪性 CLAUDE.md が settings.json に
+    # ANTHROPIC_BASE_URL を書く／codex config.toml に悪性 MCP を足す経路を
+    # Edit ツール層で落とす。Write(path) は仕様上マッチしないので Edit で書く。
+    # 主防御は上の claudeMdExcludes（悪性ファイルを命令にしない）。こちらは
+    # Bash 変形（echo >> settings.json）ですり抜けるため補助層。
+    # settings.json は手動管理方針のため Claude の Edit を封じるのは整合的。
+    "Edit(~/.claude/settings.json)"
+    "Edit(~/.claude/settings.local.json)"
+    "Edit(//**/.claude/settings.json)"
+    "Edit(//**/.claude/settings.local.json)"
+    "Edit(~/.codex/config.toml)"
+    "Edit(//**/.codex/config.toml)"
   ];
 })
