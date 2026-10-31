@@ -6,6 +6,7 @@ import sys
 from .store import current_day, day_path
 from .daily import footer_line
 from .commands import add, edit, pick, roll, show, sync_all
+from . import audit as audit_mod
 from . import blocks
 
 
@@ -29,6 +30,9 @@ def main():
     p = sub.add_parser("blocks")  # Claude 作業時間（record-blocks）を今日の行に (≈35m) で紐づける
     p.add_argument("--dry-run", action="store_true")
     sub.add_parser("canvas")  # sync の旧名（互換）
+    p = sub.add_parser("audit")  # タスクの状態監査（未決・完了かも・機械の異常）
+    p.add_argument("--dry-run", action="store_true")
+    p.add_argument("--days", type=int, default=audit_mod.DEFAULT_DAYS)
     pa = sub.add_parser("add")
     pa.add_argument("text", nargs="+")
     pa.add_argument("--due")
@@ -48,6 +52,8 @@ def main():
         if not ok:
             print(footer_line(day), file=sys.stderr)
         return 0 if ok else 1
+    elif a.cmd == "audit":
+        return audit_mod.run(dt.datetime.now(), days=a.days, dry_run=a.dry_run)
     elif a.cmd == "blocks":
         with blocks.single_instance() as got:
             if not got:
