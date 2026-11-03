@@ -55,6 +55,15 @@
 //   Swift 側は 2 秒周期で状態を読み、変化時だけ log: `[caldash] stretch week pane=.. screen=WxH k=.. natural=.. avail=..`。
 // 終了 = プロセス kill のみ。システム状態は何も変えない。
 //
+// 自動ログイン窓（wallpaper mode）:
+//   WHY: ブラウザ（Chrome/Safari）の cookie は WKWebView と共有されない。Google/Linear のセッションが切れて
+//   ペインが signin ページに飛ばされても、無人常駐では誰も気づかない。外部ブラウザでログインしても
+//   .default() データストアには入らないので、同一プロセス内に通常窓（ログイン窓）を自動で開く。
+//   検出: ペインの URL が accounts.google.com（Google）／ linear.app の /login・/signup（Linear）になったとき。
+//   ログイン窓は 1 つだけ（複数サービスは順番に）。完了（calendar.google.com / linear.app 非ログイン面）で
+//   自動で閉じ、該当サービスの全ペインを再読込。手動で閉じたら同サービスは 10 分間再オープンしない。
+//   ログ・URL はクエリ無し（token 保護）。cookie は一切ログしない。資格情報は人間が入力する。
+//
 // セキュリティ（監査 2026-07-27 反映）:
 //   - isInspectable / JS 自動 window.open は無人常駐(--wallpaper)では無効（認証 view への侵入面を絞る）。
 //   - createWebViewWith / decidePolicy は wallpaper 時 Google 一族ホスト（＋Linear 面のみ linear.app 系）のみ許可（認証 view の外部誘導阻止）。
@@ -501,6 +510,187 @@ final class GridView: NSView {
     }
 }
 
+// ── 自動ログイン窓 ───────────────────────────────────────────
+enum LoginService: String {
+    case google, linear
+    var label: String { self == .google ? "Google" : "Linear" }
+    var targetURL: String { self == .google ? paneURLs()[0] : LINEAR_URL }
+    var paneIndices: [Int] { self == .google ? [0, 2, 3] : [1] }
+}
+
+func nowISO() -> String {
+    let f = ISO8601DateFormatter()
+    f.timeZone = TimeZone.current
+    f.formatOptions = [.withInternetDateTime, .withTimeZone]
+    return f.string(from: Date())
+}
+// host+path（クエリ・フラグメントは捨てる）
+func safeURLString(_ u: URL?) -> String { (u?.host ?? "?") + (u?.path ?? "") }
+
+// URL からサービスのログイン要求ページか判定
+func loginServiceNeeded(for u: URL?) -> LoginService? {
+    guard let u = u, let h = u.host?.lowercased() else { return nil }
+    if h == "accounts.google.com" { return .google }
+    if h == "linear.app" || h.hasSuffix(".linear.app") {
+        if u.path.hasPrefix("/login") || u.path.hasPrefix("/signup") { return .linear }
+    }
+    return nil
+}
+// ログイン窓内のページが「ログイン完了後の面」か
+func loginCompleted(_ svc: LoginService, url u: URL?) -> Bool {
+    guard let u = u, let h = u.host?.lowercased() else { return false }
+    switch svc {
+    case .google: return h == "calendar.google.com"
+    case .linear: return (h == "linear.app" || h.hasSuffix(".linear.app"))
+                         && !u.path.hasPrefix("/login") && !u.path.hasPrefix("/signup")
+    }
+}
+
+// accessory アプリの窓でもキー入力（パスワード欄）を受けられるように明示。
+final class LoginWindow: NSWindow {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { true }
+}
+
+final class LoginController: NSObject, WKNavigationDelegate, WKUIDelegate, NSWindowDelegate {
+    var window: LoginWindow?
+    var web: WKWebView?
+    var current: LoginService?
+    var queue: [LoginService] = []
+    var lastDismissed: [LoginService: Date] = [:]   // 未完了で閉じられた時刻（10 分バックオフ）
+    var completing = false
+    var urlObservation: NSKeyValueObservation?   // SPA（Linear）の画面内遷移で完了を拾うため
+    var reloadPanes: ((LoginService) -> Void)?
+    static let backoff: TimeInterval = 600
+
+    func request(_ svc: LoginService) {
+        if let t = lastDismissed[svc], Date().timeIntervalSince(t) < LoginController.backoff { return }
+        if window != nil {
+            if svc != current && !queue.contains(svc) { queue.append(svc) }
+            return
+        }
+        open(svc)
+    }
+
+    private func installMenuIfNeeded() {
+        // メニューバーの無い accessory では ⌘V/⌘C が効かない。最小の Edit メニューを足す。
+        guard NSApp.mainMenu == nil else { return }
+        let main = NSMenu()
+        let appItem = NSMenuItem(); main.addItem(appItem)
+        let appMenu = NSMenu(); appItem.submenu = appMenu
+        appMenu.addItem(withTitle: "Quit caldash", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let editItem = NSMenuItem(); main.addItem(editItem)
+        let edit = NSMenu(title: "Edit"); editItem.submenu = edit
+        edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        edit.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        edit.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        edit.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
+        edit.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        NSApp.mainMenu = main
+    }
+
+    private func open(_ svc: LoginService) {
+        current = svc
+        completing = false
+        installMenuIfNeeded()
+        let cfg = WKWebViewConfiguration()
+        cfg.websiteDataStore = WKWebsiteDataStore.default()   // パネルと同じ cookie ストア
+        cfg.preferences.javaScriptCanOpenWindowsAutomatically = true
+        let wv = WKWebView(frame: .zero, configuration: cfg)
+        wv.customUserAgent = SAFARI_UA
+        wv.navigationDelegate = self
+        urlObservation = wv.observe(\.url, options: [.new]) { [weak self] w, _ in
+            DispatchQueue.main.async {
+                guard let self = self, let svc = self.current, loginCompleted(svc, url: w.url) else { return }
+                self.complete(svc)
+            }
+        }
+        wv.uiDelegate = self
+        if #available(macOS 13.3, *) { wv.isInspectable = false }
+        let rect = NSRect(x: 0, y: 0, width: 1100, height: 800)
+        let w = LoginWindow(contentRect: rect,
+                            styleMask: [.titled, .closable, .resizable, .miniaturizable],
+                            backing: .buffered, defer: false)
+        w.title = "caldash — ログインしてください（Google / Linear）"
+        w.isReleasedWhenClosed = false
+        w.level = .normal
+        w.ignoresMouseEvents = false
+        w.delegate = self
+        w.contentView = wv
+        w.setFrame(rect, display: false)
+        (NSScreen.main ?? NSScreen.screens.first).map { s in
+            let f = s.visibleFrame
+            w.setFrameOrigin(NSPoint(x: f.midX - rect.width / 2, y: f.midY - rect.height / 2))
+        }
+        window = w; web = wv
+        wv.load(URLRequest(url: URL(string: svc.targetURL)!))
+        NSApp.activate(ignoringOtherApps: true)
+        w.makeKeyAndOrderFront(nil)
+        w.makeFirstResponder(wv)
+        print("[caldash] login window opened: \(svc.rawValue) at \(nowISO())")
+    }
+
+    private func teardown() {
+        urlObservation = nil
+        web?.navigationDelegate = nil
+        web?.uiDelegate = nil
+        window?.delegate = nil
+        window?.orderOut(nil)
+        window = nil; web = nil; current = nil
+    }
+
+    private func complete(_ svc: LoginService) {
+        guard !completing else { return }
+        completing = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            guard let self = self, self.current == svc, let wv = self.web else { return }
+            // SPA の後追いリダイレクトで login に戻った場合は完了扱いにしない
+            guard loginCompleted(svc, url: wv.url) else { self.completing = false; return }
+            self.window?.delegate = nil   // 手動クローズ扱い（windowWillClose）を避ける
+            self.window?.close()
+            print("[caldash] login completed: \(svc.rawValue) at \(nowISO())")
+            self.lastDismissed[svc] = nil
+            self.teardown()
+            self.reloadPanes?(svc)
+            self.queue.removeAll { $0 == svc }
+            if let next = self.queue.first {
+                self.queue.removeFirst()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { self.request(next) }
+            }
+        }
+    }
+
+    // ログイン窓の webview: wallpaper allowlist は使わない（interactive 同様）
+    func webView(_ w: WKWebView, didFinish n: WKNavigation!) {
+        if let svc = current, loginCompleted(svc, url: w.url) { complete(svc) }
+    }
+    func webView(_ w: WKWebView, didFailProvisionalNavigation n: WKNavigation!, withError e: Error) {
+        print("[caldash] login window FAIL: \(e.localizedDescription)")
+    }
+    // ポップアップは同 view に流す
+    func webView(_ w: WKWebView, createWebViewWith cfg: WKWebViewConfiguration,
+                 for act: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+        if act.request.url != nil { w.load(act.request) }
+        return nil
+    }
+
+    func windowWillClose(_ n: Notification) {
+        // 完了処理（complete）側は delegate を外してから閉じるので、ここに来るのは手動クローズ
+        guard let svc = current else { return }
+        print("[caldash] login window closed without completion: \(svc.rawValue) at \(nowISO())")
+        lastDismissed[svc] = Date()
+        let pending = queue
+        queue = []
+        teardown()
+        // 待ち行列の別サービスは、未バックオフのものがあれば次に開く
+        if let next = pending.first(where: { s in
+            guard let t = lastDismissed[s] else { return true }
+            return Date().timeIntervalSince(t) >= LoginController.backoff }) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in self?.request(next) }
+        }
+    }
+}
+
 class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDelegate {
     // wallpaper mode: 各 NSScreen に 1 window ずつ描画（cp-dash と同型）。
     // interactive mode: windows.count == 1（中央窓 1 本のみ）。
@@ -509,6 +699,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
     var grids: [GridView] = []
     var webs: [[WKWebView]] = []
     let store = WKWebsiteDataStore.default()   // ログイン共有＆永続（実測済み）
+    let login = LoginController()               // 自動ログイン窓（wallpaper mode のみ使用）
+    // ペインの URL 変化の監視。Linear は SPA で、ログアウト時もページは 200 で返り、画面内の
+    // pushState で /login に移る（2026-11-03 実測）。ナビゲーションの delegate では拾えないので URL を KVO で見る。
+    var urlObservations: [NSKeyValueObservation] = []
 
     // desktop-switch からの信号ハンドラ（wallpaper mode 限定）。retain 必須。
     // 生の signal(2) は async-signal-safe な API しか呼べず NSWindow 不可なので
@@ -582,6 +776,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
 
     func applicationDidFinishLaunching(_ note: Notification) {
         if WALLPAPER {
+            login.reloadPanes = { [weak self] svc in self?.reloadPanes(of: svc) }
             setupWallpaperWindows()
             // 解像度/モニタ挿抜/main 切替を購読。screen 数の変化なら全再構築、
             // 数同じ（解像度変更のみ）なら zoom + frame を追随。
@@ -693,6 +888,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
             windows.append(w)
             grids.append(grid)
             webs.append(paneWebs)
+            for wv in paneWebs {
+                urlObservations.append(wv.observe(\.url, options: [.new]) { [weak self] w, _ in
+                    DispatchQueue.main.async { self?.checkLoginRequired(w) }
+                })
+            }
             print("[caldash] wallpaper screen[\(i)] visible=\(area.size) zoom=\(zoom)/\(weekZoom)")
         }
     }
@@ -764,7 +964,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         if screens.count != windows.count {
             print("[caldash] screen count \(windows.count) → \(screens.count), rebuilding")
             for w in windows { w.orderOut(nil); w.close() }
-            windows.removeAll(); grids.removeAll(); webs.removeAll()
+            windows.removeAll(); grids.removeAll(); webs.removeAll(); urlObservations.removeAll()
             setupWallpaperWindows()
             return
         }
@@ -856,6 +1056,30 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
     }
     func webView(_ w: WKWebView, didFailProvisionalNavigation n: WKNavigation!, withError e: Error) {
         print("[caldash] FAIL: \(e.localizedDescription)")
+    }
+
+    // ── ログイン切れ検出（wallpaper mode のみ）──
+    func checkLoginRequired(_ w: WKWebView) {
+        guard WALLPAPER, let svc = loginServiceNeeded(for: w.url) else { return }
+        var name = "?", scr = -1
+        let names = ["4wk", "linear", "this", "next"]
+        for (i, row) in webs.enumerated() { if let k = row.firstIndex(where: { $0 === w }) { scr = i; name = names[k] } }
+        guard scr >= 0 else { return }
+        print("[caldash] login required: pane=\(name) screen=\(scr) url=\(safeURLString(w.url)) at \(nowISO())")
+        login.request(svc)
+    }
+    func webView(_ w: WKWebView, didReceiveServerRedirectForProvisionalNavigation n: WKNavigation!) { checkLoginRequired(w) }
+    func webView(_ w: WKWebView, didCommit n: WKNavigation!) { checkLoginRequired(w) }
+    func webView(_ w: WKWebView, didFinish n: WKNavigation!) { checkLoginRequired(w) }
+
+    // ログイン完了後: 該当サービスの全 screen のペインを元 URL で再読込
+    func reloadPanes(of svc: LoginService) {
+        let urls = paneURLs()
+        for row in webs {
+            for k in svc.paneIndices where k < row.count {
+                row[k].load(URLRequest(url: URL(string: urls[k])!))
+            }
+        }
     }
     // desktop-switch の SIGUSR2 で window を orderOut するとここが呼ばれて終了→launchd 再起動
     // ループに入るため、wallpaper mode では false を返して常駐継続。interactive では終了して OK。

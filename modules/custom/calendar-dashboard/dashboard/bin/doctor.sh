@@ -17,6 +17,8 @@ cat <<EOF
      2) Google カレンダーの面（4週/今週/来週）のどれか1面で Google にログイン
      3) 右下の Linear 面で Linear にログイン（Google OAuth 可。同じ窓で続けて）
      4) ⌘Q で閉じる → launchd の --wallpaper 常駐が以後ログイン済みで起つ
+     ※ 常駐中にセッションが切れても、ログイン窓が自動で開く（同一プロセス内なので cookie 共有）。
+        ログインすれば窓は自動で閉じ、ペインが再読込される。閉じて放置すると同サービスは 10 分後まで再表示しない。
      比率変更: $root/caldash-config.json の gap/zoom/linearURL 等を編集 → 常駐を再起動
        launchctl kickstart -k gui/$uid/$label
 ────────────────────────────────────────────────
