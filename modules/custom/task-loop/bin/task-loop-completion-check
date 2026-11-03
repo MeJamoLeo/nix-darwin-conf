@@ -1,0 +1,23 @@
+#!/usr/bin/env python3
+"""completion-check の単独の入口：task-loop-completion-check [--apply]
+
+bin/task-loop（ジョブの振り分け）に足さず別の入口にしてあるのは、振り分け側を
+他の変更と衝突させないため。振り分けに足すなら JOBS に
+    "completion-check": "task_loop.completion_check",
+の1行を足せば同じ物が `task-loop completion-check` で動く。
+"""
+
+import os
+import sys
+
+# リポジトリから直接動かすとき（デプロイ前）は隣の task_loop を優先する。
+here = os.path.dirname(os.path.dirname(os.path.abspath(os.path.realpath(__file__))))
+if os.path.isdir(os.path.join(here, "task_loop")):
+    sys.path.insert(0, here)
+else:
+    sys.path.insert(0, os.path.expanduser("~/.local/lib/task-loop"))
+
+from task_loop import completion_check  # noqa: E402
+
+if __name__ == "__main__":
+    sys.exit(completion_check.main(sys.argv[1:]))

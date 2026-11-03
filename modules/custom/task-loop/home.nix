@@ -43,6 +43,12 @@ in {
     executable = true;
   };
 
+  # completion-check は bin/task-loop（ジョブ振り分け）を経由しない単独の入口。
+  home.file."bin/task-loop-completion-check" = {
+    source = ./bin/task-loop-completion-check;
+    executable = true;
+  };
+
   home.file.".local/lib/task-loop/task_loop".source = lib.cleanSourceWith {
     src = ./task_loop;
     filter = path: type: baseNameOf path != "__pycache__";
@@ -59,5 +65,15 @@ in {
         Minute = 0;
       }
     ];
+  };
+
+  # completion-check：3時間ごと。Canvas で提出済み（0 点なら Canceled）の課題に対応する
+  #   Linear issue と子を閉じる。取りこぼしは次の回で拾うので RunAtLoad は不要。
+  #   ⚠ Canvas のトークンは Keychain（canvas-txst-token）から読む。ロック中だと失敗し status に ok=false が残る。
+  launchd.agents.task-loop-completion-check = job "completion-check" {
+    config = {
+      ProgramArguments = [py "${home}/bin/task-loop-completion-check" "--apply"];
+      StartInterval = 10800;
+    };
   };
 }

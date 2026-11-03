@@ -28,7 +28,10 @@
   # darwin-rebuild switch のたびに system profile を最新 10 世代に絞る。
   # nix.gc は age ベースしか受け付けないため、count 制限はこちらで担当。
   # flake.lock が git にある前提で、10 世代 ≒ 数日分の instant rollback を確保。
-  system.activationScripts.pruneNixGenerations.text = ''
+  # ⚠ 名前は postActivation でなければならない（2026-11-03 に判明）。nix-darwin は自分で名前を
+  #   付けた activationScripts を実行しない。旧名 pruneNixGenerations のときは一度も走っておらず、
+  #   system 世代が 34 個たまっていた。他モジュールも postActivation を使うので mkAfter で足す。
+  system.activationScripts.postActivation.text = lib.mkAfter ''
     echo "[nix] pruning system generations to latest 10"
     ${config.nix.package}/bin/nix-env \
       --profile /nix/var/nix/profiles/system \

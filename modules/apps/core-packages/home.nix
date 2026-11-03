@@ -109,8 +109,12 @@
       #   `--keep-since=7d` なら1トークンなのでクォートされても壊れない（実測確認済み）。
       #   複数フラグを渡したくなったら splitString 相当の回避が要る。
       # ⚠ nix.gc.automatic と併用すると警告が出る（モジュールが検出する）。
+      # ⚠ darwin では外す（2026-11-03）。sudo darwin-rebuild の一時 result への gcroot が
+      #   root 所有の /nix/var/nix/gcroots/auto に残り、ユーザー権限の `nh clean user` は
+      #   それを消せずに毎週 exit 1 で終わっていた。darwin の掃除は root で走る nix.gc
+      #   （modules/base/nix-core/darwin.nix、日曜 5:00）が担っていて、壊れた auto root もそちらで消える。
       clean = {
-        enable = true;
+        enable = pkgs.stdenv.hostPlatform.isLinux;
         dates = "weekly";
         extraArgs = "--keep-since=7d";
       };
