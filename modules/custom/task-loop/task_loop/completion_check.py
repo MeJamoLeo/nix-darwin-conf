@@ -147,6 +147,22 @@ def print_plan(items: list[dict], notes: list[str], tag: str) -> None:
         print(f"NOTE {n}")
 
 
+def set_status_confirmed(identifier: str, to: str) -> None:
+    """状態を変える。Orca が「反映されたか確認できない」（linear_write_unconfirmed）と返したら、
+    読み直して目的の状態になっていれば成功とみなす。
+
+    2026-11-03 の初回実行で、実際には反映されていたのに unconfirmed が返り、
+    残りの子と親が手つかずのまま止まった（LIF-21・LIF-24）。
+    """
+    try:
+        orca.set_status(identifier, to)
+    except orca.OrcaError as e:
+        if "linear_write_unconfirmed" not in str(e):
+            raise
+        if orca.state_name(orca.issue(identifier)) != to:
+            raise
+
+
 def main(argv: list[str]) -> int:
     apply = "--apply" in argv
     tag = "" if apply else "[dry-run] "
@@ -173,8 +189,8 @@ def main(argv: list[str]) -> int:
         # 子を先に閉じる：親だけ閉じて子が残る中途半端を避ける。失敗した issue は記録して続ける。
         try:
             for k in it["children"]:
-                orca.set_status(k, it["to"])
-            orca.set_status(it["parent"], it["to"])
+                set_status_confirmed(k, it["to"])
+            set_status_confirmed(it["parent"], it["to"])
         except orca.OrcaError as e:
             errors.append(f"{it['parent']}: {e}")
             continue
