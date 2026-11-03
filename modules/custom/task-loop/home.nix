@@ -49,6 +49,12 @@ in {
     executable = true;
   };
 
+  # inventory（自動化の棚卸し）も単独の入口。
+  home.file."bin/task-loop-inventory" = {
+    source = ./bin/task-loop-inventory;
+    executable = true;
+  };
+
   home.file.".local/lib/task-loop/task_loop".source = lib.cleanSourceWith {
     src = ./task_loop;
     filter = path: type: baseNameOf path != "__pycache__";
@@ -74,6 +80,21 @@ in {
     config = {
       ProgramArguments = [py "${home}/bin/task-loop-completion-check" "--apply"];
       StartInterval = 10800;
+    };
+  };
+
+  # inventory：毎朝 7:30。動いている自動化の一覧と不調を Linear の常設 issue（LIF）に書き直す。
+  #   不調があれば Todo＋期限今日、無ければ Backlog＋期限なし。取りこぼしは翌朝直るので RunAtLoad は不要。
+  #   ⚠ orca CLI は Orca.app の runtime が動いていないと失敗する → status に ok=false が残る。
+  launchd.agents.task-loop-inventory = job "inventory" {
+    config = {
+      ProgramArguments = [py "${home}/bin/task-loop-inventory" "--apply"];
+      StartCalendarInterval = [
+        {
+          Hour = 7;
+          Minute = 30;
+        }
+      ];
     };
   };
 }
