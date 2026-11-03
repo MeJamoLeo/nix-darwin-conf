@@ -9,10 +9,10 @@
   # 場所（オースティン周辺 > TX > リモート）・題名・学位で足切りし、新着だけ本文を取りに行って
   # F-1／OPT／CPT の扱いを正規表現で分類する（EXCLUDE は出力から落とす）。
   # 出力は ~/Store/30_Work/job-hunt-2027/job-watch/YYYY/YYYYMMDD-jobs.md、既報は同 .state.json。
-  # 新着があれば todo の backlog に「見る」を1行足す（~/bin/todo add 経由）。
+  # 新着があれば Linear に「見る」issue を1件立てる（Orca CLI: orca linear create。team LIF・label Human）。
   #
   # 実装は ./job_watch/（python3 パッケージ・標準ライブラリのみ）、./bin/job-watch はそれを呼ぶだけの薄い起動役。
-  # todo-board と同じ配置（パッケージは ~/.local/lib/job-watch、起動役は ~/bin）。
+  # 配置（パッケージは ~/.local/lib/job-watch、起動役は ~/bin）。
   # __pycache__ は store に入れない（flake 評価に作業ツリーの pycache が混ざらないように）。
   home.file."bin/job-watch" = {
     source = ./bin/job-watch;
@@ -24,10 +24,10 @@
     filter = path: type: baseNameOf path != "__pycache__";
   };
 
-  # 毎朝 07:00。todo-board の roll（06:00）の後に走るので、backlog に足した1行は翌朝の振り分けではなく
-  # 当日分として次の roll／sync に拾われる。
+  # 毎朝 07:00。
   #   ⚠ RunAtLoad は false 固定。switch のたびに外部 API を叩かない（mail-check と同じ）。
-  #   ⚠ python は store パス固定、PATH は明示（launchd の PATH は最小）。~/bin を足すのは `todo` を引くため。
+  #   ⚠ python は store パス固定、PATH は明示（launchd の PATH は最小）。
+  #   ⚠ Linear への通知は Orca アプリのランタイムが起動中でないと失敗する（cli が FAILED を出す）。
   #   ⚠ ネットワーク断は source ごとに握ってフッタに残す。launchd 側のエラーログには出ない。
   #   ⚠ Mac が 07:00 に寝ていても、起床後に launchd が取りこぼし分を1回走らせる。
   launchd.agents.job-watch = {
@@ -40,9 +40,9 @@
       ];
       EnvironmentVariables = {
         HOME = config.home.homeDirectory;
+        JOB_WATCH_ORCA = "/Applications/Orca.app/Contents/Resources/bin/orca";
         PATH = builtins.concatStringsSep ":" [
           "${pkgs.python3}/bin"
-          "${config.home.homeDirectory}/bin"
           "${config.home.profileDirectory}/bin"
           "/run/current-system/sw/bin"
           "/usr/bin"

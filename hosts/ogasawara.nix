@@ -32,7 +32,6 @@
   # 他機に広げたくなったら、このブロックを profiles/mac-workstation.nix へ移す。
   home-manager.users.${username}.imports = [
     ../modules/apps/hermes/home.nix
-    ../modules/custom/todo-board/home.nix
     ../modules/custom/mail-check/home.nix
     ../modules/custom/task-loop/home.nix # Linear を正本にした自動化（Claude を呼ばない部分）
     # ../modules/custom/job-watch/home.nix # 一時停止(2026-10-18): job-watch/ が未追跡で評価が落ちるため。仕上げたら戻す

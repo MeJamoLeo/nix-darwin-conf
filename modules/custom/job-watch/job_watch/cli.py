@@ -53,7 +53,7 @@ def run(dry=False, now=None, fetch=True):
         path = report.append(today, md)
         print("report:", path)
     if kept:
-        print("backlog:", "ok" if report.add_backlog(len(kept), today) else "FAILED (todo add)")
+        print("linear:", "ok" if report.notify_linear(len(kept), today) else "FAILED (orca linear create)")
     state.save(st)
     print("counts:", counts, "errors:", errors)
     return 1 if errors and not cands else 0

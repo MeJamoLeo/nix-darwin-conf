@@ -1,7 +1,6 @@
-"""report — 新着を日次 Markdown に追記し、backlog に1行足す。"""
+"""report — 新着を日次 Markdown に追記し、Linear に issue を1件立てる。"""
 import datetime as dt
 import os
-import shutil
 import subprocess
 from . import config as C
 
@@ -48,12 +47,16 @@ def append(day, md):
     return p
 
 
-def add_backlog(n, day):
-    """backlog に1行（~/bin/todo 経由。backlog.md は直接触らない）。-> 成否。"""
-    todo = shutil.which("todo") or os.path.expanduser("~/bin/todo")
-    if not os.path.exists(todo):
+def notify_linear(n, day):
+    """Linear に「見る」issue を1件（Orca CLI 経由）。Orca ランタイム不在などで失敗したら False。"""
+    orca = os.environ.get("JOB_WATCH_ORCA") or C.ORCA_BIN_DEFAULT
+    if not os.path.exists(orca):
         return False
-    path = "~/Store/30_Work/job-hunt-2027/job-watch/%s/%s-jobs.md" % (day.strftime("%Y"), day.strftime("%Y%m%d"))
-    text = "求人の新着 %d 件を見る（%s）" % (n, path)
-    r = subprocess.run([todo, "add", text, "--on", "%d/%d" % (day.month, day.day), "--size", C.BACKLOG_SIZE], capture_output=True, text=True)
+    title = "求人の新着 %d 件を見る（%d/%d）" % (n, day.month, day.day)
+    cmd = [orca, "linear", "create", "--team", C.LINEAR_TEAM, "--title", title, "--body", report_path(day),
+           "--label", C.LINEAR_LABEL, "--priority", "high", "--due-date", day.isoformat()]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    except (subprocess.TimeoutExpired, OSError):
+        return False
     return r.returncode == 0

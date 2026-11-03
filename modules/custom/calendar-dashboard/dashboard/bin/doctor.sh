@@ -14,9 +14,10 @@ if /bin/launchctl print "gui/$uid/$label" >/dev/null 2>&1; then ok "launchd agen
 cat <<EOF
   ℹ 初回のみ手動ログインが必要（Claude/自動は資格情報を入力しない）:
      1) $root/bin/caldash-live           # 通常窓が開く（--wallpaper 無し）
-     2) 4面のどれか1面で Google にログイン
-     3) ⌘Q で閉じる → launchd の --wallpaper 常駐が以後ログイン済みで起つ
-     比率変更: $root/caldash-config.json の cols/rows を編集 → 常駐を再起動
+     2) Google カレンダーの面（4週/今週/来週）のどれか1面で Google にログイン
+     3) 右下の Linear 面で Linear にログイン（Google OAuth 可。同じ窓で続けて）
+     4) ⌘Q で閉じる → launchd の --wallpaper 常駐が以後ログイン済みで起つ
+     比率変更: $root/caldash-config.json の gap/zoom/linearURL 等を編集 → 常駐を再起動
        launchctl kickstart -k gui/$uid/$label
 ────────────────────────────────────────────────
 EOF

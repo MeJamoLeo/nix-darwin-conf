@@ -35,4 +35,6 @@ MAX_FETCHES = 60       # 1回の実行で本文を取りに行く上限。超え
 MAX_FETCHES_BACKFILL = 400  # state が空の初回だけ（全件を一度に報告するため）
 FETCH_TIMEOUT = 15
 USER_AGENT = "job-watch/1.0 (personal job search; polite, low volume)"
-BACKLOG_SIZE = "15m"
+LINEAR_TEAM = "LIF"
+LINEAR_LABEL = "Human"
+ORCA_BIN_DEFAULT = "/Applications/Orca.app/Contents/Resources/bin/orca"

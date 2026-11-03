@@ -44,8 +44,8 @@ Canvas を叩く前に、トークンが取れるか確認する。経路は Key
 
 ```sh
 python3 -c "
-import sys, os; sys.path.insert(0, os.path.expanduser('~/.local/lib/todo-board'))
-from todo_board import canvas
+import sys, os; sys.path.insert(0, os.path.expanduser('~/.claude/skills/course'))
+import canvas
 for c in canvas.http_get_json('/courses?enrollment_state=active&per_page=50'):
     print(c['id'], c.get('course_code') or c.get('name'))
 "

@@ -101,10 +101,10 @@ class StateAndPipeline(unittest.TestCase):
     def setUp(self):
         C.BASE_DIR = tempfile.mkdtemp()
         self.out = []
-        self._orig = (net.http_json, net.http_get, report.add_backlog)
+        self._orig = (net.http_json, net.http_get, report.notify_linear)
         net.http_json = self.fake_json
         net.http_get = lambda url, timeout=None: "<html></html>"
-        report.add_backlog = lambda n, d: self.out.append(n) or True
+        report.notify_linear = lambda n, d: self.out.append(n) or True
         C.SIMPLIFY = [("newgrad", "NG"), ("intern", "IN")]
         C.ORACLE_KEYWORDS = []
         self.listings = {"NG": [rec(id="a"), rec(id="b", company_name="Bad", url="https://job-boards.greenhouse.io/bad/jobs/9")], "IN": []}
@@ -112,7 +112,7 @@ class StateAndPipeline(unittest.TestCase):
                       {"content": "We will not sponsor visas now or in the future."}}
 
     def tearDown(self):
-        net.http_json, net.http_get, report.add_backlog = self._orig
+        net.http_json, net.http_get, report.notify_linear = self._orig
 
     def fake_json(self, url, timeout=None):
         if url in self.listings:
@@ -132,7 +132,7 @@ class StateAndPipeline(unittest.TestCase):
         self.assertNotIn("Bad", md)
         self.assertIn("新着 1 件", md)
         self.assertEqual(self.out, [1])
-        # 2回目は新着なし: 追記も backlog も増えない
+        # 2回目は新着なし: 追記も Linear も増えない
         cli.run(now=now)
         self.assertEqual(self.out, [1])
         # 新規1件だけ拾う

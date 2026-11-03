@@ -6,10 +6,10 @@
 //   ┌────────┬────────┬────────┐
 //   │ 4週     │ 今週    │ 来週    │   ← 来週は縮小 zoom（nextWeekZoomScale）。上段 rightTopRatio
 //   │ (全高)  │ (全高)  ├────────┤
-//   │         │         │ todo    │   ← 今日の todo md を leaf で描画（Google カレンダーではなくローカル面）
+//   │         │         │ Linear  │   ← Linear の Web UI（Google カレンダーではない面）
 //   └────────┴────────┴────────┘
 // WHY 右だけ分割: 4週ビューが既に「来週」を含むので、来週ペインは全高の大きさが要らない
-//      （縮小 zoom で十分）。空いた右下を todo に回すと、旧「左下の月ペイン半分」より広く取れる。
+//      （縮小 zoom で十分）。空いた右下を Linear に回すと、旧「左下の月ペイン半分」より広く取れる。
 // WHY 3 カラム等幅: ユーザー要望「幅は全て同じように」。leftColumnRatio=1/3 で左を固定し、
 //      残りを今週・来週で等分（中央だけ hour gutter 分 +extra＝日列幅を来週と揃える不変条件は維持）。
 // WHY 来週の zoom を縮める: 高さが半分になるので、同じ zoom だと 0-24h がスクロール無しで収まらない。
@@ -19,42 +19,22 @@
 // WHY: 月ビューは月末で打ち切られ、翌月に入った週が見えなくなる。4週カスタムビューは
 //      常に「今週」始まりなので、直近4週間が月境界に関係なく連続して見える（2026-10-02 ユーザー要望）。
 //
-// 右下は todo パネル: ~/Store/30_Work/todo/YYYY/YYYYMMDD-todo.md（当日）を
-//   `leaf --inline ansi:<cols> <file>` で描画し、ANSI(SGR) を HTML に変換して WKWebView に出す。
-// WHY leaf: ユーザーが todo の閲覧に `leaf -w` を選んだ。その描画（☐/☑・区切り線・配色）をそのまま使う。
-// WHY ターミナル窓にしない: 他社製ターミナルの窓は壁紙レイヤー（アイコンの裏）に置けない。
-//      caldash の窓は desktopWindow レベルなので、面として caldash の中に居る必要がある。
-// WHY --inline で描画: leaf 自前の描画を保ったまま caldash 内に収まる（ターミナルエミュ不要）。
-//      -w（常駐監視）は使わず、こちらでファイル変更を見て再実行する（leaf -w 相当）。
-// WHY 2 秒 mtime ポーリング: ファイル+ディレクトリの FS イベント監視は atomic rename 書き込みで
-//      fd が旧 inode を指して切れる・日付跨ぎでパスが変わる、の再接続処理が要る。ポーリングは
-//      パス・mtime・桁数・zoom の組を比べるだけで、これら全部（更新/rename/日付変更/リサイズ/
-//      今日のファイル出現）を同じ1箇所で拾える。stat 1回/2秒は無視できるコスト。
-// 当日ファイルが無い間（roll ジョブが 06:00 に作る＝00:01〜06:00）は、最新の過去ファイルを
-//   「showing M/D (today's file not created yet)」の注記付きで出す（空白にしない）。
-// leaf が使えない（バイナリ無し/非0終了）ときは、leaf 風の素朴な等幅 HTML に自前で描く
-//   （見出し太字・`- [ ]`→☐・`- [x]`→☑ 淡緑・字下げ保持）。エラー文は出さない（leaf 無しは正常系の1つ）。
-//   エラーを出すのは「ファイルが読めない」ときだけ。
-// WHY 自前フォールバック: leaf は nixpkgs に無く（手動で ~/.local/bin/leaf に置く、config: leafPath）、
-//   持ち出し機（tanegashima）には入っていないことがある。入れ忘れで todo 面が死ぬのは割に合わない。
-//
-// 環境変数（起動時に1回読む。launchd の EnvironmentVariables で機体ごとに差し込む）:
-//   CALDASH_TODO_DIR        todo ファイルのルート。既定 ~/Store/30_Work/todo。
-//                           tanegashima は ogasawara の読み取り専用ミラー ~/.cache/todo-mirror を指す
-//                           （modules/custom/todo-board/remote.nix の todo-mirror が 5 分ごとに更新）。
-//   CALDASH_TODO_STALE_MIN  <dir>/.synced の mtime がこの分数より古い（or 無い）と、todo 面の先頭に
-//                           `last sync HH:MM (ogasawara unreachable?)` を淡色で出す。既定 0=無効
-//                           （ogasawara は ~/Store を直読みで、同期の概念が無いため）。
+// 右下は Linear パネル: Linear の Web UI（config: linearURL。既定 https://linear.app/treo-sample/team/LIF/active）を
+//   Google 面と同じ WKWebView・同じ .default() データストアで読む（ログイン1回で永続）。
+// WHY Web 面: todo-board（ローカル md を leaf で描画）を廃止し、タスクの正史を Linear に移した（2026-11）。
+//      自前描画をやめて本体 SPA をそのまま出す。Google 用の CSS/JS 注入（クロム隠し・週伸縮・today 強調）は
+//      この面には一切かけない（Linear 自前のダークテーマで読める）。
+// wallpaper mode は ignoresMouseEvents なので閲覧専用。操作したいときは interactive（無フラグ）で開く。
 //
 // モード: （無フラグ）interactive=通常窓・ログイン用 / --wallpaper=常在面（アイコン裏・透過・全Space・無人）
 // 設定: ~/calendar-dashboard/caldash-config.json（env CALDASH_CONFIG で上書き）。
 //       gap / zoom / weekZoom / baseZoom / baseWeekZoom / referenceWidth /
 //       leftColumnRatio（左カラム幅比。等幅なら 0.3333）/ rightTopRatio（右カラム上段=来週の高さ比。既定 0.5）/
 //       nextWeekZoomScale（来週ペインだけ週 zoom に掛ける倍率。既定 0.75）/
-//       todoZoomScale（todo ペインだけ月 zoom に掛ける倍率。既定 1.3333）/
-//       account(u/N) / tz / backgroundOpacity /
-//       leafPath（leaf バイナリ。既定 ~/.local/bin/leaf）。
-// 日次: ローカル 00:01 に再ロード（各面を今日基準に再アンカー＋来週 URL 再計算・todo 面は当日ファイルへ切替。
+//       linearZoomScale（Linear ペインだけ月 zoom に掛ける倍率。既定 1.3333。旧キー todoZoomScale も受理）/
+//       linearURL（Linear 面の URL。既定 https://linear.app/treo-sample/team/LIF/active）/
+//       account(u/N) / tz / backgroundOpacity。
+// 日次: ローカル 00:01 に再ロード（各面を今日基準に再アンカー＋来週 URL 再計算・Linear 面も再ロード。
 //       4週ビューは本体側が「今週始まり」で描くので再ロードだけで当週に追随する）。
 //       ※イベントデータ自体は本体 SPA が自前同期するので定期リロードはしない。
 //
@@ -77,8 +57,8 @@
 //
 // セキュリティ（監査 2026-07-27 反映）:
 //   - isInspectable / JS 自動 window.open は無人常駐(--wallpaper)では無効（認証 view への侵入面を絞る）。
-//   - createWebViewWith / decidePolicy は wallpaper 時 Google 一族ホストのみ許可（認証 view の外部誘導阻止）。
-//   - .default() に本人の常時 Google セッション cookie が永続する点は自覚の上で受容（ブラウザ同等リスク）。
+//   - createWebViewWith / decidePolicy は wallpaper 時 Google 一族ホスト（＋Linear 面のみ linear.app 系）のみ許可（認証 view の外部誘導阻止）。
+//   - .default() に本人の常時 Google セッション cookie が永続する点は自覚の上で受容（ブラウザ同等リスク。Linear も同様）。
 
 import Cocoa
 import WebKit
@@ -308,35 +288,29 @@ var REFERENCE_WIDTH: CGFloat? = nil
 // 潰れないので、情報量の主戦場である週側に幅を寄せるための調整弁。
 // 2026-09-17: 0.25 で運用開始（2560 幅で 左 637px / 週 917px・994px）。
 var LEFT_COLUMN_RATIO: CGFloat? = nil
-// 右カラム（来週 / todo の縦スタック）の上段=来週が占める高さ比（config: rightTopRatio）。
+// 右カラム（来週 / Linear の縦スタック）の上段=来週が占める高さ比（config: rightTopRatio）。
 var RIGHT_TOP_RATIO: CGFloat = 0.5
 // 来週ペインだけに掛ける zoom 倍率（config: nextWeekZoomScale）。式適用後の週 zoom に乗る。
 var NEXT_WEEK_ZOOM_SCALE: CGFloat = 0.75
-// todo ペインだけに掛ける zoom 倍率（config: todoZoomScale）。月 zoom に乗る。
-// 既定 1.3333＝本人指定で todo を月 zoom 0.75 から zoom 1.0 相当に（2026-10-02）。
-var TODO_ZOOM_SCALE: CGFloat = 1.3333
+// Linear ペインだけに掛ける zoom 倍率（config: linearZoomScale。旧キー todoZoomScale も受理）。月 zoom に乗る。
+// 既定 1.3333＝旧 todo 面と同じ（月 zoom 0.75 から zoom 1.0 相当・2026-10-02 本人指定）。
+var LINEAR_ZOOM_SCALE: CGFloat = 1.3333
 // 背景 alpha（config: backgroundOpacity）。1.0=完全不透明、<1.0 で壁紙が透ける。
 // window.isOpaque + backgroundColor + GridView.layer + WKWebView.drawsBackground +
 // CSS 注入の全レイヤーに一貫適用する（どこか一箇所でも opaque だと透過は死ぬ）。
 var BG_OPACITY: CGFloat = 1.0
-// leaf バイナリのパス（config: leafPath）。nixpkgs に無いので手動配置の ~/.local/bin/leaf が既定。
-var LEAF_PATH = "~/.local/bin/leaf"
-// todo ファイルのルート。YYYY/YYYYMMDD-todo.md が下に並ぶ。
-// env CALDASH_TODO_DIR で上書き（ミラーを読む機体用）。
-let TODO_DIR: String = {
-    let v = ProcessInfo.processInfo.environment["CALDASH_TODO_DIR"] ?? ""
-    return v.isEmpty ? "~/Store/30_Work/todo" : v
-}()
-// 鮮度警告のしきい値（分）。0=無効。
-let TODO_STALE_MIN: Int = Int(ProcessInfo.processInfo.environment["CALDASH_TODO_STALE_MIN"] ?? "") ?? 0
+// Linear 面（pane [1]）の URL（config: linearURL）。Google 面と同じ .default() データストアで読むので
+// ログインは1回で永続。既定は本人の Linear チーム LIF の active ビュー。
+var LINEAR_URL = "https://linear.app/treo-sample/team/LIF/active"
 
 struct Config: Codable {
     var gap: Double?; var monthZoom: Double?; var weekZoom: Double?
     var baseMonthZoom: Double?; var baseWeekZoom: Double?; var referenceWidth: Double?
-    var leftColumnRatio: Double?; var rightTopRatio: Double?; var nextWeekZoomScale: Double?; var todoZoomScale: Double?
+    var leftColumnRatio: Double?; var rightTopRatio: Double?; var nextWeekZoomScale: Double?
+    var linearZoomScale: Double?; var todoZoomScale: Double?   // todoZoomScale は旧キー（互換）
+    var linearURL: String?
     var account: Int?; var tz: String?
     var backgroundOpacity: Double?
-    var leafPath: String?
 }
 // 設定ファイル: 既定 ~/.config/caldash/config.json (XDG_CONFIG_HOME 準拠、
 // 環境変数 XDG_CONFIG_HOME が空でなければそちらを尊重)。CALDASH_CONFIG 環境変数で
@@ -363,12 +337,12 @@ func loadConfig() {
     if let v = c.leftColumnRatio { LEFT_COLUMN_RATIO = max(0.1, min(0.6, CGFloat(v))) }
     if let v = c.rightTopRatio { RIGHT_TOP_RATIO = max(0.2, min(0.8, CGFloat(v))) }
     if let v = c.nextWeekZoomScale { NEXT_WEEK_ZOOM_SCALE = max(0.2, min(1.5, CGFloat(v))) }
-    if let v = c.todoZoomScale { TODO_ZOOM_SCALE = max(0.5, min(2.5, CGFloat(v))) }
+    if let v = c.linearZoomScale ?? c.todoZoomScale { LINEAR_ZOOM_SCALE = max(0.5, min(2.5, CGFloat(v))) }
+    if let v = c.linearURL, !v.isEmpty, URL(string: v) != nil { LINEAR_URL = v }
     if let v = c.account { ACCOUNT = v }
     if let v = c.tz { TZ_ID = v }
     if let v = c.backgroundOpacity { BG_OPACITY = max(0, min(1, CGFloat(v))) }
-    if let v = c.leafPath, !v.isEmpty { LEAF_PATH = v }
-    print("[caldash] config: gap=\(GAP) monthZoom=\(MONTH_ZOOM) weekZoom=\(WEEK_ZOOM) u/\(ACCOUNT) \(TZ_ID) opacity=\(BG_OPACITY) leaf=\(LEAF_PATH)")
+    print("[caldash] config: gap=\(GAP) monthZoom=\(MONTH_ZOOM) weekZoom=\(WEEK_ZOOM) u/\(ACCOUNT) \(TZ_ID) opacity=\(BG_OPACITY) linear=\(LINEAR_URL)")
     print("[caldash] layout: leftColumnRatio=\(LEFT_COLUMN_RATIO.map { "\($0)" } ?? "nil(3等幅)") rightTopRatio=\(RIGHT_TOP_RATIO) nextWeekZoomScale=\(NEXT_WEEK_ZOOM_SCALE)")
     if let ref = REFERENCE_WIDTH {
         print("[caldash] formula: baseMonthZoom=\(BASE_MONTH_ZOOM ?? MONTH_ZOOM) baseWeekZoom=\(BASE_WEEK_ZOOM ?? WEEK_ZOOM) referenceWidth=\(ref)")
@@ -392,298 +366,18 @@ func nextWeekYMD() -> (Int, Int, Int) {
     return (c.year!, c.month!, c.day!)
 }
 // 4 pane（GridView.layout の panes[0..3] と順序を揃える）:
-//   [0] 4週カスタム (左・全高) / [1] todo (右下・URL なし) / [2] 今週 (中央・全高) / [3] 来週 (右上)
+//   [0] 4週カスタム (左・全高) / [1] Linear (右下) / [2] 今週 (中央・全高) / [3] 来週 (右上)
 // [0] の /customweek は日付を持たず常に今週始まり（本体のカスタムビュー設定=4週・月曜始まり）。
-// [1] は Web でなくローカル描画なので nil（TodoPane が担当）。
-func paneURLs() -> [String?] {
+// [1] は Google ではなく Linear の Web UI（LINEAR_URL）。
+func paneURLs() -> [String] {
     let base = "https://calendar.google.com/calendar/u/\(ACCOUNT)/r"
     let (wy, wm, wd) = nextWeekYMD()
     return [
         "\(base)/customweek",             // 4週（今週始まり）
-        nil,                               // todo（TodoPane）
+        LINEAR_URL,                        // Linear
         "\(base)/week",                   // 今週
         "\(base)/week/\(wy)/\(wm)/\(wd)"   // 来週
     ]
-}
-
-// ---- ANSI → HTML BEGIN（単体テスト用に sed で切り出せるよう、この範囲は Foundation のみに依存）----
-// leaf --inline ansi の出力（SGR 主体）を <span style> 付き HTML に変換する。
-// 対応: 0 / 1 / 2 / 3 / 4 / 22 / 23 / 24 / 30-37 / 90-97 / 39 / 40-47 / 100-107 / 49 /
-//       38;5;n / 48;5;n / 38;2;r;g;b / 48;2;r;g;b。SGR 以外の CSI（カーソル移動等）と OSC は読み捨て。
-// 色は属性ごと保持して「状態が変わったら span を閉じて開き直す」素朴方式（出力が小さいので十分）。
-func ansi256(_ n: Int) -> String {
-    let std: [(Int, Int, Int)] = [
-        (0,0,0), (205,49,49), (13,188,121), (229,229,16), (36,114,200), (188,63,188), (17,168,205), (204,204,204),
-        (102,102,102), (241,76,76), (35,209,139), (245,245,67), (59,142,234), (214,112,214), (41,184,219), (255,255,255)]
-    var r = 0, g = 0, b = 0
-    if n < 16 { (r, g, b) = std[max(0, n)] }
-    else if n < 232 {
-        let i = n - 16, lv = [0, 95, 135, 175, 215, 255]
-        r = lv[i / 36]; g = lv[(i / 6) % 6]; b = lv[i % 6]
-    } else { let v = 8 + (min(n, 255) - 232) * 10; r = v; g = v; b = v }
-    return "rgb(\(r),\(g),\(b))"
-}
-func htmlEscape(_ s: String) -> String {
-    var o = ""
-    for ch in s {
-        switch ch {
-        case "&": o += "&amp;"
-        case "<": o += "&lt;"
-        case ">": o += "&gt;"
-        default: o.append(ch)
-        }
-    }
-    return o
-}
-func ansiToHTML(_ input: String) -> String {
-    var fg: String? = nil, bg: String? = nil
-    var bold = false, dim = false, italic = false, underline = false
-    var out = "", run = ""
-    func flush() {
-        if run.isEmpty { return }
-        var st: [String] = []
-        if let f = fg { st.append("color:\(f)") }
-        if let b = bg { st.append("background:\(b)") }
-        if bold { st.append("font-weight:bold") }
-        if dim { st.append("opacity:.55") }
-        if italic { st.append("font-style:italic") }
-        if underline { st.append("text-decoration:underline") }
-        let t = htmlEscape(run)
-        out += st.isEmpty ? t : "<span style=\"\(st.joined(separator: ";"))\">\(t)</span>"
-        run = ""
-    }
-    func sgr(_ ps: [Int]) {
-        var i = 0
-        let p = ps.isEmpty ? [0] : ps
-        while i < p.count {
-            let c = p[i]
-            switch c {
-            case 0: fg = nil; bg = nil; bold = false; dim = false; italic = false; underline = false
-            case 1: bold = true
-            case 2: dim = true
-            case 3: italic = true
-            case 4: underline = true
-            case 22: bold = false; dim = false
-            case 23: italic = false
-            case 24: underline = false
-            case 30...37: fg = ansi256(c - 30)
-            case 90...97: fg = ansi256(c - 90 + 8)
-            case 39: fg = nil
-            case 40...47: bg = ansi256(c - 40)
-            case 100...107: bg = ansi256(c - 100 + 8)
-            case 49: bg = nil
-            case 38, 48:
-                var col: String? = nil
-                if i + 2 < p.count, p[i + 1] == 5 { col = ansi256(p[i + 2]); i += 2 }
-                else if i + 4 < p.count, p[i + 1] == 2 {
-                    col = "rgb(\(min(255, p[i + 2])),\(min(255, p[i + 3])),\(min(255, p[i + 4])))"; i += 4
-                }
-                if let col = col { if c == 38 { fg = col } else { bg = col } }
-            default: break
-            }
-            i += 1
-        }
-    }
-    let u = Array(input.unicodeScalars)
-    var i = 0
-    while i < u.count {
-        let ch = u[i]
-        if ch.value == 0x1B, i + 1 < u.count {
-            let n = u[i + 1]
-            if n == "[" {                       // CSI: ESC [ params final(0x40-0x7E)
-                var j = i + 2, params = ""
-                while j < u.count, !(u[j].value >= 0x40 && u[j].value <= 0x7E) { params.unicodeScalars.append(u[j]); j += 1 }
-                if j < u.count {
-                    if u[j] == "m" {
-                        flush()
-                        let ps = params.split(omittingEmptySubsequences: false, whereSeparator: { $0 == ";" || $0 == ":" })
-                            .map { Int($0) ?? 0 }
-                        sgr(params.isEmpty ? [] : ps)
-                    }
-                    i = j + 1
-                } else { i = u.count }
-                continue
-            } else if n == "]" {                // OSC: BEL か ST(ESC \) まで読み捨て
-                var j = i + 2
-                while j < u.count, u[j].value != 0x07, !(u[j].value == 0x1B && j + 1 < u.count && u[j + 1] == "\\") { j += 1 }
-                i = (j < u.count && u[j].value == 0x1B) ? j + 2 : j + 1
-                continue
-            } else { i += 2; continue }         // その他 2 バイト ESC 列
-        }
-        if ch == "\r" { i += 1; continue }
-        run.unicodeScalars.append(ch)
-        i += 1
-    }
-    flush()
-    return out
-}
-// ---- ANSI → HTML END ----
-
-// todo パネル（pane [1]）。1 screen に 1 個。TodoWebView が自身の layout() で refresh を呼ぶので
-// リサイズにも追随（実処理は key 比較で冪等）。AppDelegate の 2 秒タイマーも同じ refresh を叩く。
-final class TodoWebView: WKWebView {
-    var onLayout: (() -> Void)?
-    override func layout() { super.layout(); onLayout?() }
-}
-
-let TODO_FONT_PX: CGFloat = 16     // CSS px（pageZoom が掛かる）
-let TODO_CHAR_W: CGFloat = 0.61    // 等幅の 1 字幅 ≒ 0.6em（SF Mono/Menlo は 0.602em。切れ防止に僅かに多め）
-let TODO_PAD: CGFloat = 8          // CSS px（左右）
-
-extension String { var nilIfEmpty: String? { isEmpty ? nil : self } }
-func expandTilde(_ p: String) -> String { (p as NSString).expandingTildeInPath }
-
-// 日付 → ~/Store/30_Work/todo/YYYY/YYYYMMDD-todo.md
-func todoPath(for date: Date) -> (path: String, stamp: String) {
-    let c = cal().dateComponents([.year, .month, .day], from: date)
-    let stamp = String(format: "%04d%02d%02d", c.year!, c.month!, c.day!)
-    return ("\(expandTilde(TODO_DIR))/\(String(format: "%04d", c.year!))/\(stamp)-todo.md", stamp)
-}
-// 当日ファイルが無いとき用: stamp 以下で最新の YYYYMMDD-todo.md（年ディレクトリ降順に探す）。
-func latestTodoFile(onOrBefore stamp: String) -> (path: String, stamp: String)? {
-    let fm = FileManager.default, root = expandTilde(TODO_DIR)
-    let years = ((try? fm.contentsOfDirectory(atPath: root)) ?? []).filter { $0.count == 4 && Int($0) != nil }.sorted(by: >)
-    for y in years {
-        let files = ((try? fm.contentsOfDirectory(atPath: "\(root)/\(y)")) ?? [])
-            .filter { $0.count == 16 && $0.hasSuffix("-todo.md") && Int($0.prefix(8)) != nil && String($0.prefix(8)) <= stamp }
-            .sorted(by: >)
-        if let f = files.first { return ("\(root)/\(y)/\(f)", String(f.prefix(8))) }
-    }
-    return nil
-}
-
-// ---- todo の素朴レンダラ + 鮮度警告（leaf 無し用・純関数。単体テスト対象）----
-// markdown を leaf 風の等幅 HTML（<pre> の中身）にする。入力は必ず HTML エスケープする。
-func plainMarkdownToHTML(_ md: String) -> String {
-    var lines: [String] = []
-    for raw in md.replacingOccurrences(of: "\r\n", with: "\n").components(separatedBy: "\n") {
-        // 先頭の空白（字下げ）を保ち、その後ろだけを解釈する
-        let indentCount = raw.prefix(while: { $0 == " " || $0 == "\t" }).count
-        let indent = String(raw.prefix(indentCount)), rest = String(raw.dropFirst(indentCount))
-        if rest.hasPrefix("#") {
-            let text = rest.drop(while: { $0 == "#" }).trimmingCharacters(in: .whitespaces)
-            lines.append("\(htmlEscape(indent))<b>\(htmlEscape(text))</b>")
-        } else if rest.hasPrefix("- [ ] ") {
-            lines.append("\(htmlEscape(indent))☐ \(htmlEscape(String(rest.dropFirst(6))))")
-        } else if rest.hasPrefix("- [x] ") || rest.hasPrefix("- [X] ") {
-            lines.append("\(htmlEscape(indent))<span style=\"color:#6b9e78\">☑ \(htmlEscape(String(rest.dropFirst(6))))</span>")
-        } else {
-            lines.append(htmlEscape(raw))
-        }
-    }
-    return lines.joined(separator: "\n")
-}
-// 鮮度警告文。staleMin<=0 なら無効。.synced の mtime（nil=無い）が staleMin 分より古い/無いときだけ返す。
-func staleBanner(syncedAt: Date?, now: Date, staleMin: Int) -> String? {
-    guard staleMin > 0 else { return nil }
-    if let t = syncedAt, now.timeIntervalSince(t) <= Double(staleMin) * 60 { return nil }
-    guard let t = syncedAt else { return "last sync never (ogasawara unreachable?)" }
-    let c = cal().dateComponents([.hour, .minute], from: t)
-    return String(format: "last sync %02d:%02d (ogasawara unreachable?)", c.hour!, c.minute!)
-}
-
-final class TodoPane {
-    let web: TodoWebView
-    private var lastKey = ""
-    private var lastErr = ""
-    private var gen = 0            // 古い描画結果が新しいのを上書きしないための世代
-    private let queue = DispatchQueue(label: "caldash.todo")
-
-    init(zoom: CGFloat) {
-        let cfg = WKWebViewConfiguration()
-        web = TodoWebView(frame: .zero, configuration: cfg)
-        web.pageZoom = zoom
-        if #available(macOS 13.3, *) { web.isInspectable = !WALLPAPER }
-        web.onLayout = { [weak self] in self?.refresh() }
-    }
-
-    // 今表示すべき (パス, 注記)。当日 → 無ければ最新の過去 → 無ければ nil。
-    private func target() -> (path: String, note: String?)? {
-        let today = todoPath(for: Date())
-        if FileManager.default.fileExists(atPath: today.path) { return (today.path, nil) }
-        if let l = latestTodoFile(onOrBefore: today.stamp) {
-            let m = Int(l.stamp.dropFirst(4).prefix(2))!, d = Int(l.stamp.suffix(2))!
-            return (l.path, "showing \(m)/\(d) (today's file not created yet)")
-        }
-        return nil
-    }
-
-    func refresh() {
-        let zoom = web.pageZoom
-        let width = web.bounds.width
-        guard width > 0 else { return }
-        let cols = max(20, Int(floor((width / zoom - 2 * TODO_PAD) / (TODO_FONT_PX * TODO_CHAR_W))))
-        guard let t = target() else {
-            let key = "none|\(zoom)"
-            if key != lastKey { lastKey = key; gen += 1; show(body: "", note: "no todo file for today") }
-            return
-        }
-        let mtime = ((try? FileManager.default.attributesOfItem(atPath: t.path))?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
-        // 鮮度警告は .synced の mtime と「今が古いか」で変わるので key に含める（2 秒 tick で再評価される）
-        let synced = (try? FileManager.default.attributesOfItem(atPath: "\(expandTilde(TODO_DIR))/.synced"))?[.modificationDate] as? Date
-        let banner = staleBanner(syncedAt: synced, now: Date(), staleMin: TODO_STALE_MIN)
-        let key = "\(t.path)|\(mtime)|\(cols)|\(zoom)|\(banner ?? "")"
-        if key == lastKey { return }
-        lastKey = key; gen += 1
-        let g = gen, leaf = expandTilde(LEAF_PATH), path = t.path
-        let note = [banner, t.note].compactMap { $0 }.joined(separator: "\n").nilIfEmpty
-        queue.async { [weak self] in
-            let r = TodoPane.runLeaf(leaf: leaf, cols: cols, file: path)
-            DispatchQueue.main.async {
-                guard let self = self, g == self.gen else { return }
-                switch r {
-                case .ok(let ansi):
-                    self.lastErr = ""
-                    print("[caldash] todo re-render \(path) cols=\(cols)")
-                    self.show(body: ansiToHTML(ansi), note: note)
-                case .fail(let msg):
-                    // leaf 無し/失敗は正常系: 自前で素朴に描く。エラーを出すのはファイルが読めないときだけ。
-                    // key は残す（leaf を後から置いた場合は mtime/再起動で戻る。毎 tick の再試行はしない）。
-                    if msg != self.lastErr { print("[caldash] todo leaf unavailable, plain render: \(msg)"); self.lastErr = msg }
-                    if let data = FileManager.default.contents(atPath: path) {
-                        self.show(body: plainMarkdownToHTML(String(decoding: data, as: UTF8.self)), note: note)
-                    } else {
-                        self.lastKey = ""
-                        self.show(body: "", note: "cannot read \(path)")
-                    }
-                }
-            }
-        }
-    }
-
-    enum LeafResult { case ok(String), fail(String) }
-    static func runLeaf(leaf: String, cols: Int, file: String) -> LeafResult {
-        let p = Process()
-        p.executableURL = URL(fileURLWithPath: leaf)
-        p.arguments = ["--inline", "ansi:\(cols)", file]
-        let out = Pipe(), err = Pipe()
-        p.standardOutput = out; p.standardError = err
-        do { try p.run() } catch { return .fail("cannot run \(leaf): \(error.localizedDescription)") }
-        // 万一ハングしても面が固まらないよう 10 秒で打ち切る。
-        DispatchQueue.global().asyncAfter(deadline: .now() + 10) { if p.isRunning { p.terminate() } }
-        let o = out.fileHandleForReading.readDataToEndOfFile()
-        let e = err.fileHandleForReading.readDataToEndOfFile()
-        p.waitUntilExit()
-        if p.terminationStatus != 0 {
-            let m = String(decoding: e, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-            return .fail("exit \(p.terminationStatus)" + (m.isEmpty ? "" : ": \(m)"))
-        }
-        return .ok(String(decoding: o, as: UTF8.self))
-    }
-
-    private func show(body: String, note: String?) {
-        let n = (note ?? "").components(separatedBy: "\n").filter { !$0.isEmpty }
-            .map { "<div class=\"dim\">\(htmlEscape($0))</div>" }.joined()
-        let html = """
-        <!doctype html><meta charset="utf-8"><style>
-        html,body{margin:0;background:#0f1117;overflow:hidden}
-        body{padding:\(Int(TODO_PAD))px}
-        pre{margin:0;font:\(Int(TODO_FONT_PX))px/1.35 "SF Mono",Menlo,monospace;color:#d0d2da;white-space:pre}
-        .dim{font:\(Int(TODO_FONT_PX))px/1.35 "SF Mono",Menlo,monospace;color:#646470}
-        </style><body>\(n)<pre>\(body)</pre>
-        """
-        web.loadHTMLString(html, baseURL: nil)
-    }
 }
 
 // 4週カスタムビュー（pane [0]）専用 JS（wallpaper 専用）。today 強調だけ行う。
@@ -750,7 +444,15 @@ func isGoogleHost(_ host: String?) -> Bool {
     return owned.contains { h == $0 || h.hasSuffix("." + $0) }
 }
 
-// 3 カラム、右は 来週(上)+todo(下) を縦スタック。左 4週・中央 今週は全高。middleExtraWidth が >0 なら中央 pane がその分広く、
+// Linear のホストか（linear.app と任意のサブドメイン）。Linear 面（pane [1]）でだけ追加許可する。
+// ログインは Google OAuth（Google 一族は許可済み）かメール/マジックリンク（linear.app 内で完結）。
+// SAML SSO の IdP など上記以外へ飛ぶ構成だと wallpaper mode では遮断される（interactive では無制限）。
+func isLinearHost(_ host: String?) -> Bool {
+    guard let h = host else { return true }
+    return h == "linear.app" || h.hasSuffix(".linear.app")
+}
+
+// 3 カラム、右は 来週(上)+Linear(下) を縦スタック。左 4週・中央 今週は全高。middleExtraWidth が >0 なら中央 pane がその分広く、
 // 左右 pane は残りを等分する（左 lw + 中央 lw+extra + 右 lw + gap*2 = W）。
 // extra は AppDelegate が「中央 pane の hour gutter を左右 pane と day col 幅で
 // 揃えるためのオフセット」として設定する。isFlipped=true で左上原点。
@@ -785,11 +487,11 @@ final class GridView: NSView {
         let botH = max(0, H - GAP - topH)
         let rx = lw + GAP + mw + GAP
         panes[0].frame = NSRect(x: 0,           y: 0,          width: lw, height: H)    // 4週（左・全高）
-        panes[1].frame = NSRect(x: rx,          y: topH + GAP, width: rw, height: botH) // todo（右下）
+        panes[1].frame = NSRect(x: rx,          y: topH + GAP, width: rw, height: botH) // Linear（右下）
         panes[2].frame = NSRect(x: lw + GAP,    y: 0,          width: mw, height: H)    // 今週（中央・全高、+extra）
         panes[3].frame = NSRect(x: rx,          y: 0,          width: rw, height: topH) // 来週（右上）
         // 幾何の証跡: rect/zoom が変わったときだけ 1 行（毎 layout では出さない）
-        let names = ["4wk", "todo", "this", "next"]
+        let names = ["4wk", "linear", "this", "next"]
         let line = panes.enumerated().map { (i, v) -> String in
             let z = (v as? WKWebView)?.pageZoom ?? 0
             let f = v.frame
@@ -806,8 +508,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
     var windows: [NSWindow] = []
     var grids: [GridView] = []
     var webs: [[WKWebView]] = []
-    var todoPanes: [TodoPane] = []      // screen ごとに 1 個（pane [1]）
-    var todoTimer: Timer?               // 2 秒ポーリング（TodoPane.refresh は key 比較で冪等）
     let store = WKWebsiteDataStore.default()   // ログイン共有＆永続（実測済み）
 
     // desktop-switch からの信号ハンドラ（wallpaper mode 限定）。retain 必須。
@@ -828,7 +528,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
                 effectiveZoom(base: baseW, ref: ref, current: w))
     }
 
-    func makeWeb(_ urlStr: String, zoom: CGFloat, extraCSS: String = "", extraJS: String = "") -> WKWebView {
+    func makeWeb(_ urlStr: String, zoom: CGFloat, extraCSS: String = "", extraJS: String = "", injectChrome: Bool = true) -> WKWebView {
         let cfg = WKWebViewConfiguration()
         cfg.websiteDataStore = store
         // M2: 無人常駐では JS の自動 window.open を禁止。ログインは gesture 起点なので interactive では許可。
@@ -836,7 +536,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         // wallpaper mode 限定: 盤面だけ残す CSS を毎ロード注入（documentElement 直下なので
         // SPA の DOM 再構築で剥がれない）。extraCSS で pane 固有ルール（例: 来週の時間軸
         // オフ）を後付けできる。interactive では UI 温存でログイン導線を確保。
-        if WALLPAPER {
+        if WALLPAPER && injectChrome {
             let css = HIDE_CHROME_CSS + "\n" + extraCSS
             // MutationObserver で document.head を監視、style 要素が消えたら即再注入。
             // 日次 reanchor での URL 再読込では atDocumentEnd で毎回再発火するので、
@@ -911,7 +611,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
             let w = NSWindow(contentRect: grid.frame,
                              styleMask: [.titled, .closable, .resizable, .miniaturizable],
                              backing: .buffered, defer: false)
-            w.title = "caldash — 4週/todo/今週/来週（--wallpaper で常在面化）"
+            w.title = "caldash — 4週/Linear/今週/来週（--wallpaper で常在面化）"
             w.contentView = grid
             w.center()
             w.makeKeyAndOrderFront(nil)
@@ -922,9 +622,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         }
         scheduleDailyReanchor()
         startStretchTimer()
-        todoTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
-            self?.todoPanes.forEach { $0.refresh() }
-        }
     }
 
     // GridView + 4 pane を組み立てて (grid, webs) を返す。呼び出し側で
@@ -941,7 +638,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         grid.middleExtraWidth = GCAL_WEEK_GUTTER_PX * weekZoom
         grid.leftColumnRatio = LEFT_COLUMN_RATIO
         grid.rightTopRatio = RIGHT_TOP_RATIO
-        let zooms: [CGFloat] = [zoom, zoom * TODO_ZOOM_SCALE, weekZoom, weekZoom * NEXT_WEEK_ZOOM_SCALE]  // 4週/todo/今週/来週（todo は月 zoom・来週は縮小）
+        let zooms: [CGFloat] = [zoom, zoom * LINEAR_ZOOM_SCALE, weekZoom, weekZoom * NEXT_WEEK_ZOOM_SCALE]  // 4週/Linear/今週/来週（Linear は月 zoom×倍率・来週は縮小）
         // 来週 (index 3) は時間ラベル gutter を完全に消去し、day headers も events grid
         // 本体も左端に寄せる。GCal 週ビュー DOM (2026-07-30 時点):
         //   .UqLcs  = 上部 Texas/Japan チップコンテナ（.sS0sZd + .kL3bhb 内包）
@@ -953,16 +650,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         //             .lqYlwe を消せば .mDPmMe が全幅（96px 分左へ）に広がる。
         // NOTE: Google の class 名はハッシュで release 毎に変わる可能性あり（fragile）。
         //       壊れたら wallpaper mode で isInspectable=true にして再インスペクト。
-        // 4週ペインは today 強調のみ（customWeekPaneJS）。todo ペイン（[1]）は Web 注入なし。
+        // 4週ペインは today 強調のみ（customWeekPaneJS）。Linear ペイン（[1]）は Google 用の注入なし（Linear 自前のダークテーマのまま）。
         let extraCSSs: [String] = ["", "", WEEK_EVENT_FONT_CSS,
             WEEK_EVENT_FONT_CSS + "\n.lqYlwe, .UqLcs, .FDbe8b, .EDDeke { display: none !important; }"]
         let extraJSs: [String] = [customWeekPaneJS(), "", WEEK_STRETCH_JS, WEEK_STRETCH_JS]
         let urls = paneURLs()
         let paneWebs: [WKWebView] = urls.indices.map { i in
-            if let u = urls[i] { return makeWeb(u, zoom: zooms[i], extraCSS: extraCSSs[i], extraJS: extraJSs[i]) }
-            let tp = TodoPane(zoom: zooms[i])
-            todoPanes.append(tp)
-            return tp.web
+            makeWeb(urls[i], zoom: zooms[i], extraCSS: extraCSSs[i], extraJS: extraJSs[i], injectChrome: i != 1)
         }
         grid.panes = paneWebs
         paneWebs.forEach { grid.addSubview($0) }
@@ -1039,7 +733,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         }
     }
 
-    // 日次アンカー更新：ローカル 00:01 に全面を再ロード（todo 面は当日ファイルへ切替）。DST でずれないよう Calendar で厳密算出。
+    // 日次アンカー更新：ローカル 00:01 に全面を再ロード（Linear 面も再ロードで可）。DST でずれないよう Calendar で厳密算出。
     func scheduleDailyReanchor() {
         guard let next = cal().nextDate(after: Date(),
                                         matching: DateComponents(hour: 0, minute: 1, second: 0),
@@ -1055,10 +749,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         let urls = paneURLs()   // 来週 URL は当日基準で再計算（4週は固定 URL＝再ロードで今週始まりに戻る）
         for screenWebs in webs {
             for (i, wv) in screenWebs.enumerated() where i < urls.count {
-                if let s = urls[i], let u = URL(string: s) { wv.load(URLRequest(url: u)) }
+                if let u = URL(string: urls[i]) { wv.load(URLRequest(url: u)) }
             }
         }
-        todoPanes.forEach { $0.refresh() }   // 日付が変わっていれば key（パス）が変わり再描画される
         print("[caldash] re-anchored across \(webs.count) screen(s)")
     }
 
@@ -1071,7 +764,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         if screens.count != windows.count {
             print("[caldash] screen count \(windows.count) → \(screens.count), rebuilding")
             for w in windows { w.orderOut(nil); w.close() }
-            windows.removeAll(); grids.removeAll(); webs.removeAll(); todoPanes.removeAll()
+            windows.removeAll(); grids.removeAll(); webs.removeAll()
             setupWallpaperWindows()
             return
         }
@@ -1081,7 +774,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
             if w.frame != area { w.setFrame(area, display: true) }
             guard formulaMode, i < webs.count else { continue }
             let (nz, nwz) = computeEffectiveZooms(for: screen)
-            let zooms: [CGFloat] = [nz, nz * TODO_ZOOM_SCALE, nwz, nwz * NEXT_WEEK_ZOOM_SCALE]  // 4週/todo/今週/来週
+            let zooms: [CGFloat] = [nz, nz * LINEAR_ZOOM_SCALE, nwz, nwz * NEXT_WEEK_ZOOM_SCALE]  // 4週/Linear/今週/来週
             for (j, wv) in webs[i].enumerated() where j < zooms.count {
                 if wv.pageZoom != zooms[j] { wv.pageZoom = zooms[j] }
             }
@@ -1140,18 +833,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         print("[caldash] cmd layer=\(layer) screen=\(screenSpec) → \(iShouldShow ? "show" : "hide") \(targets.count) window(s)")
     }
 
-    // M1: ポップアップ/新規窓を同 view に流す（サインイン用）。無人常駐では Google 一族のみ許可。
+    // wallpaper mode の許可ホスト: 全面 Google 一族。Linear 面（pane [1]）だけ加えて linear.app 系。
+    func isAllowedHost(_ host: String?, in w: WKWebView) -> Bool {
+        if isGoogleHost(host) { return true }
+        return webs.contains { $0.count > 1 && $0[1] === w } && isLinearHost(host)
+    }
+    // M1: ポップアップ/新規窓を同 view に流す（サインイン用）。無人常駐では Google 一族（＋Linear 面は linear.app 系）のみ許可。
     func webView(_ w: WKWebView, createWebViewWith cfg: WKWebViewConfiguration,
                  for act: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
-        if let u = act.request.url, (!WALLPAPER || isGoogleHost(u.host)) { w.load(act.request) }
+        if let u = act.request.url, (!WALLPAPER || isAllowedHost(u.host, in: w)) { w.load(act.request) }
         return nil
     }
-    // M1: 無人常駐では Google 一族以外の http(s) 遷移を遮断（認証 view の乗っ取り防止）。
+    // M1: 無人常駐では 許可ホスト以外の http(s) 遷移を遮断（認証 view の乗っ取り防止）。
     func webView(_ w: WKWebView, decidePolicyFor act: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         if WALLPAPER, let u = act.request.url,
-           (u.scheme == "http" || u.scheme == "https"), !isGoogleHost(u.host) {
-            print("[caldash] blocked non-Google nav: \(u.absoluteString)")
+           (u.scheme == "http" || u.scheme == "https"), !isAllowedHost(u.host, in: w) {
+            print("[caldash] blocked non-allowlisted nav: \(u.absoluteString)")
             decisionHandler(.cancel); return
         }
         decisionHandler(.allow)

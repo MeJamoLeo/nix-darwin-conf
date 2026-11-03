@@ -15,7 +15,7 @@
   #   伝えて走らせる形だった（mail-digest-surface.sh）。**セッションを開かない日は走らない**ので
   #   9/20〜10/2 の12日間、誰も気づかないまま止まっていた。
   #   ★ 一般形＝**実行経路を人間（セッション）の任意呼び出しに置くと回らない。**
-  #     record-blocks / todo-board と同じ結論で、定期実行は launchd に載せる。
+  #     record-blocks と同じ結論で、定期実行は launchd に載せる。
   #
   # ⚠ RunAtLoad は false 固定。`switch` のたびに本物のスイープ（API 呼び出し・Gmail の
   #   ラベル付与・digest 上書き）が走るのを防ぐ。

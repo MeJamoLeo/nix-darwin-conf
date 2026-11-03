@@ -7,8 +7,8 @@
   "account": 0,
   "tz": "America/Chicago",
   "backgroundOpacity": 0.5,
-  "leafPath": "~/.local/bin/leaf",
   "rightTopRatio": 0.5,
   "nextWeekZoomScale": 0.75,
-  "todoZoomScale": 1.3333
+  "linearZoomScale": 1.3333,
+  "linearURL": "https://linear.app/treo-sample/team/LIF/active"
 }

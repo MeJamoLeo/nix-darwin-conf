@@ -61,7 +61,7 @@
   #                  （tty の無い呼び出し元が pinentry 待ちで固まるのを防ぐ）。
   #                  手動ツールはすべてこれ経由で読み、Keychain は読まない。
   #    secret-cache  Bitwarden → login Keychain の派生キャッシュを作る。
-  #                  launchd ジョブ（todo-board・cp dashboard）用。
+  #                  launchd ジョブ（cp dashboard 等）用。
   #
   #  消費スクリプトは rbw を直に叩かない。Claude が secret-get を直接叩くのは
   #  modules/apps/claude/deny-secret-reads.sh で deny。

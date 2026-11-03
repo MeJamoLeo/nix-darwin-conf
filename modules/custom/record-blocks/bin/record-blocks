@@ -54,7 +54,7 @@ SYNTHETIC_PREFIXES = (
 )
 
 
-# 科目コード（CS 4355 / CS4355 / ENG3303）。todo-board が行との紐づけに使う手がかり
+# 科目コード（CS 4355 / CS4355 / ENG3303）。行との紐づけに使う手がかり
 COURSE_CODE = re.compile(r"(?<![A-Za-z0-9])([A-Z]{2,4})[ .]?(\d{4})(?![0-9])")
 SAMPLE_PROMPTS = 6
 SAMPLE_CHARS = 300
