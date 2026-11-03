@@ -536,6 +536,16 @@ func loginServiceNeeded(for u: URL?) -> LoginService? {
     }
     return nil
 }
+// Linear はログアウト時に URL を変えず、その場に「Log in to Linear」を描く（2026-11-03 実測）。
+// URL では判定できないので、画面の文字で判定する。返り値: "out" / "in" / "loading"。
+let LINEAR_STATE_JS = """
+(function(){var t=(document.body&&document.body.innerText)||'';
+if(/Log in to Linear|Continue with Google|Continue with email|Continue with SAML/.test(t))return 'out';
+return t.length>200?'in':'loading';})()
+"""
+func linearState(_ w: WKWebView, _ done: @escaping (String) -> Void) {
+    w.evaluateJavaScript(LINEAR_STATE_JS) { r, _ in done((r as? String) ?? "loading") }
+}
 // ログイン窓内のページが「ログイン完了後の面」か
 func loginCompleted(_ svc: LoginService, url u: URL?) -> Bool {
     guard let u = u, let h = u.host?.lowercased() else { return false }
@@ -560,6 +570,8 @@ final class LoginController: NSObject, WKNavigationDelegate, WKUIDelegate, NSWin
     var lastDismissed: [LoginService: Date] = [:]   // 未完了で閉じられた時刻（10 分バックオフ）
     var completing = false
     var urlObservation: NSKeyValueObservation?   // SPA（Linear）の画面内遷移で完了を拾うため
+    var linearPoll: Timer?                       // Linear は URL で完了が分からないので画面の文字を2秒毎に見る
+    var linearInCount = 0
     var reloadPanes: ((LoginService) -> Void)?
     static let backoff: TimeInterval = 600
 
@@ -623,7 +635,17 @@ final class LoginController: NSObject, WKNavigationDelegate, WKUIDelegate, NSWin
             w.setFrameOrigin(NSPoint(x: f.midX - rect.width / 2, y: f.midY - rect.height / 2))
         }
         window = w; web = wv
-        wv.load(URLRequest(url: URL(string: svc.targetURL)!))
+        wv.load(URLRequest(url: URL(string: svc == .linear ? "https://linear.app/login" : svc.targetURL)!))
+        if svc == .linear {
+            linearInCount = 0
+            linearPoll = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+                guard let self = self, let wv = self.web, self.current == .linear else { return }
+                linearState(wv) { st in
+                    self.linearInCount = (st == "in") ? self.linearInCount + 1 : 0
+                    if self.linearInCount >= 2 { self.finish(.linear) }
+                }
+            }
+        }
         NSApp.activate(ignoringOtherApps: true)
         w.makeKeyAndOrderFront(nil)
         w.makeFirstResponder(wv)
@@ -632,6 +654,7 @@ final class LoginController: NSObject, WKNavigationDelegate, WKUIDelegate, NSWin
 
     private func teardown() {
         urlObservation = nil
+        linearPoll?.invalidate(); linearPoll = nil
         web?.navigationDelegate = nil
         web?.uiDelegate = nil
         window?.delegate = nil
@@ -640,12 +663,20 @@ final class LoginController: NSObject, WKNavigationDelegate, WKUIDelegate, NSWin
     }
 
     private func complete(_ svc: LoginService) {
+        guard svc != .linear else { return }   // Linear は linearPoll が finish を呼ぶ
         guard !completing else { return }
         completing = true
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
             guard let self = self, self.current == svc, let wv = self.web else { return }
             // SPA の後追いリダイレクトで login に戻った場合は完了扱いにしない
             guard loginCompleted(svc, url: wv.url) else { self.completing = false; return }
+            self.finish(svc)
+        }
+    }
+
+    private func finish(_ svc: LoginService) {
+        guard current == svc else { return }
+        do {  // 旧 complete の本体をそのまま移した
             self.window?.delegate = nil   // 手動クローズ扱い（windowWillClose）を避ける
             self.window?.close()
             print("[caldash] login completed: \(svc.rawValue) at \(nowISO())")
@@ -902,8 +933,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
     // device px 換算用）、状態を読んで「変化したときだけ」log する（同じ値の繰り返しは出さない）。
     var stretchTimer: Timer?
     var lastStretchKey: [String: String] = [:]
+    // Linear ペインのログイン切れ検査（URL が変わらないので画面の文字で見る）。起動 20 秒後から 60 秒毎。
+    var linearCheckTimer: Timer?
+    func startLinearCheck() {
+        guard WALLPAPER else { return }
+        let check: () -> Void = { [weak self] in
+            guard let self = self else { return }
+            for (si, row) in self.webs.enumerated() where row.count > 1 {
+                linearState(row[1]) { st in
+                    guard st == "out" else { return }
+                    print("[caldash] login required: pane=linear screen=\(si) (page shows login) at \(nowISO())")
+                    self.login.request(.linear)
+                }
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 20, execute: check)
+        linearCheckTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in check() }
+    }
     func startStretchTimer() {
         guard WALLPAPER else { return }
+        if linearCheckTimer == nil { startLinearCheck() }
         stretchTimer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in self?.pollStretch() }
     }
     func pollStretch() {
