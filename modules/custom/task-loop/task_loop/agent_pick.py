@@ -1,6 +1,9 @@
 """agent-pick：無人 automation が次に処理する `Agent` issue を1件選ぶ（Claude は呼ばない）。
 
   task-loop agent-pick            選んだ issue の ID を1行出す（無ければ何も出さず exit 1）
+  task-loop agent-pick --claim    選んだ issue をその場で In Progress にしてから ID を出す。
+                                  ロックで直列化するので、同時に何本走らせても同じ issue を2本が取らない
+                                  （agent-batch で一斉に走らせるときの入口）
   task-loop agent-pick --check    Orca automation の precheck 用。
                                   「拾える issue がある」かつ「枠が余っている」なら exit 0、それ以外は exit 1
 
@@ -17,6 +20,7 @@
 
 from __future__ import annotations
 
+import fcntl
 import json
 import re
 import sys
@@ -104,7 +108,35 @@ def candidates() -> list[dict]:
     return sorted(ready, key=key)
 
 
+LOCK = state.ROOT / "agent-pick.lock"
+
+
+def claim() -> str | None:
+    """候補の先頭を In Progress にして返す。ロック中は他の claim を待たせる。"""
+    LOCK.parent.mkdir(parents=True, exist_ok=True)
+    with open(LOCK, "w") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        cs = candidates()
+        if not cs:
+            return None
+        ident = cs[0]["identifier"]
+        orca.set_status(ident, "In Progress")
+        return ident
+
+
 def main(argv: list[str]) -> int:
+    if "--claim" in argv:
+        try:
+            ident = claim()
+        except orca.OrcaError as e:
+            print(f"ERROR {e}", file=sys.stderr)
+            state.record_run(JOB, False, f"claim 失敗: {e}")
+            return 1
+        if not ident:
+            return 1
+        state.record_run(JOB, True, f"claim: {ident}")
+        print(ident)
+        return 0
     check = "--check" in argv
     if check:
         ok, msg = quota_ok()

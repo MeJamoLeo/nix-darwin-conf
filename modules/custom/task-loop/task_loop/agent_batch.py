@@ -1,7 +1,7 @@
 """agent-batch：Agent issue を本人のタイミングで一斉に処理させる（Claude は呼ばない。起動するだけ）。
 
-  task-loop agent-batch            既定 5 本を同時に起動する
-  task-loop agent-batch 8          8 本
+  task-loop agent-batch            今着手できる物を全部、同時に起動する
+  task-loop agent-batch 8          8 本で頭打ち
   task-loop agent-batch --dry-run  拾われる順と本数だけ見せて、起動しない
   task-loop agent-batch --force    枠の判定を無視する
 
@@ -22,15 +22,13 @@ JOB = "agent-batch"
 AUTOMATION = os.environ.get(
     "TASK_LOOP_AGENT_AUTOMATION", "c875a09b-c5a8-4660-a60f-942e2e8a1943"
 )
-DEFAULT_N = 5
-MAX_N = 10
 
 
 def main(argv: list[str]) -> int:
     dry = "--dry-run" in argv
     force = "--force" in argv
     nums = [a for a in argv if a.isdigit()]
-    want = min(int(nums[0]) if nums else DEFAULT_N, MAX_N)
+    want = int(nums[0]) if nums else None
 
     ok, msg = agent_pick.quota_ok()
     print(f"枠：{msg}")
@@ -45,7 +43,7 @@ def main(argv: list[str]) -> int:
         print(f"ERROR {e}", file=sys.stderr)
         state.record_run(JOB, False, f"orca 失敗: {e}")
         return 1
-    n = min(want, len(cs))
+    n = len(cs) if want is None else min(want, len(cs))
     if n == 0:
         print("拾える Agent issue が無い")
         state.record_run(JOB, True, "skip: 候補なし")

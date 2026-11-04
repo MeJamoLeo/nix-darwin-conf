@@ -3,7 +3,8 @@
 
 jobs:
   workspace-cleanup   Linear の状態に合わせて Orca のワークスペースを片付ける
-  agent-pick          無人 automation が次に処理する Agent issue を選ぶ（--check で precheck）
+  agent-pick          無人 automation が次に処理する Agent issue を選ぶ（--check で precheck・--claim で確保）
+  agent-batch [N]     Agent issue を N 本（既定5）同時に処理させる（--dry-run で見るだけ）
 """
 
 import os
@@ -14,6 +15,7 @@ sys.path.insert(0, os.path.expanduser("~/.local/lib/task-loop"))
 JOBS = {
     "workspace-cleanup": "task_loop.cleanup",
     "agent-pick": "task_loop.agent_pick",
+    "agent-batch": "task_loop.agent_batch",
 }
 
 
