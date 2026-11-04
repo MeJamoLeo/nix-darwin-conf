@@ -12,7 +12,7 @@ description: 説明・概念を「ステップごとに状態が変わる図」�
 | 言われ方・状況 | パターン | 出力 |
 |---|---|---|
 | 「図にして」だけ（既定） | **Markdown** | 返信の中に Mermaid の図をステップ順に並べる。ファイルを作らない |
-| 「HTML で」「アニメーション」「じっくり」「共有したい」、連続的な動き（グラフの変形・要素の移動）が主役のとき | **HTML** | `~/.cache/viz/*.html` を書き出してブラウザで開く |
+| 「HTML で」「アニメーション」「じっくり」「共有したい」、連続的な動き（グラフの変形・要素の移動）が主役のとき | **HTML** | HTML を書き出してブラウザで開く（置き場所は「HTML 版」の手順 2） |
 | 「ターミナルで」「ASCII で」 | **ASCII** | spec から `build.py --ascii` で文字図を出し、返信にコードブロックで貼る |
 | 数式を見せたいだけ | **viz を使わない** | 返信に `$...$`・`$$...$$`・`\( \)`・`\[ \]`・`` ```math `` で直接書く |
 
@@ -67,7 +67,10 @@ python3 ~/.claude/skills/viz/build.py ~/.cache/viz/<file>.json --ascii [--cols 1
 ### 手順
 
 1. **ステップ表を頭の中で切る。** 何を、どの粒度で見せるか。**粒度は細かく**——1ステップ＝1つの変化（1行進む・1つ動く・1つ色が変わる）。まとめて変えたくなったら分ける。重い変化（大きな移動・区間の消去）は `len` を 1.5〜2 にしてスクロール距離を伸ばす。
-2. **spec を書く**：`~/.cache/viz/YYYY-MM-DD-<slug>.json`（下の仕様。迷ったら `examples/binary-search.json` を雛形にする）。
+2. **spec を書く**（下の仕様。迷ったら `examples/binary-search.json` を雛形にする）。置き場所：
+   - **授業など Store に属する物**：その単元フォルダ（例 `~/Store/20_Courses/CS3360/module4/<slug>.json`）。HTML は spec の隣に出る。
+     スクショは自動で隣の `_build/` に出る。`_build/` の中は確認なしで消してよい（`~/Store/README.md` の契約）。
+   - **それ以外の使い捨て**：`~/.cache/viz/YYYY-MM-DD-<slug>.json`。
 3. **ビルドして撮る**：
    ```bash
    python3 ~/.claude/skills/viz/build.py ~/.cache/viz/<file>.json --shot 1,<中間>,<最後>
@@ -124,4 +127,4 @@ python3 ~/.claude/skills/viz/build.py ~/.cache/viz/<file>.json --ascii [--cols 1
 - 頼まれていないのに生成・`open` しない。
 - 数式だけのために viz を使わない（会話ビューがそのまま描く）。
 - エンジン（`template.html`）を毎回書き換えない。表現が足りないときは、エンジンへの部品追加を**提案**する（この skill は nix-darwin-conf 管理）。
-- spec をプロジェクトのディレクトリや vault に置かない（`~/.cache/viz/` だけ）。
+- spec を vault やコードのプロジェクトのディレクトリに置かない（Store の単元フォルダか `~/.cache/viz/` だけ）。

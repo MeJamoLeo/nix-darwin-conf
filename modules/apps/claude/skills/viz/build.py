@@ -175,7 +175,10 @@ def shoot(out, steps):
         return
     with tempfile.TemporaryDirectory() as prof:
         for s in steps:
-            png = out.with_name(f"{out.stem}-s{s}.png")
+            # スクショは作り直せる中間物なので、出力の隣の _build/ に置く（Store の契約）
+            bd = out.parent / "_build"
+            bd.mkdir(exist_ok=True)
+            png = bd / f"{out.stem}-s{s}.png"
             subprocess.run([chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars", f"--user-data-dir={prof}",
                             "--window-size=1280,860", "--virtual-time-budget=1500", f"--screenshot={png}",
                             f"{out.resolve().as_uri()}#s={s}&shot"], check=False, capture_output=True, timeout=60)
