@@ -82,5 +82,20 @@ class Plan(unittest.TestCase):
         self.assertIn("0 点", C.comment_body(items[1]))
 
 
+
+class DueInherit(unittest.TestCase):
+    def _i(self, ident, due=None, parent=None, typ="unstarted"):
+        return {"identifier": ident, "dueDate": due, "state": {"type": typ, "name": "Todo"},
+                "description": f"parent: {parent}" if parent else "x"}
+
+    def test_fills_only_empty_open_children(self):
+        issues = [self._i("LIF-1", "2026-11-04"),
+                  self._i("LIF-2", parent="LIF-1"),                    # 写す
+                  self._i("LIF-3", "2026-11-02", parent="LIF-1"),      # 手で付けた期限は触らない
+                  self._i("LIF-4", parent="LIF-1", typ="completed"),   # 閉じた子は触らない
+                  self._i("LIF-5", parent="LIF-9"),                    # 親が一覧に無い
+                  self._i("LIF-6"), self._i("LIF-7", parent="LIF-6")]  # 親に期限が無い
+        self.assertEqual(C.plan_due_inherit(issues), [("LIF-2", "2026-11-04")])
+
 if __name__ == "__main__":
     unittest.main()

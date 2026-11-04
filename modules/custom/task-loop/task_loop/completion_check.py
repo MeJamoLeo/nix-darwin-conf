@@ -9,6 +9,8 @@
        0 点     → 親と、開いている子を Canceled にして、親に1回コメント
        それ以外 → 触らない
   3. 既に Done / Canceled の issue は対象外なので、再実行しても二重コメントにならない
+  4. 期限の無い開いている子に、親の期限を写す（Linear の View が期限で絞れるように。2026-11-03）。
+     子に期限があれば触らない＝手で付けた期限は上書きしない
 
 `--apply` を付けたときだけ書き込む。付けなければ計画表を出すだけ（既定が dry-run）。
 """
@@ -77,6 +79,33 @@ def build_index(issues: list[dict]) -> tuple[dict[str, str], dict[str, list[dict
         if aid:
             roots[iss["identifier"]] = aid
     return roots, children
+
+
+def plan_due_inherit(issues: list[dict]) -> list[tuple[str, str]]:
+    """(子の識別子, 写す期限) の一覧。子に期限が無く、開いていて、親に期限があるものだけ。純粋関数。
+
+    期限は親（成果物）にだけ付くので、自分の手番の子が「期限1週間以内」の View に一件も出なかった。
+    """
+    by_id = {i["identifier"]: i for i in issues}
+    out = []
+    for iss in issues:
+        p = parent_ref(iss.get("description"))
+        if not p or iss.get("dueDate") or orca.state_type(iss) not in OPEN:
+            continue
+        due = (by_id.get(p) or {}).get("dueDate")
+        if due:
+            out.append((iss["identifier"], due))
+    return out
+
+
+def set_due_confirmed(identifier: str, due: str) -> None:
+    try:
+        orca.run("linear", "save-issue", identifier, "--due-date", due)
+    except orca.OrcaError as e:
+        if "linear_write_unconfirmed" not in str(e):
+            raise
+        if orca.issue(identifier).get("dueDate") != due:
+            raise
 
 
 def plan(issues: list[dict], assignments: dict[str, dict]) -> tuple[list[dict], list[str]]:
@@ -180,6 +209,9 @@ def main(argv: list[str]) -> int:
 
     items, notes = plan(issues, assignments)
     print_plan(items, notes, tag)
+    dues = plan_due_inherit(issues)
+    for k, d in dues:
+        print(f"{tag}期限を引き継ぐ\t{k}\t→ {d}")
     if not apply:
         return 0
 
@@ -199,7 +231,17 @@ def main(argv: list[str]) -> int:
             orca.comment(it["parent"], comment_body(it))
         except orca.OrcaError as e:
             errors.append(f"comment {it['parent']}: {e}")
+    closed_ids = {k for it in items for k in it["children"]} | {it["parent"] for it in items}
+    filled = 0
+    for k, d in dues:
+        if k in closed_ids:
+            continue
+        try:
+            set_due_confirmed(k, d)
+            filled += 1
+        except orca.OrcaError as e:
+            errors.append(f"due {k}: {e}")
     for e in errors:
         print(f"ERROR {e}", file=sys.stderr)
-    state.record_run(JOB, not errors, f"closed {closed}・notes {len(notes)}・errors {len(errors)}")
+    state.record_run(JOB, not errors, f"closed {closed}・due {filled}・notes {len(notes)}・errors {len(errors)}")
     return 1 if errors else 0
