@@ -178,9 +178,14 @@ in {
       # システムログにも記録なし＝気づけない）。ここが落ちると macOS は DIRECT に
       # フォールバックする＝システム PAC の柵が丸ごと無効化される。どうしても下げるなら
       # StandardErrorPath を外して unified log に流す形とセットで。
+      #
+      # 起動は `command` で書く（ProgramArguments に store パスを直接置かない）。nix-darwin が
+      # `/bin/wait4path /nix/store && exec …` で包むので、起動直後に /nix がまだ無くても落ちない。
+      # 2026-10-29 の再起動で enforce が spawn に失敗（exit 78）→ penalty box に入り、
+      # 5日間だれも握り直さなかった（棚卸し LIF-211 で発覚）。下の assertion が再発を止める。
       launchd.daemons.youtube-gate-pac = {
+        command = "${pkgs.python3}/bin/python3 ${pacServer}";
         serviceConfig = {
-          ProgramArguments = ["${pkgs.python3}/bin/python3" "${pacServer}"];
           RunAtLoad = true;
           KeepAlive = true;
           StandardErrorPath = "/var/log/youtube-gate-pac.err.log";
@@ -190,8 +195,8 @@ in {
       # プロキシ設定の握り直し。手で切られても・サービスが増えても 10 分で戻る。
       # こちらは networksetup が特権を要求するので root のまま。
       launchd.daemons.youtube-gate-enforce = {
+        command = "${applyProxy}";
         serviceConfig = {
-          ProgramArguments = ["${applyProxy}"];
           RunAtLoad = true;
           StartInterval = 600;
           StandardErrorPath = "/var/log/youtube-gate-enforce.err.log";

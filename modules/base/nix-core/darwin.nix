@@ -44,4 +44,17 @@
   nix.settings = {
     auto-optimise-store = false;
   };
+
+  # root の launchd daemon は、起動直後の /nix がマウントされる前に spawn されることがある。
+  # ProgramArguments の先頭が store パスだと、そのとき exit 78 で落ちて penalty box に入り、
+  # 誰も気づかないまま止まる（2026-10-29 youtube-gate-enforce）。`command` か `script` で書けば
+  # nix-darwin が wait4path で包むので、それ以外の書き方をビルド時に拒否する。
+  assertions =
+    lib.mapAttrsToList (name: d: let
+      args = d.serviceConfig.ProgramArguments or [];
+    in {
+      assertion = args == [] || !(lib.hasPrefix "/nix/store" (builtins.head args));
+      message = "launchd.daemons.${name}: ProgramArguments の先頭が /nix/store。起動時に /nix が無いと落ちる。`command = \"...\";` で書くこと（nix-darwin が wait4path で包む）。";
+    })
+    config.launchd.daemons;
 }
