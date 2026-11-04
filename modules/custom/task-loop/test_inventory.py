@@ -1,6 +1,7 @@
 import os
 import sys
 import unittest
+from datetime import date, datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from task_loop import inventory as I  # noqa: E402
@@ -64,19 +65,20 @@ class Health(unittest.TestCase):
         self.assertIn("78", r[0])
 
     def test_interval_stale_and_fresh(self):
+        # ログだけで古い場合は不調にせず不明（2026-11-03 の誤報の再発防止）。
         p = {"StartInterval": 600}
         self.assertEqual(I.classify_launchd(self.row(), p, NOW - 1799, NOW)[0], "ok")
-        self.assertEqual(I.classify_launchd(self.row(), p, NOW - 1801, NOW)[0], "bad")
+        self.assertEqual(I.classify_launchd(self.row(), p, NOW - 1801, NOW)[0], "unknown")
 
     def test_daily_two_days(self):
         p = {"StartCalendarInterval": [{"Hour": 7, "Minute": 0}]}
         self.assertEqual(I.classify_launchd(self.row(), p, NOW - DAY - 100, NOW)[0], "ok")
-        self.assertEqual(I.classify_launchd(self.row(), p, NOW - 2 * DAY - 1, NOW)[0], "bad")
+        self.assertEqual(I.classify_launchd(self.row(), p, NOW - 2 * DAY - 1, NOW)[0], "unknown")
 
     def test_weekly_nine_days(self):
         p = {"StartCalendarInterval": {"Hour": 5, "Minute": 0, "Weekday": 0}}
         self.assertEqual(I.classify_launchd(self.row(), p, NOW - 8 * DAY, NOW)[0], "ok")
-        self.assertEqual(I.classify_launchd(self.row(), p, NOW - 10 * DAY, NOW)[0], "bad")
+        self.assertEqual(I.classify_launchd(self.row(), p, NOW - 10 * DAY, NOW)[0], "unknown")
 
     def test_unknown_when_no_activity(self):
         self.assertEqual(I.classify_launchd(self.row(), {"StartInterval": 600}, None, NOW)[0], "unknown")
@@ -87,6 +89,127 @@ class Health(unittest.TestCase):
     def test_orca_disabled(self):
         self.assertEqual(I.classify_orca({"enabled": False})[0], "bad")
         self.assertEqual(I.classify_orca({"enabled": True})[0], "ok")
+
+
+SPAWN_FAIL = """system/org.nixos.x = {
+	state = not running
+	runs = 3
+	last exit code = 78
+	spawn scheduled = 1
+}"""
+HEALTHY = """gui/501/x = {
+	state = not running
+	runs = 5
+	last exit code = 0
+}"""
+
+
+class Evidence(unittest.TestCase):
+    P = {"StartInterval": 1800}
+
+    def row(self, pid=None, status=0):
+        return {"label": "x", "pid": pid, "status": status}
+
+    def art(self, age, max_age=7200):
+        return {"name": "update.log", "max_age": max_age, "mtime": NOW - age}
+
+    def test_false_alarm_old_log_fresh_artifact_is_ok(self):
+        lc = I.parse_launchctl_print(HEALTHY)
+        h, r = I.classify_launchd(self.row(), self.P, NOW - 120 * DAY, NOW, lc, self.art(600))
+        self.assertEqual((h, r), ("ok", []))
+
+    def test_log_only_old_is_unknown_not_bad(self):
+        h, r = I.classify_launchd(self.row(), self.P, NOW - 90 * DAY, NOW, I.parse_launchctl_print(HEALTHY), None)
+        self.assertEqual(h, "unknown")
+        self.assertTrue(r)
+
+    def test_stale_artifact_is_bad(self):
+        h, r = I.classify_launchd(self.row(), self.P, NOW - 10, NOW, None, self.art(3 * 3600))
+        self.assertEqual(h, "bad")
+        self.assertIn("update.log", r[0])
+
+    def test_spawn_failure_parse(self):
+        lc = I.parse_launchctl_print(SPAWN_FAIL)
+        self.assertEqual(lc, {"state": "not running", "last_exit": 78, "spawn_failure": True, "runs": 3})
+        self.assertTrue(I.parse_launchctl_print("job state = penalty box\n")["spawn_failure"])
+        self.assertFalse(I.parse_launchctl_print(HEALTHY)["spawn_failure"])
+        # 終了コード 0 の spawn scheduled は起動失敗とみなさない
+        self.assertFalse(I.parse_launchctl_print("spawn scheduled\nlast exit code = 0\n")["spawn_failure"])
+        h, r = I.classify_launchd(self.row(status=None), self.P, None, NOW, lc, None)
+        self.assertEqual(h, "bad")
+        self.assertTrue(any("起動に失敗" in x for x in r))
+
+    def test_last_exit_from_launchctl_print(self):
+        lc = {"state": "not running", "last_exit": 2, "spawn_failure": False}
+        self.assertEqual(I.classify_launchd(self.row(status=None), self.P, NOW, NOW, lc, self.art(10))[0], "bad")
+
+    def test_artifact_spec_longest_first(self):
+        self.assertTrue(I.artifact_spec("org.x.com.treo.cp-dashboard-stopwatch")["path"].endswith("poller.lock"))
+        self.assertTrue(I.artifact_spec("org.x.com.treo.cp-dashboard")["path"].endswith("update.log"))
+        self.assertIsNone(I.artifact_spec("org.x.omniwm"))
+
+
+def ent(key, health, name=None, since=None):
+    return {"key": key, "name": name or key, "label": key, "kind": "launchd（ユーザー）", "schedule": "毎日",
+            "last": None, "health": health, "reasons": ["理由"], "since": since}
+
+
+TODAY = date(2026, 11, 3)
+
+
+class History(unittest.TestCase):
+    def test_dedupe_open_issue_not_recreated(self):
+        jobs = {"a": {"investigation": "LIF-300"}, "b": {}}
+        todo = I.plan_investigations([ent("a", "bad"), ent("b", "bad"), ent("c", "ok")], jobs, lambda i: True)
+        self.assertEqual([e["key"] for e in todo], ["b"])
+
+    def test_closed_issue_recreated_when_bad_again(self):
+        jobs = {"a": {"investigation": "LIF-300"}}
+        todo = I.plan_investigations([ent("a", "bad")], jobs, lambda i: False)
+        self.assertEqual([e["key"] for e in todo], ["a"])
+
+    def test_healthy_or_unknown_gets_no_issue(self):
+        self.assertEqual(I.plan_investigations([ent("a", "ok"), ent("b", "unknown")], {}, lambda i: False), [])
+
+    def test_issue_text(self):
+        e = ent("com.x.job", "bad", name="テスト")
+        self.assertEqual(I.investigation_title(e), "仕組みの不調を調べる：テスト")
+        body = I.investigation_body(e, TODAY)
+        for w in ("com.x.job", "理由", "sudo", "launchctl bootout", "削除"):
+            self.assertIn(w, body)
+
+    def test_candidate_after_14_days(self):
+        jobs = {"a": {"first_unhealthy": "2026-10-20"}, "b": {"first_unhealthy": "2026-10-21"}}
+        new, cands, _ = I.update_history(jobs, [ent("a", "bad"), ent("b", "bad")], TODAY)
+        self.assertEqual([c["key"] for c in cands], ["a"])  # a=14日, b=13日
+        self.assertEqual(cands[0]["days"], 14)
+        body, _ = I.render(NOW, [ent("a", "bad")], [], [], None, cands, [])
+        self.assertIn("## 消す候補（2週間止まっていて困っていない）", body)
+        self.assertIn("止まっていても困らなかったなら要らない。残すなら理由を、消すならそう返事して。", body)
+
+    def test_no_candidate_section_when_empty(self):
+        body, _ = I.render(NOW, [ent("a", "ok")], [], [])
+        self.assertNotIn("消す候補", body)
+
+    def test_first_unhealthy_starts_today_or_from_evidence(self):
+        since = int(datetime(2026, 7, 3, 12).timestamp())
+        new, cands, _ = I.update_history({}, [ent("a", "bad"), ent("b", "bad", since=since)], TODAY)
+        self.assertEqual(new["a"]["first_unhealthy"], "2026-11-03")
+        self.assertEqual(new["b"]["first_unhealthy"], "2026-11-03")  # 成果物の日付で遡らない
+        self.assertEqual(cands, [])  # 初日に消す候補へ飛ばない
+
+    def test_recovery_clears_and_is_reported(self):
+        jobs = {"a": {"first_unhealthy": "2026-10-30", "investigation": "LIF-300"}}
+        new, cands, rec = I.update_history(jobs, [ent("a", "ok")], TODAY)
+        self.assertNotIn("first_unhealthy", new["a"])
+        self.assertEqual(new["a"]["investigation"], "LIF-300")
+        self.assertEqual(rec[0]["issue"], "LIF-300")
+        self.assertEqual(cands, [])
+
+    def test_unknown_keeps_history(self):
+        jobs = {"a": {"first_unhealthy": "2026-10-30"}}
+        new, _, _ = I.update_history(jobs, [ent("a", "unknown")], TODAY)
+        self.assertEqual(new["a"]["first_unhealthy"], "2026-10-30")
 
 
 class Misc(unittest.TestCase):
@@ -138,6 +261,62 @@ class Render(unittest.TestCase):
         self.assertIn("不明 2 件", body)
         self.assertIn("取得失敗: 取得失敗X", body)
 
+
+
+class DedupeByTitleTest(unittest.TestCase):
+    def test_existing_title_is_not_recreated_and_id_recovered(self):
+        from task_loop import inventory as I
+        e = ent("a", "bad", name="X")
+        jobs = {}
+        todo = I.plan_investigations([e], jobs, lambda i: False,
+                                     existing={I.investigation_title(e): "LIF-900"})
+        self.assertEqual(todo, [])
+        self.assertEqual(jobs["a"]["investigation"], "LIF-900")
+
+
+class DryRunNoWritesTest(unittest.TestCase):
+    def test_dry_run_never_writes(self):
+        from unittest import mock
+        from task_loop import inventory as I
+        def fake_run(*a):
+            if a[:2] in (("linear", "create"), ("linear", "save-issue")) or a[:2] == ("linear", "status"):
+                raise AssertionError(f"dry-run で書き込み: {a}")
+            return {"issues": []}
+        bad = ent("a", "bad", name="X")
+        with mock.patch.object(I.orca, "run", side_effect=fake_run), \
+             mock.patch.object(I, "collect_launchd", return_value=([bad], [])), \
+             mock.patch.object(I, "collect_orca", return_value=([], [])), \
+             mock.patch.object(I, "collect_planned", return_value=([], [])), \
+             mock.patch.object(I.state, "load", return_value={"issue": "LIF-211"}), \
+             mock.patch.object(I.state, "save", side_effect=AssertionError("dry-run で state 保存")), \
+             mock.patch("builtins.print"):
+            self.assertEqual(I.main([]), 0)
+
+
+class TooFewRunsTest(unittest.TestCase):
+    def test_interval_job_barely_ran_is_bad(self):
+        from task_loop import inventory as inv
+        now = 1_000_000
+        lc = {"runs": 1, "loaded_at": now - 5 * 86400, "last_exit": 0, "state": "not running"}
+        self.assertIsNotNone(inv.too_few_runs({"StartInterval": 600}, lc, now))
+        self.assertIsNone(inv.too_few_runs({"StartInterval": 600, "KeepAlive": True}, lc, now))
+
+    def test_sleepy_mac_is_not_flagged(self):
+        from task_loop import inventory as inv
+        now = 1_000_000  # 1日・10分ごと＝予定144回。スリープで実績20回でも 1/10 以上なので不調にしない
+        lc = {"runs": 20, "loaded_at": now - 86400}
+        self.assertIsNone(inv.too_few_runs({"StartInterval": 600}, lc, now))
+
+    def test_recently_loaded_is_fine(self):
+        from task_loop import inventory as inv
+        now = 1_000_000
+        lc = {"runs": 1, "loaded_at": now - 1200, "last_exit": 0}
+        self.assertIsNone(inv.too_few_runs({"StartInterval": 600}, lc, now))
+
+    def test_parse_runs(self):
+        from task_loop import inventory as inv
+        d = inv.parse_launchctl_print("\tstate = not running\n\truns = 51\n\tlast exit code = 0\n")
+        self.assertEqual(d["runs"], 51)
 
 if __name__ == "__main__":
     unittest.main()
