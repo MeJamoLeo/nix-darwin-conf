@@ -24,6 +24,7 @@
     ../modules/base/homebrew-base/darwin.nix
     ../modules/base/host-users/darwin.nix
     ../modules/base/remote-access/darwin.nix
+    ../modules/base/firewall/darwin.nix
     ../modules/custom/network-block/darwin.nix
     ../modules/custom/youtube-gate/darwin.nix
     ../modules/domain/latex/darwin.nix

@@ -76,6 +76,14 @@ in {
     fi
   '';
 
+  # ogasawara の物理 IF は外から始まる接続を全部落とし、入口を Tailscale だけに
+  # する（2026-11-01）。上の ALF では画面共有などのシステムサービスを閉じられない
+  # ため。仕組みと経緯は base/firewall/darwin.nix。laptop（Wi-Fi で AirDrop 等を
+  # 使う）には適用しない。
+  # 保留中（2026-11-01）：tanegashima の Orca が LAN 経由で繋いでいたら切れるため、
+  # Orca を Tailscale 経由に繋ぎ替えてから有効化する。
+  # my.firewall.closedInterfaces = lib.mkIf (hostname == "ogasawara") ["en0" "en1"];
+
   # sshd 硬化: 公開鍵認証のみ(パスワード・キーボード対話を閉じる)。
   # macOS の sshd_config は /etc/ssh/sshd_config.d/* を先頭で Include し、
   # sshd は「最初に現れた値が勝つ」。既存 drop-in(100-macos / 100-nix-darwin /
