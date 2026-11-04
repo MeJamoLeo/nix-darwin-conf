@@ -88,6 +88,18 @@ let WALLPAPER = CommandLine.arguments.contains("--wallpaper")
 // today ハイライト: GCal は today 要素に `.F262Ye` class を付けるので、週/月ビューの
 // columnheader（曜日ヘッダ）と gridcell（events grid の today 列）に薄い青背景。
 // 内側の要素にも .F262Ye は伝播するが role で絞ることで stacking の重色を防ぐ。
+// Linear 面（pane [1]）用：kanban の盤面だけ残す（2026-11-03 本人指定「看板だけ欲しい」）。
+// Linear の class 名は sx-xxxx のハッシュで変わるので、属性と要素名だけで狙う（2026-11-03 実測の DOM）：
+//   #mainLayoutContainer div:has(> [data-sidebar-surface])  左サイドバー（幅 244px の列。間に大きさ 0 の中継ぎ要素が1段あるので > で繋がない）
+//   #routeContentContainer main header の親 div                      Life › Issues・Active/Backlog タブ・Display
+//   #routeContentContainer ~ div                                      下端の「Agent」バー
+// ログアウト時はこれらの要素が無いので、Linear のログイン画面はそのまま出る。
+let LINEAR_CHROME_CSS = """
+#mainLayoutContainer div:has(> [data-sidebar-surface]) { display: none !important; }
+#routeContentContainer main div:has(> header) { display: none !important; }
+#routeContentContainer ~ div { display: none !important; }
+html, body { overflow: hidden !important; }
+"""
 let HIDE_CHROME_CSS = """
 [role='banner'] { display: none !important; }
 [role='main'] {
@@ -753,7 +765,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
                 effectiveZoom(base: baseW, ref: ref, current: w))
     }
 
-    func makeWeb(_ urlStr: String, zoom: CGFloat, extraCSS: String = "", extraJS: String = "", injectChrome: Bool = true) -> WKWebView {
+    func makeWeb(_ urlStr: String, zoom: CGFloat, extraCSS: String = "", extraJS: String = "", injectChrome: Bool = true, chromeCSS: String = HIDE_CHROME_CSS) -> WKWebView {
         let cfg = WKWebViewConfiguration()
         cfg.websiteDataStore = store
         // M2: 無人常駐では JS の自動 window.open を禁止。ログインは gesture 起点なので interactive では許可。
@@ -762,7 +774,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         // SPA の DOM 再構築で剥がれない）。extraCSS で pane 固有ルール（例: 来週の時間軸
         // オフ）を後付けできる。interactive では UI 温存でログイン導線を確保。
         if WALLPAPER && injectChrome {
-            let css = HIDE_CHROME_CSS + "\n" + extraCSS
+            let css = chromeCSS + "\n" + extraCSS
             // MutationObserver で document.head を監視、style 要素が消えたら即再注入。
             // 日次 reanchor での URL 再読込では atDocumentEnd で毎回再発火するので、
             // ここで確保するのは「同一ページ内で Google が SPA 的に head を弄っても
@@ -876,13 +888,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKUIDelegate, WKNavigationDe
         //             .lqYlwe を消せば .mDPmMe が全幅（96px 分左へ）に広がる。
         // NOTE: Google の class 名はハッシュで release 毎に変わる可能性あり（fragile）。
         //       壊れたら wallpaper mode で isInspectable=true にして再インスペクト。
-        // 4週ペインは today 強調のみ（customWeekPaneJS）。Linear ペイン（[1]）は Google 用の注入なし（Linear 自前のダークテーマのまま）。
+        // 4週ペインは today 強調のみ（customWeekPaneJS）。Linear ペイン（[1]）は Google 用ではなく LINEAR_CHROME_CSS（盤面だけ残す）。
         let extraCSSs: [String] = ["", "", WEEK_EVENT_FONT_CSS,
             WEEK_EVENT_FONT_CSS + "\n.lqYlwe, .UqLcs, .FDbe8b, .EDDeke { display: none !important; }"]
         let extraJSs: [String] = [customWeekPaneJS(), "", WEEK_STRETCH_JS, WEEK_STRETCH_JS]
         let urls = paneURLs()
         let paneWebs: [WKWebView] = urls.indices.map { i in
-            makeWeb(urls[i], zoom: zooms[i], extraCSS: extraCSSs[i], extraJS: extraJSs[i], injectChrome: i != 1)
+            makeWeb(urls[i], zoom: zooms[i], extraCSS: extraCSSs[i], extraJS: extraJSs[i],
+                    chromeCSS: i == 1 ? LINEAR_CHROME_CSS : HIDE_CHROME_CSS)
         }
         grid.panes = paneWebs
         paneWebs.forEach { grid.addSubview($0) }
