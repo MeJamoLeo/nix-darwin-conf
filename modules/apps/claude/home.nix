@@ -108,6 +108,15 @@ in {
         force = true; # rebuild 前に手動配置した同名ファイルを上書きしてよい
       };
 
+      # 捨て場（_build/・scratchpad・~/.cache/viz）の中だけを消す rm を確認なしで通す（2026-11-03）。
+      # viz / LaTeX の中間物の掃除で作業が止まらないようにするため。allow しか出さず deny はしない
+      # （捨て場の外の rm は通常の権限判定に任せる）。settings.json 側の登録は手動。
+      ".claude/hooks/allow-build-rm.sh" = {
+        source = ./allow-build-rm.sh;
+        executable = true;
+        force = true;
+      };
+
       # statusline の中継：rate_limits を ~/.cache/claude-ratelimits/latest.json に保存してから
       # Orca の statusline hook に渡す。無人 automation の precheck（枠が余っているか）用。
       # settings.json の statusLine.command への登録は手動（settings.json を所有しない決定）。
