@@ -25,6 +25,7 @@
     ../modules/base/host-users/darwin.nix
     ../modules/base/remote-access/darwin.nix
     ../modules/base/firewall/darwin.nix
+    ../modules/apps/karabiner/darwin.nix # cask。ルールは下の apps/karabiner/home.nix
     ../modules/custom/network-block/darwin.nix
     ../modules/custom/youtube-gate/darwin.nix
     ../modules/domain/latex/darwin.nix
@@ -55,12 +56,14 @@
       # 戻すなら modules/_archive/README.md の aerospace 節を参照。
       ../modules/apps/omniwm/home.nix # 設定は omniwm/settings.nix が正本（UUID 層だけ実機の GUI が正）
       ../modules/apps/handy/home.nix
+      ../modules/apps/karabiner/home.nix # ~/.config/karabiner/karabiner.json
       ../modules/apps/file-defaults/home.nix # IINA/sioyek/Zed 関連付け + noTunes
       ../modules/apps/sioyek/home.nix # 既定の PDF ビューア（x1nano と共通）
       ../modules/apps/zen/home.nix # 既定ブラウザ。Space/Folder を宣言的に固定する
 
       # custom — 自作システム
       ../modules/custom/chrome-anjin/home.nix
+      ../modules/custom/earbud-ptt/home.nix # EarPods のリモコンで Handy を操作（apps/karabiner・apps/handy のオプションに依存）
       ../modules/custom/discord/home.nix # discord-api: Bitwarden の bot token で REST を叩く
       ../modules/custom/youtube-gate/home.nix
       ../modules/custom/cp/tools/home.nix

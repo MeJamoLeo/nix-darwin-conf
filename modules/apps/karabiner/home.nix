@@ -83,12 +83,13 @@
   #    ※ 16.1.0 で「古い形式の既定設定だと設定ウィンドウがログイン時に開く」不具合が
   #      別途修正済み。cask は 16.3.0 なのでこちらは該当しない。
   #
-  #  ⚠ ogasawara 限定で入れている（hosts/ogasawara.nix の cask）。
-  #    tanegashima（MacBook Air＝内蔵キーボード）に広げる前に macOS の版を確認すること。
+  #  ⚠ 2026-11-03 に profile（ogasawara・tanegashima 共通）へ広げた。cask は darwin.nix。
   #    macOS 26.4 で DriverKit の仮想 HID が**内蔵キーボードを掴めなくなる**報告がある
-  #    （Karabiner #4402・Apple Developer Forums thread 817003）。#4402 自体は closed だが、
-  #    26.4 で Driver Extension を有効化できない報告が別途続いている。
-  #    ogasawara は 26.3.1 かつ Mac mini（外付けキーボード）なので対象外。
+  #    （Karabiner #4402・Apple Developer Forums thread 817003）。
+  #    広げた時点：ogasawara は 26.3.1（Mac mini・外付けキーボード）、tanegashima は 27.0.1
+  #    （MacBook Air・内蔵キーボード）。Karabiner 公式は 16.3.0 で macOS 27 対応を掲げている。
+  #    16.3.0 には入力が数秒固まる報告もある（#4584、macOS 26.7.1）。tanegashima の内蔵
+  #    キーボードがおかしくなったら、まず Karabiner を終了して切り分ける。
   #
   #  ⚠ パッケージは **cask 16.3.0**（nixpkgs は 15.7.0）。macOS 26.x の
   #    ドライバ周りは新しいほど安全なので版の新しい方を採る。
