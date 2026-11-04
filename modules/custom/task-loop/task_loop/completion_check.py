@@ -9,8 +9,9 @@
        0 点     → 親と、開いている子を Canceled にして、親に1回コメント
        それ以外 → 触らない
   3. 既に Done / Canceled の issue は対象外なので、再実行しても二重コメントにならない
-  4. 期限の無い開いている子に、親の期限を写す（Linear の View が期限で絞れるように。2026-11-03）。
-     子に期限があれば触らない＝手で付けた期限は上書きしない
+  4. 期限の追従（2026-11-03）。Canvas の期限 → 親、親の期限 → 子。
+     自動で付けた期限だけを追う：前回自動で付けた値を due-sync.json に覚えておき、
+     今の期限がその値のままなら新しい期限に書き換える。違っていたら「手で変えた」とみなして以後は触らない。
 
 `--apply` を付けたときだけ書き込む。付けなければ計画表を出すだけ（既定が dry-run）。
 """
@@ -81,21 +82,65 @@ def build_index(issues: list[dict]) -> tuple[dict[str, str], dict[str, list[dict
     return roots, children
 
 
-def plan_due_inherit(issues: list[dict]) -> list[tuple[str, str]]:
-    """(子の識別子, 写す期限) の一覧。子に期限が無く、開いていて、親に期限があるものだけ。純粋関数。
+def canvas_local_date(due_at: str | None) -> str | None:
+    """Canvas の due_at（UTC）を学校の現地日付（America/Chicago）にする。23:59 CT 締切が翌日 UTC になるため。"""
+    if not due_at:
+        return None
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    return datetime.fromisoformat(due_at.replace("Z", "+00:00")).astimezone(ZoneInfo("America/Chicago")).date().isoformat()
 
-    期限は親（成果物）にだけ付くので、自分の手番の子が「期限1週間以内」の View に一件も出なかった。
+
+def _follow(current: str | None, target: str | None, rec: str | None) -> tuple[str | None, str | None]:
+    """(書き込む期限 or None, 新しい記録 or None)。
+
+    - 期限が空 → target を書いて記録する
+    - 記録なし・今の期限 = target → 記録だけ始める（基準を取る）
+    - 記録あり・今の期限 = 記録 → target に追従（変わっていれば書く）
+    - それ以外（手で付けた・手で変えた）→ 書かず、記録も捨てる
     """
+    if not target:
+        return None, rec if current == rec else None
+    if current is None:
+        return target, target
+    if rec is None:
+        return None, target if current == target else None
+    if current == rec:
+        return (target if target != current else None), target
+    return None, None
+
+
+def plan_due_sync(issues: list[dict], assignments: dict[str, dict], rec: dict) -> tuple[list[tuple[str, str]], dict]:
+    """(書く (識別子, 期限) の一覧, 新しい記録 {"parent": {}, "child": {}})。純粋関数。
+
+    親は Canvas の期限に、子は親の（書き換え後の）期限に追う。開いている issue だけ。
+    """
+    roots, _ = build_index(issues)
     by_id = {i["identifier"]: i for i in issues}
-    out = []
+    new = {"parent": {}, "child": {}}
+    writes: list[tuple[str, str]] = []
+    after: dict[str, str | None] = {i["identifier"]: i.get("dueDate") for i in issues}
+    for ident, aid in roots.items():
+        iss = by_id[ident]
+        if orca.state_type(iss) not in OPEN:
+            continue
+        target = canvas_local_date((assignments.get(aid) or {}).get("due_at"))
+        w, r = _follow(iss.get("dueDate"), target, rec.get("parent", {}).get(ident))
+        if w:
+            writes.append((ident, w))
+            after[ident] = w
+        if r:
+            new["parent"][ident] = r
     for iss in issues:
         p = parent_ref(iss.get("description"))
-        if not p or iss.get("dueDate") or orca.state_type(iss) not in OPEN:
+        if not p or orca.state_type(iss) not in OPEN:
             continue
-        due = (by_id.get(p) or {}).get("dueDate")
-        if due:
-            out.append((iss["identifier"], due))
-    return out
+        w, r = _follow(iss.get("dueDate"), after.get(p), rec.get("child", {}).get(iss["identifier"]))
+        if w:
+            writes.append((iss["identifier"], w))
+        if r:
+            new["child"][iss["identifier"]] = r
+    return writes, new
 
 
 def set_due_confirmed(identifier: str, due: str) -> None:
@@ -209,9 +254,9 @@ def main(argv: list[str]) -> int:
 
     items, notes = plan(issues, assignments)
     print_plan(items, notes, tag)
-    dues = plan_due_inherit(issues)
+    dues, due_rec = plan_due_sync(issues, assignments, state.load("due-sync"))
     for k, d in dues:
-        print(f"{tag}期限を引き継ぐ\t{k}\t→ {d}")
+        print(f"{tag}期限を合わせる\t{k}\t→ {d}")
     if not apply:
         return 0
 
@@ -241,6 +286,9 @@ def main(argv: list[str]) -> int:
             filled += 1
         except orca.OrcaError as e:
             errors.append(f"due {k}: {e}")
+            due_rec["parent"].pop(k, None)
+            due_rec["child"].pop(k, None)
+    state.save("due-sync", due_rec)
     for e in errors:
         print(f"ERROR {e}", file=sys.stderr)
     state.record_run(JOB, not errors, f"closed {closed}・due {filled}・notes {len(notes)}・errors {len(errors)}")

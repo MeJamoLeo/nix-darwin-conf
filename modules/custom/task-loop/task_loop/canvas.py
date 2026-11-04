@@ -93,5 +93,6 @@ def assignments_with_submission() -> dict[str, dict]:
                 "name": a.get("name", ""),
                 "course": label,
                 "submission": a.get("submission"),
+                "due_at": a.get("due_at"),
             }
     return result

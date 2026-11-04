@@ -83,19 +83,32 @@ class Plan(unittest.TestCase):
 
 
 
-class DueInherit(unittest.TestCase):
-    def _i(self, ident, due=None, parent=None, typ="unstarted"):
-        return {"identifier": ident, "dueDate": due, "state": {"type": typ, "name": "Todo"},
-                "description": f"parent: {parent}" if parent else "x"}
 
-    def test_fills_only_empty_open_children(self):
-        issues = [self._i("LIF-1", "2026-11-04"),
-                  self._i("LIF-2", parent="LIF-1"),                    # 写す
-                  self._i("LIF-3", "2026-11-02", parent="LIF-1"),      # 手で付けた期限は触らない
-                  self._i("LIF-4", parent="LIF-1", typ="completed"),   # 閉じた子は触らない
-                  self._i("LIF-5", parent="LIF-9"),                    # 親が一覧に無い
-                  self._i("LIF-6"), self._i("LIF-7", parent="LIF-6")]  # 親に期限が無い
-        self.assertEqual(C.plan_due_inherit(issues), [("LIF-2", "2026-11-04")])
+class DueSync(unittest.TestCase):
+    def _i(self, ident, due=None, desc="x", typ="unstarted"):
+        return {"identifier": ident, "dueDate": due, "state": {"type": typ, "name": "Todo"}, "description": desc}
+
+    def test_follow_rules(self):
+        f = C._follow
+        self.assertEqual(f(None, "2026-11-10", None), ("2026-11-10", "2026-11-10"))          # 空なら書く
+        self.assertEqual(f("2026-11-03", "2026-11-03", None), (None, "2026-11-03"))         # 基準を取る
+        self.assertEqual(f("2026-11-03", "2026-11-10", "2026-11-03"), ("2026-11-10", "2026-11-10"))  # 追従
+        self.assertEqual(f("2026-11-01", "2026-11-10", "2026-11-03"), (None, None))         # 手で変えた
+        self.assertEqual(f("2026-11-03", "2026-11-10", None), (None, None))                 # 最初からずれ＝触らない
+
+    def test_canvas_change_flows_to_children(self):
+        issues = [self._i("LIF-1", "2026-11-04", "Canvas assignment 77"),
+                  self._i("LIF-2", "2026-11-04", "parent: LIF-1"),
+                  self._i("LIF-3", "2026-11-02", "parent: LIF-1"),   # 手で前倒しした子
+                  self._i("LIF-4", None, "parent: LIF-1")]
+        rec = {"parent": {"LIF-1": "2026-11-04"}, "child": {"LIF-2": "2026-11-04"}}
+        asg = {"77": {"due_at": "2026-11-08T05:59:59Z"}}  # = 11/7 23:59 CT
+        writes, new = C.plan_due_sync(issues, asg, rec)
+        self.assertEqual(sorted(writes), [("LIF-1", "2026-11-07"), ("LIF-2", "2026-11-07"), ("LIF-4", "2026-11-07")])
+        self.assertNotIn("LIF-3", new["child"])
+
+    def test_canvas_local_date(self):
+        self.assertEqual(C.canvas_local_date("2026-11-05T05:59:59Z"), "2026-11-04")
 
 if __name__ == "__main__":
     unittest.main()
