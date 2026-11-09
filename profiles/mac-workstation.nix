@@ -60,6 +60,7 @@
       ../modules/apps/file-defaults/home.nix # IINA/sioyek/Zed 関連付け + noTunes
       ../modules/apps/sioyek/home.nix # 既定の PDF ビューア（x1nano と共通）
       ../modules/apps/zen/home.nix # 既定ブラウザ。Space/Folder を宣言的に固定する
+      ../modules/apps/claudefm/home.nix # Claude FM をターミナルで音だけ流す（yt-dlp + mpv を同梱）
 
       # custom — 自作システム
       ../modules/custom/chrome-anjin/home.nix
