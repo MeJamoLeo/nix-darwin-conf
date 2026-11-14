@@ -62,7 +62,7 @@ let
   # hosts で止める名前（完全一致）。PAC のワイルドカードの代わりに、ページ・API・画像の
   # 代表的なホストを列挙する。Google 系の共用ホスト（*.google.com 等）は入れないこと。
   hostsDomains = [
-    # YouTube（2026-11-08 コメントアウト）：claudefm（yt-dlp + mpv）を通すため hosts から外した。
+    # YouTube（2026-11-08 コメントアウト）：mpv + yt-dlp を通すため hosts から外した。
     # yt-dlp は PAC を読まないので、ブラウザは PAC の3枚（システム・Zen・LibreWolf）で止まったまま。
     # "youtube.com"
     # "www.youtube.com"

@@ -60,7 +60,9 @@
       ../modules/apps/file-defaults/home.nix # IINA/sioyek/Zed 関連付け + noTunes
       ../modules/apps/sioyek/home.nix # 既定の PDF ビューア（x1nano と共通）
       ../modules/apps/zen/home.nix # 既定ブラウザ。Space/Folder を宣言的に固定する
-      ../modules/apps/claudefm/home.nix # Claude FM をターミナルで音だけ流す（yt-dlp + mpv を同梱）
+      ../modules/apps/mpv/home.nix # mpv + yt-dlp（YouTube を音だけ流す）
+      ../modules/custom/fm/home.nix # fm：mpv を操作する香水瓶風 TUI（claudefm / skfm）
+      ../modules/custom/app-pad/home.nix # Option+数字 でアプリを OmniWM の scratchpad として出し入れ
 
       # custom — 自作システム
       ../modules/custom/chrome-anjin/home.nix
