@@ -36,11 +36,26 @@
     hash = "sha256-tDyh0kd41cmjkkqiJAgVWP4RjG8x82Mhspq8vKq00pQ=";
   };
 
+  # 外部 skill：nanaism/yomiyasu（MIT）。AI が書いた日本語を、意味を変えずに推敲する用。
+  # 名前を出したときだけ動く（/yomiyasu）。scripts は stdlib のみ・外部通信なしを確認。
+  # 検査記録を、実行時の git 最上位の .yomiyasu/ に書く（YOMIYASU_STATE_DIR で変えられる）。
+  # 更新するときは rev と hash を一緒に差し替える（2026-11-13 に v3.1.0 を確認）。
+  yomiyasu = pkgs.fetchFromGitHub {
+    owner = "nanaism";
+    repo = "yomiyasu";
+    rev = "v3.1.0";
+    hash = "sha256-5CVfVx2cNxOdW8uKOdo3Gjs8zJrNYdBFqwR/qBg/Gpk=";
+  };
+
   skillsDir = ./skills;
   skillNames =
     builtins.attrNames
     (lib.filterAttrs (_: type: type == "directory") (builtins.readDir skillsDir));
 in {
+  # yomiyasu の検査記録を各リポジトリの .yomiyasu/ ではなく1か所に集める。
+  # 効くのは switch 後に生まれたシェルから起動した claude だけ（shell/home.nix の注意を参照）。
+  home.sessionVariables.YOMIYASU_STATE_DIR = "${config.home.homeDirectory}/.cache/yomiyasu";
+
   # Claude Code CLI 本体は nixpkgs で管理（Homebrew cask から移行 2026-07-08）。
   # 理由: /nix/store 配下は quarantine が付かず Gatekeeper の「DLされたアプリ」
   # 確認が原理的に出ない（SSH 先の headless 機で詰まらない）＋ store は
@@ -131,6 +146,7 @@ in {
       ".claude/skills/hunk-review".source = "${hunkPkg}/skills/hunk-review";
 
       ".claude/skills/natural-japanese".source = "${naturalJapanese}/skills/natural-japanese";
+      ".claude/skills/yomiyasu".source = "${yomiyasu}/skills/yomiyasu";
     }
     // builtins.listToAttrs (map (name: {
         name = ".claude/skills/${name}";
