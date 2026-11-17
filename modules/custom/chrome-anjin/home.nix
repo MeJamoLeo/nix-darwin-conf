@@ -27,11 +27,18 @@ in {
   # 経緯: ExtensionInstallForcelist はユーザー defaults 経由だと "recommended" レベル扱いで
   # 無視される (mandatory 必須 = /Library/Managed Preferences か MDM が要る)。External Extensions は
   # ユーザー空間で機能する公式経路。制約: プロファイル毎に初回1回だけ有効化の確認バブルが出る。
+  # macOS 27 では Chrome のデータ領域（com.apple.macl 付き）への書き込みが、端末アプリの TCC 権限次第で
+  # EPERM になる（2026-11-17 tanegashima。ssh 経由なら通る）。中身が同じなら触らず、失敗しても
+  # activation 全体は止めずに警告だけ出す。
   home.activation.chromeExternalExtensions = lib.hm.dag.entryAfter ["writeBoundary"] ''
     extdir="$HOME/Library/Application Support/Google/Chrome/External Extensions"
-    mkdir -p "$extdir"
-    printf '{ "external_update_url": "https://clients2.google.com/service/update2/crx" }\n' \
-      > "$extdir/fcoeoabgfenejglbffodgkkbkcdhcgfn.json"
+    extfile="$extdir/fcoeoabgfenejglbffodgkkbkcdhcgfn.json"
+    want='{ "external_update_url": "https://clients2.google.com/service/update2/crx" }'
+    if [ "$(cat "$extfile" 2>/dev/null)" != "$want" ]; then
+      if ! { mkdir -p "$extdir" && printf '%s\n' "$want" > "$extfile"; } 2>/dev/null; then
+        echo "chromeExternalExtensions: $extfile に書けない（TCC）。端末アプリにフルディスクアクセスを与えて再 switch するか、ssh 経由で switch する" >&2
+      fi
+    fi
   '';
 
   targets.darwin.defaults."com.google.Chrome" = {
