@@ -59,4 +59,14 @@ in {
     })
     ];
   };
+
+  # Linux：常駐サービスをログインと同時に起動する。home-manager はユニットを置くだけで
+  # 有効にしない（2026-11-20、x1nano で inactive のままだった）。常駐が無いと
+  # ・窓を開くたびに GTK の初期化から始まり 1.9 秒かかる（常駐ありの +new-window は 0.09 秒）
+  # ・最初に手で開いた Ghostty がバス名を取り、後からサービスを起こしても protocol で落ちる
+  # ・上から降りてくる端末（global keybind）が窓を開くまで効かない
+  xdg.configFile."systemd/user/graphical-session.target.wants/app-com.mitchellh.ghostty.service" =
+    lib.mkIf isLinux {
+      source = "${pkgs.ghostty}/share/systemd/user/app-com.mitchellh.ghostty.service";
+    };
 }

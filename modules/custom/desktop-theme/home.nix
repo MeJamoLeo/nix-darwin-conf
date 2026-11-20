@@ -183,13 +183,17 @@ in {
   # 呼ぶ（PATH の /etc/profiles は nixos-rebuild でしか更新されないので、home-manager だけ
   # 当てた状態でも動くように）。
   programs.niri.settings.binds."Mod+Shift+T" = {
-    # --class は GTK のアプリ ID なので「.」を含む名前にする（含まないと Ghostty が拒む）。
-    action.spawn = ["ghostty" "--class=local.desktop-theme-picker" "-e" "${themeSwitch}/bin/theme-switch"];
+    # 常駐の Ghostty に窓を開かせる（+new-window。別プロセスで起こすと 1.9 秒かかる）。
+    # 同じアプリ ID になるので、浮かせる規則はタイトルで当てる。
+    action.spawn = ["ghostty" "+new-window" "--title=Theme Picker" "-e" "${themeSwitch}/bin/theme-switch"];
     hotkey-overlay.title = "Theme Picker";
   };
   programs.niri.settings.window-rules = [
     {
-      matches = [{app-id = "^local\\.desktop-theme-picker$";}];
+      matches = [{
+        app-id = "^com\\.mitchellh\\.ghostty$";
+        title = "^Theme Picker$";
+      }];
       open-floating = true;
       default-column-width.fixed = 1400;
       default-window-height.fixed = 820;

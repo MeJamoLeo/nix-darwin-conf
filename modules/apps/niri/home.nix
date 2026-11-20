@@ -170,7 +170,7 @@ in
         # 端末とブラウザは自前で背景を塗るので、枠の内側を枠色で塗らない
         # （半透明の端末の後ろに枠色が透けないように）。
         {
-          matches = map (id: { app-id = id; }) [ "^zen" "^com\\.mitchellh\\.ghostty$" "^local\\.desktop-theme-picker$" ];
+          matches = map (id: { app-id = id; }) [ "^zen" "^com\\.mitchellh\\.ghostty$" ];
           draw-border-with-background = false;
         }
         # 非アクティブのウィンドウを少し沈める（どこにフォーカスがあるか一目で分かる）。
@@ -183,7 +183,7 @@ in
         # 端末（Ghostty・テーマピッカー）は自分で地だけ 50% 透かしているので除く
         # （重ねると文字まで薄くなる）。
         {
-          excludes = map (id: { app-id = id; }) [ "^com\\.mitchellh\\.ghostty$" "^local\\.desktop-theme-picker$" ];
+          excludes = map (id: { app-id = id; }) [ "^com\\.mitchellh\\.ghostty$" ];
           opacity = 0.8;
         }
       ];
@@ -208,13 +208,14 @@ in
           # are now provided by DMS's home-manager `niri.enableKeybinds`
           # (Mod+Space, Super+Alt+L, Mod+V, Mod+Comma, Mod+N, Mod+X,
           # Mod+M, Mod+Alt+N …). Only the terminal stays niri-side.
-          # 端末は Ghostty（2026-11-20 に kitty から移した。常駐サービスがあるので窓はすぐ開く）。
-          "Mod+T" = (act' "spawn" "ghostty") // {
+          # 端末は Ghostty（2026-11-20 に kitty から移した）。+new-window で常駐サービスに窓を
+          # 開かせる（0.09 秒。素の `ghostty` は常駐があっても 0.2 秒、無ければ 1.9 秒）。
+          "Mod+T" = (act' "spawn" [ "ghostty" "+new-window" ]) // {
             hotkey-overlay.title = "Open a Terminal: Ghostty";
           };
           # herdr (tmux-like agent-aware multiplexer) in its own Ghostty
           # window. Config for herdr itself lives in home/herdr.
-          "Mod+Shift+Return" = (act' "spawn" [ "ghostty" "-e" "herdr" ]) // {
+          "Mod+Shift+Return" = (act' "spawn" [ "ghostty" "+new-window" "-e" "herdr" ]) // {
             hotkey-overlay.title = "Launch Herdr";
           };
 
