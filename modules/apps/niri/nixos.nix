@@ -1,7 +1,8 @@
 # niri（Wayland のタイル型コンポジタ）を中心にした x1nano のデスクトップ一式。
-# ログインは greetd + tuigreet（TUI）。Enter で入るのは素の zsh で、GUI は
-# `niri-session` と打ったとき（または tuigreet の F3 で niri を選んだとき）だけ動く
-# ＝電池を食う GUI を常駐させない（2026-10-23 の決定）。
+# ログインは greetd + tuigreet（TUI）。ログインするとそのまま niri が立ち上がる
+# （2026-11-20 に変更。それまでは素の zsh に入り、`niri-session` と打ったときだけ GUI を
+# 動かしていた＝2026-10-23 の「電池を食う GUI を常駐させない」決定。niri を常用するように
+# なったので既定を逆にした）。素の zsh が要るときは tuigreet の F3 で選べる。
 {
   config,
   pkgs,
@@ -15,7 +16,7 @@
     settings.default_session = {
       # --remember-session は付けない：/var/cache/tuigreet の記憶が --cmd に勝ってしまい、
       # 宣言した既定が「最後に選んだもの」に負けるため。
-      command = "${pkgs.tuigreet}/bin/tuigreet --time --remember --cmd ${pkgs.zsh}/bin/zsh --sessions ${config.services.displayManager.sessionData.desktops}/share/wayland-sessions";
+      command = "${pkgs.tuigreet}/bin/tuigreet --time --remember --cmd niri-session --sessions ${config.services.displayManager.sessionData.desktops}/share/wayland-sessions";
       user = username;
     };
   };
