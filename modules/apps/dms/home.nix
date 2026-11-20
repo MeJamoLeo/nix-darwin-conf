@@ -92,6 +92,9 @@ in {
       # to the "spatial map with icons" ask.
       showWorkspaceApps = true;
 
+      # ポップアップ（コントロールセンター・ランチャー等）も同じ透け具合に揃える（niri-dots）。
+      popupTransparency = 0.67;
+
       # DankBar layout. `barConfigs` is a list; DMS overrides the whole
       # entry when settings.json defines it, so this mirrors the upstream
       # default (SettingsSpec.js `barConfigs.def`) with `runningApps`
@@ -116,8 +119,9 @@ in {
         barLengthPadding = 0;
         bottomGap = 0;
         attachToScreenEdge = false;
-        transparency = 1.0;
-        widgetTransparency = 1.0;
+        # 2026-11-19: niri-dots に倣ってバーを半透明に（壁紙が透けて画面が軽く見える）。
+        transparency = 0.67;
+        widgetTransparency = 0.67;
         squareCorners = false;
         noBackground = false;
         maximizeWidgetIcons = false;

@@ -82,7 +82,9 @@ in
           { proportion = 0.5; }
           { proportion = 0.66667; }
         ];
-        default-column-width.proportion = 0.5;
+        # 新しいウィンドウは全幅で開く（2026-11-19。半分の幅＋すき間で「一度に見える情報が
+        # 少ない」と感じていた。半分にしたいときは Mod+R で preset を回す）。
+        default-column-width.proportion = 1.0;
 
         focus-ring = {
           width = 4;
@@ -115,6 +117,42 @@ in
 
       screenshot-path = "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png";
 
+      # ── 見た目（2026-11-19、adarsh-67r/niri-dots［MIT］を手本にした）──────────
+      # 角丸・すき間・枠の太さ・色は DMS が ~/.config/niri/dms/{layout,colors}.kdl に
+      # 生成して後から include される（こちらより優先）ので、ここでは書かない。
+      # ここに置くのは DMS が触らない物だけ：アプリ側の枠を消す・ホットコーナー無効・
+      # アニメーションの手触り・非アクティブの透過。
+
+      # アプリが自前で描くタイトルバーをやめてもらう（niri の角丸と枠に揃う）。
+      prefer-no-csd = true;
+
+      # 左上に触れると overview が開くのを止める（意図せず開くので）。
+      gestures.hot-corners.enable = false;
+
+      # niri-dots の値。既定より少し速く、ばねは少しだけ弾む。
+      animations = let
+        spring = damping-ratio: stiffness: {
+          spring = {
+            inherit damping-ratio stiffness;
+            epsilon = 0.0001;
+          };
+        };
+      in {
+        workspace-switch.kind = spring 0.80 523;
+        window-open.kind.easing = {
+          duration-ms = 150;
+          curve = "ease-out-expo";
+        };
+        window-close.kind.easing = {
+          duration-ms = 150;
+          curve = "ease-out-quad";
+        };
+        horizontal-view-movement.kind = spring 0.85 423;
+        window-movement.kind = spring 0.75 323;
+        window-resize.kind = spring 0.85 423;
+        overview-open-close.kind = spring 0.85 800;
+      };
+
       window-rules = [
         {
           matches = [ { app-id = "^org\\.wezfurlong\\.wezterm$"; } ];
@@ -128,6 +166,17 @@ in
             }
           ];
           open-floating = true;
+        }
+        # 端末とブラウザは自前で背景を塗るので、枠の内側を枠色で塗らない
+        # （半透明の kitty の後ろに枠色が透けないように）。
+        {
+          matches = map (id: { app-id = id; }) [ "^kitty$" "^zen" "^com\\.mitchellh\\.ghostty$" ];
+          draw-border-with-background = false;
+        }
+        # 非アクティブのウィンドウを少し沈める（どこにフォーカスがあるか一目で分かる）。
+        {
+          matches = [ { is-active = false; } ];
+          opacity = 0.9;
         }
       ];
 
