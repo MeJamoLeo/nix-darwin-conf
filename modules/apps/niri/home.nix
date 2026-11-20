@@ -195,7 +195,7 @@ in
           # 壁紙ピッカー（DMS のダッシュボードの壁紙タブ）。~/Pictures/Wallpapers の 40 枚から
           # 選べる（modules/apps/dms/home.nix）。dankdash wallpaper は DMS 側で非推奨表示が
           # 出るが、この版（2026-10-20）で動くのはこちら。
-          # Alt+` （上から降りてくる端末）は niri では割り当てない。Ghostty が global keybind
+          # Mod+` （上から降りてくる端末）は niri では割り当てない。Ghostty が global keybind
           # （XDG portal）で直接受ける（modules/apps/ghostty）。ここで取ると Ghostty に届かない。
 
           "Mod+Shift+W" = {

@@ -47,11 +47,13 @@ in {
         "super+ctrl+j=resize_split:down,50"
       ];
     }
-    # x1nano（niri）だけ：上から降りてくる端末。Mac の OmniWM の Option+` と同じ役。
+    # x1nano（niri）だけ：上から降りてくる端末。Mac の OmniWM の Option+` と同じ役だが、
+    # niri は Mod（Super）を軸にしているので Mod+` にした（2026-11-20 本人の希望）。
     # global: は XDG portal の GlobalShortcuts 経由（niri＋xdg-desktop-portal-gnome で
     # 2026-11-20 に動くことを確認）。niri 側には同じキーを割り当てないこと。
+    # キー名は backquote（grave は Ghostty が InvalidFormat で拒む）。
     (lib.mkIf isLinux {
-      keybind = ["global:alt+grave=toggle_quick_terminal"];
+      keybind = ["global:super+backquote=toggle_quick_terminal"];
       quick-terminal-position = "top";
       quick-terminal-size = "40%";
     })
