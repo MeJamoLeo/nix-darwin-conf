@@ -5,9 +5,11 @@ Usage:
   fm skrillex        shuffle 30 YouTube results for "Skrillex"
   fm <URL>           play a URL (video or playlist) as-is
   fm <words>         search YouTube for <words> and shuffle 30 results
+  fm --refresh ...   search again instead of using the saved results
 
 A search walks down the YouTube results, skips videos 7 minutes or longer,
-and stops once it has 30.
+and stops once it has 30. The URLs it finds are saved under ~/.cache/fm/
+and reused from then on, so only the first run waits for the search.
 
 Talks to mpv over its JSON IPC socket. Standard library only.
 """
@@ -40,6 +42,9 @@ SEARCH_WANT = 30
 MAX_SEARCH_SECONDS = 7 * 60
 SEARCH_SCAN_LIMIT = 200
 
+# Search results (URLs only, no media) are kept here, one JSON file per query.
+CACHE_DIR = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "fm")
+
 KEYS = "space play/pause   ←/→ seek 10s   </> track   +/- volume   q quit"
 
 
@@ -70,6 +75,40 @@ def search(query):
     finally:
         proc.kill()
         proc.wait()
+    return urls
+
+
+def cache_path(query):
+    name = "".join(c if c.isalnum() else "_" for c in query.lower()).strip("_") or "query"
+    return os.path.join(CACHE_DIR, f"{name}.json")
+
+
+def cached_search(query, refresh):
+    """Return saved URLs for this query, searching (and saving) only when there are none.
+
+    Saved results made with a different count or length limit are searched again.
+    """
+    path = cache_path(query)
+    settings = {"query": query, "want": SEARCH_WANT, "max_seconds": MAX_SEARCH_SECONDS}
+    if not refresh:
+        try:
+            with open(path) as f:
+                saved = json.load(f)
+            if saved.get("settings") == settings and saved.get("urls"):
+                return saved["urls"]
+        except (OSError, ValueError):
+            pass
+    print(f"fm: searching YouTube for {query!r}...", file=sys.stderr)
+    urls = search(query)
+    if urls:
+        try:
+            os.makedirs(CACHE_DIR, exist_ok=True)
+            tmp = path + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump({"settings": settings, "saved_at": int(time.time()), "urls": urls}, f, indent=1)
+            os.replace(tmp, path)
+        except OSError:
+            pass  # playing still works without the cache
     return urls
 
 
@@ -327,7 +366,9 @@ def run(scr, mpv):
 
 
 def main():
-    arg = " ".join(sys.argv[1:]).strip() or "claude"
+    words = sys.argv[1:]
+    refresh = "--refresh" in words
+    arg = " ".join(w for w in words if w != "--refresh").strip() or "claude"
     if arg in ("-h", "--help"):
         print(__doc__)
         return
@@ -337,8 +378,7 @@ def main():
         targets, shuffle = [arg], False
     else:
         query = SEARCHES.get(arg.lower(), arg)
-        print(f"fm: searching YouTube for {query!r}...", file=sys.stderr)
-        targets, shuffle = search(query), True
+        targets, shuffle = cached_search(query, refresh), True
         if not targets:
             sys.exit(f"fm: no results under {MAX_SEARCH_SECONDS // 60} minutes for {query!r}")
     locale.setlocale(locale.LC_ALL, "")
