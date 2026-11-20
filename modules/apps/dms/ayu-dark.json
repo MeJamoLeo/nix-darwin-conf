@@ -1,0 +1,25 @@
+{
+  "name": "Ayu Dark",
+  "dark": {
+    "primary": "#E6B450",
+    "primaryText": "#0D1017",
+    "primaryContainer": "#4C4126",
+    "secondary": "#59C2FF",
+    "surface": "#0D1017",
+    "surfaceText": "#BFBDB6",
+    "surfaceVariant": "#1B1F29",
+    "surfaceVariantText": "#8A9199",
+    "surfaceTint": "#E6B450",
+    "background": "#0D1017",
+    "backgroundText": "#BFBDB6",
+    "outline": "#5A6673",
+    "surfaceContainerLowest": "#0A0D12",
+    "surfaceContainerLow": "#0F131A",
+    "surfaceContainer": "#10141C",
+    "surfaceContainerHigh": "#141821",
+    "surfaceContainerHighest": "#1B1F29",
+    "error": "#D95757",
+    "warning": "#FFB454",
+    "info": "#59C2FF"
+  }
+}

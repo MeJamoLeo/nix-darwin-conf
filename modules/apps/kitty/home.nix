@@ -3,10 +3,9 @@
 {
   programs.kitty = {
     enable = true;
-    # Fixed palette that matches DankMaterialShell's Material 3 dark surface.
-    # Not driven by matugen — the shell can retheme freely without kitty
-    # colors drifting under a long-lived terminal session.
-    themeFile = "Catppuccin-Mocha";
+    # ayu Dark（2026-11-19。DMS・nvim と揃える。kitty-themes 同梱の ayu.conf）。
+    # matugen 連動にしない — 長く開いている端末の色がシェル側の変更で動かないように。
+    themeFile = "ayu";
     settings = {
       font_family = "JetBrainsMono Nerd Font";
       font_size = 12;

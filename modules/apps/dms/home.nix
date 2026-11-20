@@ -95,6 +95,16 @@ in {
       # ポップアップ（コントロールセンター・ランチャー等）も同じ透け具合に揃える（niri-dots）。
       popupTransparency = 0.67;
 
+      # 配色は ayu Dark（2026-11-19）。DMS の自作テーマ形式（Theme.qml の resolveCustomTheme）で
+      # ./ayu-dark.json に書いた。色は ayu-theme/ayu-colors（MIT）の themes/dark.yaml から：
+      # 地 surface.base #0D1017・パネル #141821・ポップアップ #0F131A・差し色 accent #E6B450・
+      # 青 #59C2FF・灰 #5A6673・エラー #D95757。文字色 #BFBDB6 と副文字 #8A9199 は ayu の
+      # 半透明指定（fg に alpha）を地の上で潰した近似値。dark しか書いていないので、ライト
+      # モードでも同じ色になる（壁紙の昼夜切替はそのまま動く）。niri の枠色も DMS が
+      # この配色から dms/colors.kdl に書き出す。
+      currentThemeName = "custom";
+      customThemeFile = "${./ayu-dark.json}";
+
       # DankBar layout. `barConfigs` is a list; DMS overrides the whole
       # entry when settings.json defines it, so this mirrors the upstream
       # default (SettingsSpec.js `barConfigs.def`) with `runningApps`
