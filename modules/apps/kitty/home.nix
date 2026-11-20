@@ -25,12 +25,13 @@
 
   # Linux（niri）だけ：上から降りてくる端末（kitten quick-access-terminal）。Mac の OmniWM の
   # Option+` （toggleQuakeTerminal）と同じ役。Alt+` で出し入れする（キーは modules/apps/niri）。
-  # 配色・フォントは kitty.conf をそのまま引き継ぐ。ここは差分だけ。
+  # 配色・フォントは kitty.conf をそのまま引き継ぐ。ここは差分だけ。他の窓の上に重なるので、
+  # 通常の端末（0.5）より濃くする（0.5 だと下のページが透けて文字が読めなかった）。
   xdg.configFile."kitty/quick-access-terminal.conf" = lib.mkIf pkgs.stdenv.hostPlatform.isLinux {
     text = ''
       edge top
       lines 20
-      background_opacity 0.5
+      background_opacity 0.85
       margin_left 120
       margin_right 120
     '';
