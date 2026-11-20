@@ -195,6 +195,12 @@ in
           # 壁紙ピッカー（DMS のダッシュボードの壁紙タブ）。~/Pictures/Wallpapers の 40 枚から
           # 選べる（modules/apps/dms/home.nix）。dankdash wallpaper は DMS 側で非推奨表示が
           # 出るが、この版（2026-10-20）で動くのはこちら。
+          # 上から降りてくる端末の出し入れ（Mac の Option+` と同じ。設定は modules/apps/kitty）。
+          "Alt+Grave" = {
+            action.spawn = [ "kitten" "quick-access-terminal" ];
+            hotkey-overlay.title = "Quick Terminal";
+          };
+
           "Mod+Shift+W" = {
             action.spawn = [ "dms" "ipc" "call" "dankdash" "wallpaper" ];
             hotkey-overlay.title = "Wallpaper Picker";
