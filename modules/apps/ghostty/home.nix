@@ -1,14 +1,20 @@
 {
+  lib,
   pkgs,
   ghostty-cursor-shaders,
   ...
-}: {
+}: let
+  isLinux = pkgs.stdenv.hostPlatform.isLinux;
+in {
   programs.ghostty = {
     enable = true;
     # nixpkgs の ghostty は meta.platforms が Linux 限定（darwin 非対応・ビルド不可、
-    # dejima で確認済み）。本体は Homebrew cask "ghostty" で入れ、ここは設定のみ管理。
-    package = null;
-    settings = {
+    # dejima で確認済み）。Mac の本体は Homebrew cask "ghostty" で入れ、ここは設定のみ管理。
+    # x1nano（NixOS）は 2026-11-20 に kitty から乗り換え、nixpkgs の物を入れる。Linux では
+    # home-manager が systemd のユーザーサービス（窓なしで常駐）も入れる＝上から降りてくる
+    # 端末（下の global keybind）が、Ghostty の窓を開いていなくても出せる。
+    package = if isLinux then pkgs.ghostty else null;
+    settings = lib.mkMerge [ {
       # 標準 TERM を名乗る: xterm-ghostty だと terminfo の無い接続先
       # (nix の mosh・大学サーバー等)で "unknown terminal type" になるため。
       # Ghostty 固有の機能宣言を捨てるだけで 256色/truecolor は無影響
@@ -40,6 +46,15 @@
         "super+ctrl+k=resize_split:up,50"
         "super+ctrl+j=resize_split:down,50"
       ];
-    };
+    }
+    # x1nano（niri）だけ：上から降りてくる端末。Mac の OmniWM の Option+` と同じ役。
+    # global: は XDG portal の GlobalShortcuts 経由（niri＋xdg-desktop-portal-gnome で
+    # 2026-11-20 に動くことを確認）。niri 側には同じキーを割り当てないこと。
+    (lib.mkIf isLinux {
+      keybind = ["global:alt+grave=toggle_quick_terminal"];
+      quick-terminal-position = "top";
+      quick-terminal-size = "40%";
+    })
+    ];
   };
 }

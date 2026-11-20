@@ -10,12 +10,14 @@
 #
 #  一覧は kitty-themes＋iTerm2-Color-Schemes から人気のダーク系 58 個（fzf、↑↓ で即反映）。選ぶと
 #    - DMS（バー・ランチャー・コントロールセンター）と niri の枠色（DMS が書き出す）
-#    - kitty（開いている端末も load-config で即反映）
-#  が切り替わる。DMS 用の配色は kitty のテーマから ./gen-dms-theme.py で自動で作る。
+#    - Ghostty（開いている端末も SIGUSR2 で読み直させて即反映）
+#  が切り替わる。配色の元は kitty 形式のテーマ集（端末は 2026-11-20 に kitty から Ghostty へ
+#  移したが、テーマ集はそのまま使う）。DMS 用は ./gen-dms-theme.py、Ghostty 用は
+#  ./gen-ghostty-theme.py で自動で作る。
 #  ayu Dark だけは手で合わせた ./ayu-dark.dms.json を使う（2026-11-19 に作った物）。
 #
-#  選んだ配色は ~/.local/state/desktop-theme/ に置く（name / dms.json / kitty.conf）。
-#  DMS の customThemeFile と kitty の include がここを指す。switch では選択を上書きせず、
+#  選んだ配色は ~/.local/state/desktop-theme/ に置く（name / dms.json / ghostty.conf）。
+#  DMS の customThemeFile と Ghostty の config-file がここを指す。switch では選択を上書きせず、
 #  中身だけ今の store の版へ書き直す（未選択・候補から消えた物なら ayu に戻す）。
 #  dms.json は store への symlink にせず、実ファイルを mv で置き換える（下の apply）。
 #
@@ -100,6 +102,7 @@ let
         mkdir -p "$out/${n}"
         cp ${confOf n} "$out/${n}/kitty.conf"
         python3 ${./gen-dms-theme.py} ${confOf n} "$out/${n}/dms.json" "${n}"
+        python3 ${./gen-ghostty-theme.py} ${confOf n} "$out/${n}/ghostty.conf"
       '')
       themeNames}
     cp ${./ayu-dark.dms.json} "$out/ayu/dms.json"
@@ -114,7 +117,7 @@ let
   # トーストが出た。mv の置き換えでも DMS は追従することを実機で確認済み）。
   apply = ''
     mkdir -p "${stateDir}"
-    for f in dms.json kitty.conf; do
+    for f in dms.json ghostty.conf; do
       cp "${themes}/$name/$f" "${stateDir}/.$f.tmp"
       chmod 644 "${stateDir}/.$f.tmp"
       mv -f "${stateDir}/.$f.tmp" "${stateDir}/$f"
@@ -122,22 +125,21 @@ let
     printf '%s\n' "$name" > "${stateDir}/name"
   '';
 
-  # theme-switch NAME … その配色にする（DMS・kitty）。
+  # theme-switch NAME … その配色にする（DMS・Ghostty）。
   # theme-switch       … 端末の中で fzf の一覧を出す。↑↓ でフォーカスが動くたびに即反映し、
   #                       Enter で決定、Esc で開いたときの配色に戻す。右側は fastfetch
   #                       （OS の情報と 16 色のパレット。端末の色なので配色と一緒に変わる）。
   themeSwitch = pkgs.writeShellApplication {
     name = "theme-switch";
-    runtimeInputs = with pkgs; [fzf fastfetch kitty coreutils gnugrep];
+    runtimeInputs = with pkgs; [fzf fastfetch procps coreutils gnugrep];
     text = ''
       if [ $# -gt 0 ]; then
         name=$1
         [ -d "${themes}/$name" ] || { echo "unknown theme: $name" >&2; exit 1; }
         ${apply}
-        # 開いている kitty に読み直させる（listen_on は modules/apps/kitty/home.nix）。
-        for s in /tmp/kitty-*; do
-          [ -S "$s" ] && kitty @ --to "unix:$s" load-config >/dev/null 2>&1 || true
-        done
+        # 開いている Ghostty に設定を読み直させる（SIGUSR2。常駐サービスの ReloadSignal と同じ）。
+        # プロセス名は .ghostty-wrapped が 15 文字で切れた物。
+        pkill -USR2 -x '.ghostty-wrappe' || true
         exit 0
       fi
 
@@ -174,20 +176,20 @@ in {
     customThemeFile = "${stateDir}/dms.json";
   };
 
-  programs.kitty.extraConfig = ''
-    include ${stateDir}/kitty.conf
-  '';
+  # ? を付けると、ファイルが無くてもエラーにしない（初回の switch 前など）。
+  programs.ghostty.settings.config-file = "?${stateDir}/ghostty.conf";
 
-  # 一覧は専用の kitty を浮かせて開く（下の window-rules）。theme-switch は store の絶対パスで
+  # 一覧は専用の Ghostty を浮かせて開く（下の window-rules）。theme-switch は store の絶対パスで
   # 呼ぶ（PATH の /etc/profiles は nixos-rebuild でしか更新されないので、home-manager だけ
   # 当てた状態でも動くように）。
   programs.niri.settings.binds."Mod+Shift+T" = {
-    action.spawn = ["kitty" "--class" "desktop-theme-picker" "-e" "${themeSwitch}/bin/theme-switch"];
+    # --class は GTK のアプリ ID なので「.」を含む名前にする（含まないと Ghostty が拒む）。
+    action.spawn = ["ghostty" "--class=local.desktop-theme-picker" "-e" "${themeSwitch}/bin/theme-switch"];
     hotkey-overlay.title = "Theme Picker";
   };
   programs.niri.settings.window-rules = [
     {
-      matches = [{app-id = "^desktop-theme-picker$";}];
+      matches = [{app-id = "^local\\.desktop-theme-picker$";}];
       open-floating = true;
       default-column-width.fixed = 1400;
       default-window-height.fixed = 820;

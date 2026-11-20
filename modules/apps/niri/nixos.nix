@@ -32,7 +32,7 @@
     DISPLAY = ":0"; # xwayland-satellite の既定ディスプレイ
     WLR_NO_HARDWARE_CURSORS = "1";
     NIXOS_OZONE_WL = "1"; # Electron/Chromium 系を Wayland ネイティブで
-    TERMINAL = "kitty";
+    TERMINAL = "ghostty";
     TMUX_TMPDIR = "$XDG_RUNTIME_DIR";
   };
 

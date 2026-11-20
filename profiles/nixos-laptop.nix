@@ -49,10 +49,10 @@
       ../modules/apps/bitwarden/home.nix
       ../modules/apps/zen/home.nix
       ../modules/apps/sioyek/home.nix
+      ../modules/apps/ghostty/home.nix # 端末（2026-11-20 に kitty から移行）
       # apps — Linux だけ
       ../modules/apps/niri/home.nix
       ../modules/apps/dms/home.nix
-      ../modules/apps/kitty/home.nix
       ../modules/apps/wayvibes/home.nix
       ../modules/apps/imv/home.nix
       # custom
