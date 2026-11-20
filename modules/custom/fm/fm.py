@@ -2,9 +2,12 @@
 
 Usage:
   fm                 play Claude FM
-  fm skrillex        shuffle the top 20 YouTube results for "Skrillex"
+  fm skrillex        shuffle 30 YouTube results for "Skrillex"
   fm <URL>           play a URL (video or playlist) as-is
-  fm <words>         search YouTube for <words> and shuffle the top 20 results
+  fm <words>         search YouTube for <words> and shuffle 30 results
+
+A search walks down the YouTube results, skips videos 7 minutes or longer,
+and stops once it has 30.
 
 Talks to mpv over its JSON IPC socket. Standard library only.
 """
@@ -21,18 +24,57 @@ import tempfile
 import time
 import unicodedata
 
+# Names that play a fixed URL.
 PRESETS = {
-    "claude": ("https://www.youtube.com/watch?v=tRsQsTMvPNg", False),
-    "skrillex": ("ytdl://ytsearch20:Skrillex", True),
+    "claude": "https://www.youtube.com/watch?v=tRsQsTMvPNg",
 }
+
+# Names that run a YouTube search.
+SEARCHES = {
+    "skrillex": "Skrillex",
+}
+
+# A search keeps this many videos shorter than MAX_SEARCH_SECONDS,
+# looking at no more than SEARCH_SCAN_LIMIT results to find them.
+SEARCH_WANT = 30
+MAX_SEARCH_SECONDS = 7 * 60
+SEARCH_SCAN_LIMIT = 200
 
 KEYS = "space play/pause   ←/→ seek 10s   </> track   +/- volume   q quit"
 
 
 # ---------- mpv ----------
 
+def search(query):
+    """Return watch URLs for the first SEARCH_WANT short results of a YouTube search.
+
+    yt-dlp prints one line per result as it pages through the search, so stop it
+    as soon as enough short videos have come in.
+    """
+    proc = subprocess.Popen(
+        [os.environ.get("FM_YTDLP", "yt-dlp"), "--no-warnings", "--flat-playlist",
+         "--print", "%(duration)s\t%(id)s", f"ytsearch{SEARCH_SCAN_LIMIT}:{query}"],
+        stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    urls = []
+    try:
+        for line in proc.stdout:
+            dur, _, vid = line.strip().partition("\t")
+            try:
+                short = float(dur) < MAX_SEARCH_SECONDS  # "NA" (live streams) is not short
+            except ValueError:
+                short = False
+            if short and vid:
+                urls.append(f"https://www.youtube.com/watch?v={vid}")
+                if len(urls) >= SEARCH_WANT:
+                    break
+    finally:
+        proc.kill()
+        proc.wait()
+    return urls
+
+
 class Mpv:
-    def __init__(self, target, shuffle):
+    def __init__(self, targets, shuffle):
         self.sock_path = os.path.join(tempfile.mkdtemp(prefix="fm-"), "mpv.sock")
         args = [
             os.environ.get("FM_MPV", "mpv"),
@@ -42,7 +84,7 @@ class Mpv:
         ]
         if shuffle:
             args.append("--shuffle")
-        args.append(target)
+        args.extend(targets)
         self.proc = subprocess.Popen(args, stdin=subprocess.DEVNULL,
                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         self.sock = None
@@ -290,17 +332,21 @@ def main():
         print(__doc__)
         return
     if arg.lower() in PRESETS:
-        target, shuffle = PRESETS[arg.lower()]
+        targets, shuffle = [PRESETS[arg.lower()]], False
     elif "://" in arg:
-        target, shuffle = arg, False
+        targets, shuffle = [arg], False
     else:
-        target, shuffle = f"ytdl://ytsearch20:{arg}", True
+        query = SEARCHES.get(arg.lower(), arg)
+        print(f"fm: searching YouTube for {query!r}...", file=sys.stderr)
+        targets, shuffle = search(query), True
+        if not targets:
+            sys.exit(f"fm: no results under {MAX_SEARCH_SECONDS // 60} minutes for {query!r}")
     locale.setlocale(locale.LC_ALL, "")
     # Closing the terminal sends SIGHUP; turn it (and SIGTERM) into a normal exit
     # so the finally block below still stops mpv instead of leaving it playing.
     for sig in (signal.SIGHUP, signal.SIGTERM):
         signal.signal(sig, lambda *_: sys.exit(0))
-    mpv = Mpv(target, shuffle)
+    mpv = Mpv(targets, shuffle)
     try:
         curses.wrapper(run, mpv)
     except KeyboardInterrupt:

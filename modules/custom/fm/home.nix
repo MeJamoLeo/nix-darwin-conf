@@ -11,6 +11,6 @@ in {
 
   home.shellAliases = {
     claudefm = "fm claude"; # Claude FM（24 時間 lofi 配信）
-    skfm = "fm skrillex"; # Skrillex を YouTube 検索の上位 20 本で順不同に
+    skfm = "fm skrillex"; # Skrillex を YouTube で検索し、7 分未満を 30 本集めて順不同に
   };
 }
