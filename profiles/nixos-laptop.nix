@@ -55,6 +55,7 @@
       ../modules/apps/dms/home.nix
       ../modules/apps/wayvibes/home.nix
       ../modules/apps/imv/home.nix
+      ../modules/apps/orca/home.nix
       # custom
       ../modules/custom/cp/tools/home.nix
       ../modules/custom/desktop-theme/home.nix
