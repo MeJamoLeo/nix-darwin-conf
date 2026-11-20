@@ -1,4 +1,8 @@
-{pkgs, ...}:
+{
+  lib,
+  pkgs,
+  ...
+}:
 # Zen（Firefox フォーク）— 既製品の設定値なので apps バケツ。
 #
 # ## なぜ homebrew cask から flake の home-manager モジュールへ移したか（2026-08-27）
@@ -230,6 +234,11 @@ in {
         "zen.tabs.vertical.right-side" = false;
         "zen.urlbar.behavior" = "floating-on-type";
         "browser.toolbars.bookmarks.visibility" = "always";
+        # x1nano（niri）だけ、ウィンドウの地（サイドバー・ツールバー）を透かす（2026-11-19）。
+        # Zen 1.11.2b 以降の Linux 用 pref（コミュニティ情報。公式文書では未確認）。
+        # ページ本体はサイトが白で塗るので透けない（browser.tabs.allow_transparent_browser は
+        # サイトの背景まで抜くので入れない）。透け具合は Zen のテーマ（グラデーション）側。
+        "zen.widget.linux.transparency" = lib.mkIf pkgs.stdenv.hostPlatform.isLinux true;
         # 下の extensions.packages で置いた拡張を起動時に自動で有効化する。
         #
         # ⚠⚠ これは「プロファイルに置かれた拡張の承認プロンプト」を消す設定＝防御の弱体化。

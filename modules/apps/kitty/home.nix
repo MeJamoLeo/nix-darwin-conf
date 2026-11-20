@@ -9,7 +9,7 @@
     settings = {
       font_family = "JetBrainsMono Nerd Font";
       font_size = 12;
-      background_opacity = "0.85";
+      background_opacity = "0.5"; # 2026-11-19: 0.85 → 0.5（壁紙を半分透かす。文字は不透明のまま）
       confirm_os_window_close = 0;
       enable_audio_bell = "no";
       allow_remote_control = "yes";
