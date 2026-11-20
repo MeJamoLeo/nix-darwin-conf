@@ -134,9 +134,14 @@ in {
     # only fills it via `dms setup`, which we can't run under nix), so
     # keybinds have to come from Nix or launcher/notifications/lock don't
     # work at all.
+    #
+    # 2026-11-20: enableKeybinds は includes.enable と併用すると警告が出る（DMS の
+    # distro/nix/niri.nix。includes で読む dms/binds.kdl と二重になりうるため）。includes は
+    # 配色（dms/colors.kdl）に要るので残し、キーは enableKeybinds の中身を下の
+    # programs.niri.settings.binds に写した（DMS 側で増えたら追従すること）。
     niri = {
       enableSpawn = true;
-      enableKeybinds = true;
+      enableKeybinds = false;
     };
 
     settings = {
@@ -221,5 +226,31 @@ in {
         hoverPopoutDelay = 150;
       }];
     };
+  };
+
+  # DMS の enableKeybinds（上で切った）と同じキー。DMS 版 2026-10 の distro/nix/niri.nix から写した。
+  programs.niri.settings.binds = with config.lib.niri.actions; let
+    ipc = spawn "dms" "ipc";
+    locked = action: {
+      allow-when-locked = true;
+      inherit action;
+    };
+  in {
+    "Mod+Space" = { action = ipc "spotlight" "toggle"; hotkey-overlay.title = "Toggle Application Launcher"; };
+    "Mod+N" = { action = ipc "notifications" "toggle"; hotkey-overlay.title = "Toggle Notification Center"; };
+    "Mod+Comma" = { action = ipc "settings" "toggle"; hotkey-overlay.title = "Toggle Settings"; };
+    "Mod+P" = { action = ipc "notepad" "toggle"; hotkey-overlay.title = "Toggle Notepad"; };
+    "Super+Alt+L" = { action = ipc "lock" "lock"; hotkey-overlay.title = "Toggle Lock Screen"; };
+    "Mod+X" = { action = ipc "powermenu" "toggle"; hotkey-overlay.title = "Toggle Power Menu"; };
+    "Mod+V" = { action = ipc "clipboard" "toggle"; hotkey-overlay.title = "Toggle Clipboard Manager"; };
+    "Mod+M" = { action = ipc "processlist" "toggle"; hotkey-overlay.title = "Toggle Process List"; };
+    "Mod+Alt+N" = locked (ipc "night" "toggle") // { hotkey-overlay.title = "Toggle Night Mode"; };
+    "XF86AudioRaiseVolume" = locked (ipc "audio" "increment" "3");
+    "XF86AudioLowerVolume" = locked (ipc "audio" "decrement" "3");
+    "XF86AudioMute" = locked (ipc "audio" "mute");
+    "XF86AudioMicMute" = locked (ipc "audio" "micmute");
+    "XF86MonBrightnessUp" = locked (ipc "brightness" "increment" "5" "");
+    "XF86MonBrightnessDown" = locked (ipc "brightness" "decrement" "5" "");
+    "XF86TouchpadToggle" = locked (spawn "niri" "msg" "action" "toggle-touchpad") // { repeat = false; };
   };
 }

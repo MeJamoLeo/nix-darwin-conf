@@ -6,6 +6,12 @@
 # なり、stub と同じパスで衝突してビルドが落ちるようになったため（上流 issue #575192 の修正）。
 {username, ...}: {
   virtualisation.virtualbox.host.enable = true;
+  # 設定を切り替えるたびに vboxnet0（ホストオンリーの仮想ネットワーク）を止めて作り直すと、
+  # 止まった瞬間に「Address configuration of vboxnet0」が依存失敗し、nh os switch の試し当てが
+  # status 4 で落ちて世代が登録されなかった（2026-11-20）。切り替えでは触らず、再起動で
+  # 作り直すだけにする。
+  systemd.services.vboxnet0.restartIfChanged = false;
+  systemd.services.network-addresses-vboxnet0.restartIfChanged = false;
 
   programs.wireshark.enable = true;
   users.users.${username}.extraGroups = ["vboxusers" "wireshark"];

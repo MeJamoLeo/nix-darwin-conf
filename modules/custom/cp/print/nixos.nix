@@ -3,10 +3,10 @@
 # スクリプト本体は同居の print_atcoder.py。旧版は repo の checkout を実行時に辿っていたが、
 # いまは store に固めて `cp-print-build` として配る。
 {pkgs, ...}: let
-  texEnv = pkgs.texlive.combine {
-    inherit
-      (pkgs.texlive)
-      scheme-small
+  # texlive.combine は非推奨（nixpkgs 27.05 で削除予定）なので withPackages で組む。
+  # 旧 scheme-small ＝ texliveSmall。
+  texEnv = pkgs.texliveSmall.withPackages (ps:
+    with ps; [
       collection-fontsrecommended
       collection-langjapanese
       collection-xetex
@@ -21,8 +21,7 @@
       etoolbox
       anyfontsize
       ulem
-      ;
-  };
+    ]);
   py = pkgs.python3.withPackages (ps: [ps.beautifulsoup4]);
   cpPrintBuild = pkgs.writeShellScriptBin "cp-print-build" ''
     exec ${py}/bin/python3 ${./print_atcoder.py} "$@"
