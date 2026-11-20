@@ -1,12 +1,11 @@
-"""kitty のテーマファイルから DMS の自作テーマ（JSON）を作る。
+"""Build a custom DMS theme (JSON) from a kitty theme file.
 
 usage: gen-dms-theme.py KITTY_CONF OUT_JSON NAME
 
-kitty のテーマは「地・文字・16 色・枠の色」を持つので、そこから DMS（Material 3 風の
-キー）へ写す。差し色（primary）は active_border_color（テーマ作者が選んだ強調色）を使い、
-地や文字と同じ色なら color4（青）に落とす。面の段（surfaceContainer*）は地を文字色へ
-少しずつ寄せて作る（暗いテーマは明るく、明るいテーマは暗くなる）。
-明暗どちらのモードでも同じ色にするため dark / light の両方に同じ値を書く。
+A kitty theme has background, foreground, 16 colours and a border colour; they are mapped onto DMS's
+Material-3-like keys. primary is active_border_color (the theme author's accent), or color4 (blue) when
+that equals the background or foreground. surfaceContainer* steps mix the background toward the foreground.
+The same values go into dark and light so both modes look identical.
 """
 
 import json
@@ -23,7 +22,7 @@ def hexc(c) -> str:
 
 
 def mix(a: str, b: str, t: float) -> str:
-    """a を b へ t だけ寄せる。"""
+    """Move a toward b by t."""
     ca, cb = rgb(a), rgb(b)
     return hexc([x + (y - x) * t for x, y in zip(ca, cb)])
 

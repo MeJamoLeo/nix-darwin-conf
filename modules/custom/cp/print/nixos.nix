@@ -3,8 +3,8 @@
 # スクリプト本体は同居の print_atcoder.py。旧版は repo の checkout を実行時に辿っていたが、
 # いまは store に固めて `cp-print-build` として配る。
 {pkgs, ...}: let
-  # texlive.combine は非推奨（nixpkgs 27.05 で削除予定）なので withPackages で組む。
-  # 旧 scheme-small ＝ texliveSmall。
+  # texlive.combine is deprecated (removal in nixpkgs 27.05); use withPackages.
+  # Old scheme-small = texliveSmall.
   texEnv = pkgs.texliveSmall.withPackages (ps:
     with ps; [
       collection-fontsrecommended

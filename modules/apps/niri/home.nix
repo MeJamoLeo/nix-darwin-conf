@@ -82,8 +82,6 @@ in
           { proportion = 0.5; }
           { proportion = 0.66667; }
         ];
-        # 新しいウィンドウは全幅で開く（2026-11-19。半分の幅＋すき間で「一度に見える情報が
-        # 少ない」と感じていた。半分にしたいときは Mod+R で preset を回す）。
         default-column-width.proportion = 1.0;
 
         focus-ring = {
@@ -117,19 +115,13 @@ in
 
       screenshot-path = "~/Pictures/Screenshots/Screenshot from %Y-%m-%d %H-%M-%S.png";
 
-      # ── 見た目（2026-11-19、adarsh-67r/niri-dots［MIT］を手本にした）──────────
-      # 角丸・すき間・枠の太さ・色は DMS が ~/.config/niri/dms/{layout,colors}.kdl に
-      # 生成して後から include される（こちらより優先）ので、ここでは書かない。
-      # ここに置くのは DMS が触らない物だけ：アプリ側の枠を消す・ホットコーナー無効・
-      # アニメーションの手触り・非アクティブの透過。
+      # Corner radius, gaps, border width and colours are not set here: DMS generates
+      # ~/.config/niri/dms/{layout,colors}.kdl and includes it after this config.
 
-      # アプリが自前で描くタイトルバーをやめてもらう（niri の角丸と枠に揃う）。
       prefer-no-csd = true;
 
-      # 左上に触れると overview が開くのを止める（意図せず開くので）。
       gestures.hot-corners.enable = false;
 
-      # niri-dots の値。既定より少し速く、ばねは少しだけ弾む。
       animations = let
         spring = damping-ratio: stiffness: {
           spring = {
@@ -167,21 +159,17 @@ in
           ];
           open-floating = true;
         }
-        # 端末とブラウザは自前で背景を塗るので、枠の内側を枠色で塗らない
-        # （半透明の端末の後ろに枠色が透けないように）。
+        # Terminal and browser paint their own background; keep the border colour from showing through.
         {
           matches = map (id: { app-id = id; }) [ "^zen" "^com\\.mitchellh\\.ghostty$" ];
           draw-border-with-background = false;
         }
-        # 非アクティブのウィンドウを少し沈める（どこにフォーカスがあるか一目で分かる）。
         {
           matches = [ { is-active = false; } ];
           opacity = 0.9;
         }
-        # 全アプリをフォーカス中も透かす（2026-11-20 本人の希望「全てのアプリを透過」）。中身ごと
-        # 透けるので、文字が読める範囲で 0.8。上の規則より後に置き、非アクティブ時もこの値。
-        # 端末（Ghostty・テーマピッカー）は自分で地だけ 50% 透かしているので除く
-        # （重ねると文字まで薄くなる）。
+        # Placed last so it also applies when inactive. Ghostty is excluded: it is already 50% translucent,
+        # and stacking would fade the text.
         {
           excludes = map (id: { app-id = id; }) [ "^com\\.mitchellh\\.ghostty$" ];
           opacity = 0.8;
@@ -192,12 +180,10 @@ in
         {
           "Mod+Shift+Slash" = act "show-hotkey-overlay";
 
-          # 壁紙ピッカー（DMS のダッシュボードの壁紙タブ）。~/Pictures/Wallpapers の 40 枚から
-          # 選べる（modules/apps/dms/home.nix）。dankdash wallpaper は DMS 側で非推奨表示が
-          # 出るが、この版（2026-10-20）で動くのはこちら。
-          # Mod+` （上から降りてくる端末）は niri では割り当てない。Ghostty が global keybind
-          # （XDG portal）で直接受ける（modules/apps/ghostty）。ここで取ると Ghostty に届かない。
+          # Do not bind Mod+` here: Ghostty receives it via the XDG portal (global keybind), and a niri
+          # bind would swallow it.
 
+          # `dankdash wallpaper` is flagged deprecated by DMS but is the one that works in this version.
           "Mod+Shift+W" = {
             action.spawn = [ "dms" "ipc" "call" "dankdash" "wallpaper" ];
             hotkey-overlay.title = "Wallpaper Picker";
@@ -208,8 +194,8 @@ in
           # are now provided by DMS's home-manager `niri.enableKeybinds`
           # (Mod+Space, Super+Alt+L, Mod+V, Mod+Comma, Mod+N, Mod+X,
           # Mod+M, Mod+Alt+N …). Only the terminal stays niri-side.
-          # 端末は Ghostty（2026-11-20 に kitty から移した）。+new-window で常駐サービスに窓を
-          # 開かせる（0.09 秒。素の `ghostty` は常駐があっても 0.2 秒、無ければ 1.9 秒）。
+          # +new-window, not plain `ghostty`: it opens the window in the resident service
+          # (0.09 s vs 0.2 s, or 1.9 s with no service).
           "Mod+T" = (act' "spawn" [ "ghostty" "+new-window" ]) // {
             hotkey-overlay.title = "Open a Terminal: Ghostty";
           };

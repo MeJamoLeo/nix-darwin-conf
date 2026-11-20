@@ -1,8 +1,6 @@
 # niri（Wayland のタイル型コンポジタ）を中心にした x1nano のデスクトップ一式。
-# ログインは greetd + tuigreet（TUI）。ログインするとそのまま niri が立ち上がる
-# （2026-11-20 に変更。それまでは素の zsh に入り、`niri-session` と打ったときだけ GUI を
-# 動かしていた＝2026-10-23 の「電池を食う GUI を常駐させない」決定。niri を常用するように
-# なったので既定を逆にした）。素の zsh が要るときは tuigreet の F3 で選べる。
+# greetd + tuigreet (TUI); logging in starts niri directly.
+# F3 in tuigreet picks a plain zsh instead (no resident GUI, saves battery).
 {
   config,
   pkgs,

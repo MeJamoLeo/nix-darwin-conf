@@ -27,11 +27,11 @@
   **任意コマンドを叩くホットキー**（alt-g → cp-go-launch など。OmniWM は 169 の
   固定コマンド ID しか持たず exec を表現できない。詳細は
   modules/custom/cp/tools/home.nix の該当コメント）。
-- **kitty/** — x1nano の端末を Ghostty に揃えたため退役 2026-11-20（Mac 3 台はもともと
-  Ghostty）。上から降りてくる端末（kitty の quick-access-terminal）は Ghostty の
-  global keybind＋toggle_quick_terminal に置き換えた。Ghostty 運用が安定したら削除してよい。
-  復帰手順：`git mv modules/_archive/kitty modules/apps/kitty` → profiles/nixos-laptop.nix に
-  import を戻し、modules/custom/desktop-theme の Ghostty 向けの部分を kitty 向けに戻す。
+- **kitty/** — retired 2026-11-20 when x1nano's terminal moved to Ghostty (the three Macs already
+  used it). The drop-down terminal (kitty quick-access-terminal) became a Ghostty global keybind +
+  toggle_quick_terminal. Delete once Ghostty has proven stable.
+  To restore: `git mv modules/_archive/kitty modules/apps/kitty`, re-add the import in
+  profiles/nixos-laptop.nix, and point the Ghostty parts of modules/custom/desktop-theme back at kitty.
 - **neru/** — 常用しなかったため退役 2026-07-29。
   復帰手順：`git mv modules/_archive/neru modules/apps/neru` → profile の
   `home-manager.users.<name>.imports` に `../modules/apps/neru/home.nix` と

@@ -6,34 +6,17 @@
 }:
 ##########################################################################
 #
-#  desktop-theme — x1nano（niri＋DMS）の配色を Mod+Shift+T で切り替える（2026-11-20）。
-#
-#  一覧は kitty-themes＋iTerm2-Color-Schemes から人気のダーク系 58 個（fzf、↑↓ で即反映）。選ぶと
-#    - DMS（バー・ランチャー・コントロールセンター）と niri の枠色（DMS が書き出す）
-#    - Ghostty（開いている端末も SIGUSR2 で読み直させて即反映）
-#  が切り替わる。配色の元は kitty 形式のテーマ集（端末は 2026-11-20 に kitty から Ghostty へ
-#  移したが、テーマ集はそのまま使う）。DMS 用は ./gen-dms-theme.py、Ghostty 用は
-#  ./gen-ghostty-theme.py で自動で作る。
-#  ayu Dark だけは手で合わせた ./ayu-dark.dms.json を使う（2026-11-19 に作った物）。
-#
-#  選んだ配色は ~/.local/state/desktop-theme/ に置く（name / dms.json / ghostty.conf）。
-#  DMS の customThemeFile と Ghostty の config-file がここを指す。switch では選択を上書きせず、
-#  中身だけ今の store の版へ書き直す（未選択・候補から消えた物なら ayu に戻す）。
-#  dms.json は store への symlink にせず、実ファイルを mv で置き換える（下の apply）。
-#
-#  画面に出る文字列（fzf の案内・niri の hotkey 表示）は英語にする（2026-11-20 本人の希望）。
-#
-#  nvim とブラウザは追従しない（テーマごとのプラグイン対応が要るので別段）。
+#  desktop-theme — switch the x1nano colour scheme (DMS, niri borders, Ghostty) with Mod+Shift+T.
+#  Themes are kitty-format files from kitty-themes + iTerm2-Color-Schemes; ayu Dark uses the hand-tuned
+#  ./ayu-dark.dms.json. nvim and the browser do not follow (they need per-theme plugin support).
 #
 ##########################################################################
 let
   kittyThemes = "${pkgs.kitty-themes}/share/kitty-themes/themes";
-  # kitty-themes に無い物（Iceberg など）。名前 → conf のパス。
   extraThemes = import ./extra-themes.nix {inherit pkgs;};
   confOf = n: extraThemes.${n} or "${kittyThemes}/${n}.conf";
 
-  # 表示名 = kitty-themes のファイル名（.conf 抜き）。並びがそのまま一覧の順。
-  # 2026-11-20: ダーク系だけ 58 個（kitty-themes に無い物も足す。明るい物は外した。端末を 50% 透かしているので読みにくい）。
+  # Dark themes only: the terminal is 50% translucent, so light ones are hard to read.
   themeNames = [
     "ayu"
     "ayu_mirage"
@@ -69,7 +52,6 @@ let
     "Duskfox"
     "Terafox"
     "Nordfox"
-    # ここから 8 個は Iceberg と色の傾きが近い物（extra-themes.nix から。Kanagawabones は kitty-themes にもある）
     "Iceberg_Dark"
     "Kanagawabones"
     "Midnight_Tundra"
@@ -112,9 +94,7 @@ let
 
   stateDir = "${config.xdg.stateHome}/desktop-theme";
 
-  # 選んだ名前のファイルを state へ書く。一時ファイルに書いてから mv で置き換える
-  # （2026-11-20：`cat >` だといったん空になった瞬間を DMS が読み「Invalid JSON format」の
-  # トーストが出た。mv の置き換えでも DMS は追従することを実機で確認済み）。
+  # Write a temp file and mv it: a plain `cat >` is briefly empty and DMS shows an "Invalid JSON format" toast.
   apply = ''
     mkdir -p "${stateDir}"
     for f in dms.json ghostty.conf; do
@@ -125,10 +105,6 @@ let
     printf '%s\n' "$name" > "${stateDir}/name"
   '';
 
-  # theme-switch NAME … その配色にする（DMS・Ghostty）。
-  # theme-switch       … 端末の中で fzf の一覧を出す。↑↓ でフォーカスが動くたびに即反映し、
-  #                       Enter で決定、Esc で開いたときの配色に戻す。右側は fastfetch
-  #                       （OS の情報と 16 色のパレット。端末の色なので配色と一緒に変わる）。
   themeSwitch = pkgs.writeShellApplication {
     name = "theme-switch";
     runtimeInputs = with pkgs; [fzf fastfetch procps coreutils gnugrep];
@@ -137,14 +113,13 @@ let
         name=$1
         [ -d "${themes}/$name" ] || { echo "unknown theme: $name" >&2; exit 1; }
         ${apply}
-        # 開いている Ghostty に設定を読み直させる（SIGUSR2。常駐サービスの ReloadSignal と同じ）。
-        # プロセス名は .ghostty-wrapped が 15 文字で切れた物。
+        # Reload open Ghostty windows. The name is '.ghostty-wrappe' because the process name is cut at 15 chars.
         pkill -USR2 -x '.ghostty-wrappe' || true
         exit 0
       fi
 
-      # 開いた直後の focus（先頭行）で配色が変わらないよう、読み込みが終わって今の配色の
-      # 行へ移るまでは focus を外しておく（2026-11-20：start:pos だけでは先頭の ayu が当たった）。
+      # Keep focus unbound until the list has loaded and moved to the current theme; start:pos alone
+      # previewed the first entry (ayu).
       self=$(readlink -f "$0")
       orig=$(cat "${stateDir}/name" 2>/dev/null || echo ayu)
       pos=$(grep -n -x -F "$orig" ${themes}/list | cut -d: -f1 || true)
@@ -176,15 +151,14 @@ in {
     customThemeFile = "${stateDir}/dms.json";
   };
 
-  # ? を付けると、ファイルが無くてもエラーにしない（初回の switch 前など）。
+  # '?' makes a missing file non-fatal (before the first switch).
   programs.ghostty.settings.config-file = "?${stateDir}/ghostty.conf";
 
-  # 一覧は専用の Ghostty を浮かせて開く（下の window-rules）。theme-switch は store の絶対パスで
-  # 呼ぶ（PATH の /etc/profiles は nixos-rebuild でしか更新されないので、home-manager だけ
-  # 当てた状態でも動くように）。
+  # theme-switch is called by absolute store path: the /etc/profiles PATH only updates on nixos-rebuild,
+  # so a home-manager-only switch would not find it.
   programs.niri.settings.binds."Mod+Shift+T" = {
-    # 常駐の Ghostty に窓を開かせる（+new-window。別プロセスで起こすと 1.9 秒かかる）。
-    # 同じアプリ ID になるので、浮かせる規則はタイトルで当てる。
+    # +new-window asks the resident Ghostty (a fresh process takes 1.9 s). Same app-id, so the
+    # floating rule matches on title.
     action.spawn = ["ghostty" "+new-window" "--title=Theme Picker" "-e" "${themeSwitch}/bin/theme-switch"];
     hotkey-overlay.title = "Theme Picker";
   };

@@ -1,8 +1,8 @@
-"""kitty のテーマ（.conf）を Ghostty の設定（色だけ）に書き換える。
+"""Rewrite a kitty theme (.conf) as a Ghostty config (colours only).
 
 usage: gen-ghostty-theme.py KITTY_CONF OUT
 
-Ghostty の config-file で読み込まれる前提（modules/custom/desktop-theme/home.nix）。
+Loaded via Ghostty's config-file (modules/custom/desktop-theme/home.nix).
 """
 
 import sys

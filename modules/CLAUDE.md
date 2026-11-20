@@ -53,8 +53,10 @@
 ## 新モジュールを足す手順
 
 1. バケツを1つ選ぶ（上の手順）。`modules/<kind>/<topic>/` を作る。
-2. `home.nix` か `darwin.nix`（両方でも可）を書く。本文・見出し・`title:` は日本語、
-   ファイル名は英語 ASCII slug（リポジトリ全体の言語規約）。
+2. Write `home.nix` or `darwin.nix` (or both). New code, comments and strings are written in English;
+   existing Japanese is left as is. File names are ASCII slugs. Comments say only why the obvious
+   alternative was NOT chosen (or why something odd is intentional), in 1-2 lines. No what/how, no
+   dates or history: the why of a change goes in the commit message.
 3. **`profiles/mac-workstation.nix` の該当セクションに import を1行足す**（作っただけでは
    どのホストにも入らない）。
 4. 退役させるときは `git mv` で `modules/_archive/` へ移し、profile の import を消す

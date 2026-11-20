@@ -1,6 +1,6 @@
-# kitty-themes（nixpkgs）に無い配色を、mbadolato/iTerm2-Color-Schemes の kitty/ から足す
-# （2026-11-20。Iceberg と、色の傾きが近い物）。repo は MIT。1 ファイルずつ rev と hash を固定。
-# キー = 一覧に出す名前（空白なし）、値 = { file = kitty/ 下のファイル名; hash = ...; }。
+# Colour schemes missing from kitty-themes (nixpkgs), taken from the kitty/ dir of mbadolato/iTerm2-Color-Schemes
+# (MIT; rev and hash pinned per file).
+# Key = name shown in the list (no spaces); value = { file = name under kitty/; hash = ...; }.
 {pkgs}: let
   rev = "1c3e1ef1145b1ba4b867549c8c6852da9a1c8f0b";
   get = file: hash:

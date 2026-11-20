@@ -49,7 +49,7 @@
       ../modules/apps/bitwarden/home.nix
       ../modules/apps/zen/home.nix
       ../modules/apps/sioyek/home.nix
-      ../modules/apps/ghostty/home.nix # 端末（2026-11-20 に kitty から移行）
+      ../modules/apps/ghostty/home.nix
       # apps — Linux だけ
       ../modules/apps/niri/home.nix
       ../modules/apps/dms/home.nix
@@ -57,7 +57,7 @@
       ../modules/apps/imv/home.nix
       # custom
       ../modules/custom/cp/tools/home.nix
-      ../modules/custom/desktop-theme/home.nix # 配色の切り替え（Mod+Shift+T）
+      ../modules/custom/desktop-theme/home.nix
       # 外部 flake 供給の HM モジュール
       ((nixvim.homeModules or nixvim.homeManagerModules).nixvim)
       zen-browser.homeModules.default

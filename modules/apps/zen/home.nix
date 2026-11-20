@@ -234,10 +234,8 @@ in {
         "zen.tabs.vertical.right-side" = false;
         "zen.urlbar.behavior" = "floating-on-type";
         "browser.toolbars.bookmarks.visibility" = "always";
-        # x1nano（niri）だけ、ウィンドウの地（サイドバー・ツールバー）を透かす（2026-11-19）。
-        # Zen 1.11.2b 以降の Linux 用 pref（コミュニティ情報。公式文書では未確認）。
-        # ページ本体はサイトが白で塗るので透けない（browser.tabs.allow_transparent_browser は
-        # サイトの背景まで抜くので入れない）。透け具合は Zen のテーマ（グラデーション）側。
+        # Linux-only pref (community-reported, not in the official docs; Zen >= 1.11.2b). Do not set
+        # browser.tabs.allow_transparent_browser: it also punches through site backgrounds.
         "zen.widget.linux.transparency" = lib.mkIf pkgs.stdenv.hostPlatform.isLinux true;
         # 下の extensions.packages で置いた拡張を起動時に自動で有効化する。
         #
@@ -253,40 +251,10 @@ in {
         "extensions.autoDisableScopes" = 0;
       };
 
-      # ── Ctrl+Shift+W（ウィンドウを閉じる）が効かない問題の回避（2026-10-25） ──
-      #
-      # Firefox 由来の DevTools「DOM パネル」キー（`key_dom`）が Close Window と同じ
-      # **Ctrl+Shift+W** を取っていて、ウィンドウが閉じない。Zen 側の既知バグ：
-      #   - desktop#12871 … **open**（`Bug` / `component: keyboard-shortcuts` /
-      #     `platform: linux` / `stale`）。2026-03-26 に原因＝DOM パネルとの衝突まで
-      #     特定済み。2026-07-17 に「DOM toggle の新しい既定キーは何にする？」で停止。
-      #   - desktop#5063・#7384 … 同件で **not_planned** クローズ
-      #   - desktop#4758 … repo cleanup の一括クローズ（`state_reason: completed` だが
-      #     本文は "clearing out old, duplicate, stale, and non-actionable issues"）
-      #   修正 PR は 1 件も無い（`key_dom` / `shouldBeEmptyShortcuts` / close window
-      #   conflict で検索・2026-10-25 時点）。よって上流を待たずローカルで潰す。
-      #
-      # ★ Linux だけに当てる。**mac は衝突していない**：DevTools のキー表が
-      #     const modifiers = isMac ? "accel,alt" : "accel,shift";
-      #   （omni.ja の modules/DevToolsStartup.sys.mjs:93）なので mac の DOM パネルは
-      #   **Cmd+Opt+W**、Close Window は Cmd+Shift+W で別物。mac 側で潰しても
-      #   DOM パネルのキーを無駄に失うだけ。issue の `platform: linux` ラベルと一致する。
-      #
-      # ⚠ prefs 経路では直せない。`devtools.dom.enabled` は omni.ja の既定が **false**
-      #   なのに、キー登録は DevToolsStartup の KeyShortcuts 表が無条件にやる
-      #   （gate しているのは `devtools.policy.disabled` のみ＝DevTools 全殺し）。
-      #   よって `zen-keyboard-shortcuts.json` を書き換える経路しか残らない。
-      #
-      # key と keycode を両方空にすると Zen は `<key>` を key/keycode 属性なしで生成する
-      # （ZenKeyboardShortcuts.mjs の replaceWithChild）＝どの打鍵にもマッチしない。
-      # Zen 自身が UI から無効化したときの保存形（`key_undoCloseWindow`）と同じ形。
-      #
-      # ⚠ 上流 hm-module/keyboard-shortcuts.nix の fragment は `requiresLock` を立てて
-      #   いないので、**Zen 起動中に rebuild すると終了時に書き戻される**。当てるときは
-      #   Zen を終了してから `nixos-rebuild switch` すること（Space/pin と同じ制約）。
-      # ⚠ 同 issue に「無効化しても新しいウィンドウで DOM タブが開く挙動に戻ることが
-      #   ある」という報告がある（DevToolsStartup の per-window フックとの競合）。
-      #   再発したらまずこれを疑う。
+      # key_dom (DevTools DOM panel) steals Ctrl+Shift+W from Close Window (Zen desktop#12871).
+      # Linux only: on mac it is Cmd+Opt+W. A pref cannot fix it: the key registers regardless.
+      # Not a lock fragment: quit Zen before `nixos-rebuild switch`, or the file is rewritten on exit.
+      # If a DOM tab reopens in new windows (DevToolsStartup per-window hook), suspect this first.
       keyboardShortcuts = lib.optionals pkgs.stdenv.hostPlatform.isLinux [
         {
           id = "key_dom";
@@ -296,13 +264,7 @@ in {
         }
       ];
 
-      # 上流の canary：`zen.keyboard.shortcuts.version` がこの値と違うと activation が
-      # **落ちる**（extensions の `exactPermissions` と同じ発想）。Zen が既定ショート
-      # カットを入れ替えたら気づけるので、上の key_dom の前提が生きているか確認する
-      # 契機になる。実測値 21（1.23.4b の `LATEST_KBS_VERSION = 21` と一致・2026-10-25）。
-      #
-      # ★ mac では keyboardShortcuts が空なのでこの検査ごと生成されない（上流は
-      #   `keyboardShortcuts != []` のプロファイルにしか fragment を作らない）。
+      # Canary: activation fails if Zen's shortcuts version changes (21 = 1.23.4b), so key_dom is re-checked.
       keyboardShortcutsVersion = 21;
 
       # ── 拡張機能（2026-09-05 に宣言化）──────────────────────────────

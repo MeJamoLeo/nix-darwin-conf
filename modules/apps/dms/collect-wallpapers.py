@@ -1,15 +1,14 @@
-"""壁紙パッケージ群から画像を拾い、1 つのフォルダに「出どころ-名前」で symlink を並べる。
+"""Symlink wallpapers from many packages into one folder as "<source>-<name>".
 
 usage: collect-wallpapers.py OUT PREFIX=STOREPATH [PREFIX=STOREPATH ...]
 
-- share/backgrounds 以下の画像は全部拾う。
-- share/wallpapers/<名前>/contents/images*/（KDE 形式。同じ絵の解像度違いが並ぶ）からは
-  1 枚だけ（画素数が最大のもの）拾う。images_dark は「-dark」を付けて別に拾う。
-  ただし share/backgrounds で 1 枚も拾えなかったパッケージに限る（nixos-artwork・Fedora は
-  両方に同じ絵を置くので、重複を避ける）。
-- ロゴ・スクリーンショット・極小ファイルは除く。
-- JPEG XL（.jxl）は DMS（Qt）で表示できる保証が無いので JPEG に変換して置く（djxl）。
-  拡張子だけ .jxl で中身が JPEG の物（budgie）はそのまま .jpg として symlink する。
+- share/backgrounds: take every image.
+- KDE share/wallpapers/<name>/contents/images*/: take only the largest resolution (images_dark gets a
+  "-dark" suffix), and only for packages with nothing in share/backgrounds (nixos-artwork and Fedora
+  ship the same pictures in both).
+- Skip logos, screenshots and tiny files.
+- .jxl is converted to JPEG with djxl (Qt/DMS may not render it); a .jxl that is really a JPEG is
+  symlinked as .jpg.
 """
 
 import os
@@ -43,10 +42,10 @@ def place(out: str, prefix: str, src: str, stem: str, seen: set) -> None:
         with open(src, "rb") as fh:
             head = fh.read(2)
         if head == b"\xff\xd8":
-            # 拡張子だけ .jxl で中身は JPEG（budgie-backgrounds が実際にそう）。
+            # .jxl extension but JPEG content (budgie-backgrounds).
             os.symlink(src, os.path.join(out, name + ".jpg"))
             return
-        # PNG に展開すると 1 枚 70MB 前後になるので JPEG（品質 90）で置く。
+        # Decoding to PNG would be ~70 MB per image; use JPEG (quality 90).
         r = subprocess.run(["djxl", src, os.path.join(out, name + ".jpg"), "--jpeg_quality=90"],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         if r.returncode != 0:

@@ -1,9 +1,9 @@
-"""テーマ一覧を色見本つきで作る（fzf 用、24bit の ANSI エスケープ）。
+"""Print the theme list with colour swatches for fzf (24-bit ANSI escapes).
 
 usage: list-swatches.py THEMES_DIR NAME...
 
-1 行 = 「見本<TAB>テーマ名」。見本は「地の上に文字色で Aa」「差し色の ◆」
-「赤・緑・黄・青・紫・水色の ●」。theme-switch は 2 列目（名前）だけを使う。
+One line per theme: "swatch<TAB>name". The swatch is "Aa" in the text colour on the background, an
+accent diamond and six dots (red, green, yellow, blue, purple, cyan). theme-switch uses only column 2.
 """
 
 import json

@@ -44,15 +44,9 @@ let
       done
     '';
 
-  # 2026-11-20: 壁紙の選択肢。nixpkgs にある各ディストリ・デスクトップの壁紙を全部入れて、
-  # 1 つのフォルダ ~/Pictures/Wallpapers に「出どころ-名前」で並べる（拾い方は
-  # ./collect-wallpapers.py）。いったん全部入れて眺め、合う物を選ぶための構成。
-  # DMS のダッシュボードの壁紙タブ（Mod+Shift+W）は「今の壁紙があるフォルダ」を一覧するので、
-  # 全部が同じフォルダにあれば、そこから選べる。パスが store ではなく ~/Pictures 起点なので、
-  # nixpkgs の更新で store パスが変わっても選んだ壁紙が切れない。
-  # ライセンスは各パッケージの meta を参照（CC BY / CC BY-SA / CC0 / public domain 等。
-  # KDE は画像ごとに metadata.json）。手元で眺めるだけなので配布はしない。
-  # ライセンス不明の寄せ集め（dharmx/walls 等）は入れていない。
+  # All wallpapers go into one folder under ~/Pictures: the DMS wallpaper tab lists the current
+  # wallpaper's folder, and a non-store path stays valid across nixpkgs updates.
+  # Collections with unclear licences (e.g. dharmx/walls) are deliberately left out.
   wallpaperSources = with pkgs; {
     pop = pop-wallpapers;
     pophp = pop-hp-wallpapers;
@@ -76,7 +70,7 @@ let
       ln -s ${wallpapers}/day.png $out/share/backgrounds/day.png
       ln -s ${wallpapers}/night.png $out/share/backgrounds/night.png
     '';
-  } // import ./extra-wallpapers.nix {inherit pkgs;} # nixpkgs に無いディストリ（取得元とライセンスは中に）
+  } // import ./extra-wallpapers.nix {inherit pkgs;}
     // lib.mapAttrs' (n: v: lib.nameValuePair "nixos-${n}" v)
     (lib.filterAttrs (_: lib.isDerivation) pkgs.nixos-artwork.wallpapers);
   wallpaperDir = pkgs.runCommand "wallpaper-choices" {
@@ -85,21 +79,15 @@ let
     python3 ${./collect-wallpapers.py} $out ${lib.concatStringsSep " " (lib.mapAttrsToList (n: v: "${n}=${v}") wallpaperSources)}
   '';
   wallpaperHome = "${config.home.homeDirectory}/Pictures/Wallpapers";
-  # 既定は星の軌跡（ayu Dark と 50% 透過の端末に合う暗く静かな絵）。
   defaultWallpaper = "${wallpaperHome}/pop-ahmadreza-sajadi-10140-edit.jpg";
 in {
   imports = [ dms.homeModules.dank-material-shell dms.homeModules.niri ];
 
   home.file."Pictures/Wallpapers".source = wallpaperDir;
 
-  # DMS は壁紙を ~/.local/state/dms/session.json に持つ。このファイルには夜間モード等の
-  # 実行時状態も DMS 自身が書くので、丸ごと store symlink にすると壊れる。switch 時に
-  # 壁紙のキーだけ触る（rbw・zen と同じ「必要なキーだけ宣言」方式）。
-  #
-  # 2026-11-20: DMS で選んだ壁紙を switch で上書きしないように変えた。既定へ戻すのは
-  # 「未設定」「ファイルが無い」「~/Pictures/Wallpapers の外（旧 store パス等）」のときだけ。
-  # perModeWallpaper は切る（配色が dark 固定なので昼夜で絵を替える意味が無く、オンだと
-  # 選んだ絵が片方のモードにしか効かない）。
+  # Do not symlink session.json: DMS also writes runtime state there (night mode etc.). Only the
+  # wallpaper key is touched, and only if unset or outside ~/Pictures/Wallpapers (keeps DMS picks).
+  # perModeWallpaper is off: the theme is dark-only, so a per-mode picture would apply to one mode.
   home.activation.dmsWallpaper = lib.hm.dag.entryAfter ["writeBoundary" "linkGeneration"] ''
     f="${config.xdg.stateHome}/dms/session.json"
     mkdir -p "$(dirname "$f")"
@@ -135,10 +123,8 @@ in {
     # keybinds have to come from Nix or launcher/notifications/lock don't
     # work at all.
     #
-    # 2026-11-20: enableKeybinds は includes.enable と併用すると警告が出る（DMS の
-    # distro/nix/niri.nix。includes で読む dms/binds.kdl と二重になりうるため）。includes は
-    # 配色（dms/colors.kdl）に要るので残し、キーは enableKeybinds の中身を下の
-    # programs.niri.settings.binds に写した（DMS 側で増えたら追従すること）。
+    # enableKeybinds warns when combined with includes.enable (it duplicates dms/binds.kdl), and includes
+    # is needed for colours; so the binds are copied into programs.niri.settings.binds below.
     niri = {
       enableSpawn = true;
       enableKeybinds = false;
@@ -150,11 +136,7 @@ in {
       # to the "spatial map with icons" ask.
       showWorkspaceApps = true;
 
-      # ポップアップ（コントロールセンター・ランチャー等）も同じ透け具合に揃える（niri-dots）。
       popupTransparency = 0.67;
-
-      # 配色は modules/custom/desktop-theme（Mod+Shift+T で切り替え）が currentThemeName /
-      # customThemeFile を入れる。
 
       # DankBar layout. `barConfigs` is a list; DMS overrides the whole
       # entry when settings.json defines it, so this mirrors the upstream
@@ -180,8 +162,7 @@ in {
         barLengthPadding = 0;
         bottomGap = 0;
         attachToScreenEdge = false;
-        # 2026-11-20: バーの地は完全に透かす（本人の希望「なるべく透過」）。ウィジェットの
-        # 下地だけ薄く残して、明るい壁紙でも文字が読めるようにする。
+        # Bar background fully transparent; widgets keep a faint backing so text stays readable.
         transparency = 0.0;
         widgetTransparency = 0.35;
         squareCorners = false;
@@ -228,7 +209,7 @@ in {
     };
   };
 
-  # DMS の enableKeybinds（上で切った）と同じキー。DMS 版 2026-10 の distro/nix/niri.nix から写した。
+  # Same keys as DMS's enableKeybinds (disabled above), copied from its distro/nix/niri.nix.
   programs.niri.settings.binds = with config.lib.niri.actions; let
     ipc = spawn "dms" "ipc";
     locked = action: {

@@ -513,7 +513,7 @@ in {
     # pbcopy だと ssh 先（ogasawara）の Mac に書かれて手元に届かないため、端末側に
     # 運ばせる。herdr は pane の OSC 52 を client 側へ転送する（--remote 時は手元機）。
 
-    # カラースキーム: mac は Kanagawa、NixOS（x1nano）は ayu Dark（2026-11-19。DMS・端末と揃える）。
+    # mac: Kanagawa; NixOS (x1nano): ayu Dark to match DMS and the terminal.
     colorschemes.kanagawa = {
       autoLoad = !pkgs.stdenv.hostPlatform.isLinux;
       enable = !pkgs.stdenv.hostPlatform.isLinux;
@@ -522,7 +522,7 @@ in {
     colorschemes.ayu = {
       autoLoad = pkgs.stdenv.hostPlatform.isLinux;
       enable = pkgs.stdenv.hostPlatform.isLinux;
-      settings.mirage = false; # Dark（mirage は別の青灰色の版）
+      settings.mirage = false;
     };
 
     defaultEditor = true;

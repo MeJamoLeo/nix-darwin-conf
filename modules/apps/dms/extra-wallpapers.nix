@@ -1,23 +1,21 @@
-# nixpkgs に無いディストリの壁紙（2026-11-20）。どれも share/backgrounds（または KDE 形式の
-# share/wallpapers）に並べ直した派生を返し、home.nix の wallpaperSources に混ぜる。
+# Wallpapers for distros missing from nixpkgs, repacked as share/backgrounds (or KDE-style share/wallpapers)
+# and mixed into wallpaperSources in home.nix.
 #
-# 取得元とライセンス（手元で眺めるだけ。この repo には画像を入れない＝配布はしない）：
-#   deepin    linuxdeepin/deepin-wallpapers 1.7.28   deepin/・solid は UnionTech の CC-BY-4.0
-#             （nonfree/ は CC-BY-NC-ND と Unsplash なので拾わない。mp4 も拾わない）
-#   opensuse  openSUSE/wallpapers（master）          作者ごとに CC BY / CC BY-SA（*/license/）
-#   solus     getsolus/artwork                       CC0 / CC BY / CC BY-SA（README・Attribution）
-#   garuda    garuda-wallpapers 1.1.1（GitLab）      repo は GPL-3。画像ごとの出所は未確認
-#   arch      xyproto/archlinux-wallpaper 1.6.1      png は CC0、jpg は Pixabay License
-#   debian    desktop-base 13.0.4                    テーマごとに GPL-2+ 等（debian/copyright）
-#   mint      mint-backgrounds-wilma 1.1（Mint 22）  画像は Unsplash License（Credits）
-#   ubuntu    ubuntu-wallpapers-{stonking,resolute}  CC-BY-SA 系中心、ファイルごとに違う
-#   kali      kali-wallpapers-2026 2026.3.0          GPL-3.0+、商標の要素あり
-# Manjaro・Zorin・EndeavourOS・Vanilla OS・Void・Gentoo は取得元を確定できず入れていない。
+# Sources and licences (viewed locally only; no images are stored in this repo, nothing is redistributed):
+#   deepin    linuxdeepin/deepin-wallpapers 1.7.28   deepin/ and solid are UnionTech CC-BY-4.0
+#             (nonfree/ is CC-BY-NC-ND and Unsplash, so skipped; mp4 skipped too)
+#   opensuse  openSUSE/wallpapers (master)           CC BY / CC BY-SA per author (*/license/)
+#   solus     getsolus/artwork                       CC0 / CC BY / CC BY-SA (README, Attribution)
+#   garuda    garuda-wallpapers 1.1.1 (GitLab)       repo is GPL-3; per-image origin unverified
+#   arch      xyproto/archlinux-wallpaper 1.6.1      png is CC0, jpg is Pixabay License
+#   debian    desktop-base 13.0.4                    GPL-2+ etc. per theme (debian/copyright)
+#   mint      mint-backgrounds-wilma 1.1 (Mint 22)   images are Unsplash License (Credits)
+#   ubuntu    ubuntu-wallpapers-{stonking,resolute}  mostly CC-BY-SA, differs per file
+#   kali      kali-wallpapers-2026 2026.3.0          GPL-3.0+, includes trademarked elements
+# Manjaro, Zorin, EndeavourOS, Vanilla OS, Void and Gentoo are left out: no source could be pinned down.
 {pkgs}: let
   inherit (pkgs) fetchFromGitHub fetchzip fetchurl runCommand;
 
-  # src の中の dirs（相対パス）にある画像を share/backgrounds へ symlink で並べる。
-  # 同じファイル名がぶつからないよう、ディレクトリ名を頭に付ける。
   pick = name: src: dirs:
     runCommand "wallpapers-${name}" {} ''
       mkdir -p $out/share/backgrounds
@@ -31,7 +29,6 @@
       done
     '';
 
-  # .deb の usr/share/backgrounds を取り出す。
   fromDeb = name: src:
     runCommand "wallpapers-${name}" {nativeBuildInputs = [pkgs.dpkg];} ''
       dpkg-deb -x ${src} x
@@ -75,7 +72,7 @@ in {
     hash = "sha256-aDn3o0NvrGxLsVQ+7J+GHwj5PeLDLwqP/P3wPCufHhc=";
   }) ["backgrounds/linuxmint-wilma"];
 
-  # desktop-base はテーマごとに KDE 形式（wallpaper/contents/images/<解像度>）。
+  # desktop-base ships KDE-style themes (wallpaper/contents/images/<resolution>).
   debian = let
     src = fetchzip {
       url = "http://deb.debian.org/debian/pool/main/d/desktop-base/desktop-base_13.0.4.tar.xz";
