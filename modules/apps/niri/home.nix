@@ -178,6 +178,12 @@ in
           matches = [ { is-active = false; } ];
           opacity = 0.9;
         }
+        # Zen・Orca はフォーカス中も透かす（2026-11-20 本人の希望）。中身ごと透けるので、文字が
+        # 読める範囲で 0.8。上の規則より後に置き、非アクティブ時もこの値にする。
+        {
+          matches = map (id: { app-id = id; }) [ "^zen" "^orca$" ];
+          opacity = 0.8;
+        }
       ];
 
       binds =

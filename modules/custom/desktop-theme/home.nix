@@ -8,7 +8,7 @@
 #
 #  desktop-theme — x1nano（niri＋DMS）の配色を Mod+Shift+T で切り替える（2026-11-20）。
 #
-#  一覧は kitty 同梱のテーマ集から人気のダーク系 50 個（fzf、↑↓ で即反映）。選ぶと
+#  一覧は kitty-themes＋iTerm2-Color-Schemes から人気のダーク系 58 個（fzf、↑↓ で即反映）。選ぶと
 #    - DMS（バー・ランチャー・コントロールセンター）と niri の枠色（DMS が書き出す）
 #    - kitty（開いている端末も load-config で即反映）
 #  が切り替わる。DMS 用の配色は kitty のテーマから ./gen-dms-theme.py で自動で作る。
@@ -26,9 +26,12 @@
 ##########################################################################
 let
   kittyThemes = "${pkgs.kitty-themes}/share/kitty-themes/themes";
+  # kitty-themes に無い物（Iceberg など）。名前 → conf のパス。
+  extraThemes = import ./extra-themes.nix {inherit pkgs;};
+  confOf = n: extraThemes.${n} or "${kittyThemes}/${n}.conf";
 
   # 表示名 = kitty-themes のファイル名（.conf 抜き）。並びがそのまま一覧の順。
-  # 2026-11-20: ダーク系だけ 50 個（明るい物は外した。端末を 50% 透かしているので読みにくい）。
+  # 2026-11-20: ダーク系だけ 58 個（kitty-themes に無い物も足す。明るい物は外した。端末を 50% 透かしているので読みにくい）。
   themeNames = [
     "ayu"
     "ayu_mirage"
@@ -64,6 +67,15 @@ let
     "Duskfox"
     "Terafox"
     "Nordfox"
+    # ここから 8 個は Iceberg と色の傾きが近い物（extra-themes.nix から。Kanagawabones は kitty-themes にもある）
+    "Iceberg_Dark"
+    "Kanagawabones"
+    "Midnight_Tundra"
+    "Sonoran_Blue_Hour"
+    "Kanso_Ink"
+    "Everblush"
+    "Onenord"
+    "Oceanic_Next"
     "OneDark"
     "OneHalfDark"
     "Atom"
@@ -86,8 +98,8 @@ let
     mkdir -p $out
     ${lib.concatMapStringsSep "\n" (n: ''
         mkdir -p "$out/${n}"
-        cp ${kittyThemes}/${n}.conf "$out/${n}/kitty.conf"
-        python3 ${./gen-dms-theme.py} ${kittyThemes}/${n}.conf "$out/${n}/dms.json" "${n}"
+        cp ${confOf n} "$out/${n}/kitty.conf"
+        python3 ${./gen-dms-theme.py} ${confOf n} "$out/${n}/dms.json" "${n}"
       '')
       themeNames}
     cp ${./ayu-dark.dms.json} "$out/ayu/dms.json"

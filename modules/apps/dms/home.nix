@@ -175,9 +175,10 @@ in {
         barLengthPadding = 0;
         bottomGap = 0;
         attachToScreenEdge = false;
-        # 2026-11-19: niri-dots に倣ってバーを半透明に（壁紙が透けて画面が軽く見える）。
-        transparency = 0.67;
-        widgetTransparency = 0.67;
+        # 2026-11-20: バーの地は完全に透かす（本人の希望「なるべく透過」）。ウィジェットの
+        # 下地だけ薄く残して、明るい壁紙でも文字が読めるようにする。
+        transparency = 0.0;
+        widgetTransparency = 0.35;
         squareCorners = false;
         noBackground = false;
         maximizeWidgetIcons = false;
