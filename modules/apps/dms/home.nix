@@ -44,33 +44,47 @@ let
       done
     '';
 
-  # 2026-11-20: 既定の壁紙を pop-os/wallpapers（nixpkgs の pop-wallpapers、CC-BY-SA-4.0 /
-  # public domain）の星の軌跡に替えた。ayu Dark と 50% 透過の端末に合う暗くて静かな絵を選んだ。
-  # 昼夜とも同じ1枚（配色が dark 固定なので）。38 枚すべてを home.packages に入れてあるので、
-  # DMS の壁紙ピッカーからは ~/.nix-profile/share/backgrounds/pop を辿れる（ただし switch の
-  # たびに下の activation がここで選んだ1枚へ戻す）。Terry Black's（上の wallpapers）は
-  # gen.py ごと残してあり、戻すなら $l / $d を wallpapers の day/night に戻すだけ。
-  popWallpaper = "${pkgs.pop-wallpapers}/share/backgrounds/pop/ahmadreza-sajadi-10140-edit.jpg";
+  # 2026-11-20: 壁紙の選択肢＝pop-os/wallpapers（nixpkgs の pop-wallpapers、CC-BY-SA-4.0 /
+  # public domain）の 38 枚＋Terry Black's の昼夜 2 枚。1 つのフォルダ ~/Pictures/Wallpapers に
+  # symlink で並べる。DMS のダッシュボードの壁紙タブは「今の壁紙があるフォルダ」を一覧するので、
+  # 全部が同じフォルダにあれば、そこから選べる。パスが store ではなく ~/Pictures 起点なので、
+  # nixpkgs の更新で store パスが変わっても選んだ壁紙が切れない。
+  wallpaperDir = pkgs.runCommand "wallpaper-choices" {} ''
+    mkdir -p $out
+    ln -s ${pkgs.pop-wallpapers}/share/backgrounds/pop/* $out/
+    ln -s ${wallpapers}/day.png $out/terry-blacks-day.png
+    ln -s ${wallpapers}/night.png $out/terry-blacks-night.png
+  '';
+  wallpaperHome = "${config.home.homeDirectory}/Pictures/Wallpapers";
+  # 既定は星の軌跡（ayu Dark と 50% 透過の端末に合う暗く静かな絵）。
+  defaultWallpaper = "${wallpaperHome}/ahmadreza-sajadi-10140-edit.jpg";
 in {
   imports = [ dms.homeModules.dank-material-shell dms.homeModules.niri ];
 
-  home.packages = [ pkgs.pop-wallpapers ];
+  home.file."Pictures/Wallpapers".source = wallpaperDir;
 
-  # DMS は壁紙を ~/.local/state/dms/session.json に持つ。perModeWallpaper=true にすると
-  # light/dark の切り替えで wallpaperPathLight / wallpaperPathDark が入れ替わる（DMS の
-  # SessionData.qml の setLightMode → syncWallpaperForCurrentMode）。このファイルには
-  # 夜間モード等の実行時状態も DMS 自身が書くので、programs.dank-material-shell.session で
-  # 丸ごと store symlink にすると壊れる。switch 時に壁紙のキーだけ書き込む
-  # （rbw・zen と同じ「必要なキーだけ宣言」方式）。DMS は変更を監視しているので起動中でも反映される。
-  home.activation.dmsWallpaper = lib.hm.dag.entryAfter ["writeBoundary"] ''
+  # DMS は壁紙を ~/.local/state/dms/session.json に持つ。このファイルには夜間モード等の
+  # 実行時状態も DMS 自身が書くので、丸ごと store symlink にすると壊れる。switch 時に
+  # 壁紙のキーだけ触る（rbw・zen と同じ「必要なキーだけ宣言」方式）。
+  #
+  # 2026-11-20: DMS で選んだ壁紙を switch で上書きしないように変えた。既定へ戻すのは
+  # 「未設定」「ファイルが無い」「~/Pictures/Wallpapers の外（旧 store パス等）」のときだけ。
+  # perModeWallpaper は切る（配色が dark 固定なので昼夜で絵を替える意味が無く、オンだと
+  # 選んだ絵が片方のモードにしか効かない）。
+  home.activation.dmsWallpaper = lib.hm.dag.entryAfter ["writeBoundary" "linkGeneration"] ''
     f="${config.xdg.stateHome}/dms/session.json"
     mkdir -p "$(dirname "$f")"
     [ -s "$f" ] || echo '{}' > "$f"
+    cur=$(${pkgs.jq}/bin/jq -r '.wallpaperPath // ""' "$f")
+    case "$cur" in
+      "${wallpaperHome}"/*) [ -e "$cur" ] || cur="" ;;
+      *) cur="" ;;
+    esac
+    w=''${cur:-${defaultWallpaper}}
     tmp=$(mktemp)
-    ${pkgs.jq}/bin/jq \
-      --arg l "${popWallpaper}" --arg d "${popWallpaper}" \
-      '.perModeWallpaper = true | .wallpaperPathLight = $l | .wallpaperPathDark = $d
-       | .wallpaperPath = (if .isLightMode then $l else $d end)' \
+    ${pkgs.jq}/bin/jq --arg w "$w" \
+      '.perModeWallpaper = false | .wallpaperPath = $w
+       | .wallpaperPathLight = $w | .wallpaperPathDark = $w' \
       "$f" > "$tmp" && mv "$tmp" "$f"
   '';
 
