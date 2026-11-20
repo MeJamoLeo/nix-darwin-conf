@@ -178,10 +178,12 @@ in
           matches = [ { is-active = false; } ];
           opacity = 0.9;
         }
-        # Zen・Orca はフォーカス中も透かす（2026-11-20 本人の希望）。中身ごと透けるので、文字が
-        # 読める範囲で 0.8。上の規則より後に置き、非アクティブ時もこの値にする。
+        # 全アプリをフォーカス中も透かす（2026-11-20 本人の希望「全てのアプリを透過」）。中身ごと
+        # 透けるので、文字が読める範囲で 0.8。上の規則より後に置き、非アクティブ時もこの値。
+        # 端末（kitty・ghostty・テーマピッカー）は自分で地だけ 50% 透かしているので除く
+        # （重ねると文字まで薄くなる）。
         {
-          matches = map (id: { app-id = id; }) [ "^zen" "^orca$" ];
+          excludes = map (id: { app-id = id; }) [ "^kitty$" "^com\\.mitchellh\\.ghostty$" "^desktop-theme-picker$" ];
           opacity = 0.8;
         }
       ];
