@@ -56,6 +56,9 @@ in {
       keybind = ["global:super+backquote=toggle_quick_terminal"];
       quick-terminal-position = "top";
       quick-terminal-size = "40%";
+      # 配色ピッカーは ↑↓ のたびに SIGUSR2 で読み直させるので、そのたびに出る
+      # 「Reloaded the configuration」のトーストを止める。
+      app-notifications = "no-config-reload";
     })
     ];
   };
