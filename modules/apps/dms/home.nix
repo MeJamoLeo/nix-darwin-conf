@@ -52,7 +52,7 @@ let
   # nixpkgs の更新で store パスが変わっても選んだ壁紙が切れない。
   # ライセンスは各パッケージの meta を参照（CC BY / CC BY-SA / CC0 / public domain 等。
   # KDE は画像ごとに metadata.json）。手元で眺めるだけなので配布はしない。
-  # nixpkgs に無い Deepin や、ライセンス不明の寄せ集め（dharmx/walls 等）は入れていない。
+  # ライセンス不明の寄せ集め（dharmx/walls 等）は入れていない。
   wallpaperSources = with pkgs; {
     pop = pop-wallpapers;
     pophp = pop-hp-wallpapers;
@@ -76,7 +76,8 @@ let
       ln -s ${wallpapers}/day.png $out/share/backgrounds/day.png
       ln -s ${wallpapers}/night.png $out/share/backgrounds/night.png
     '';
-  } // lib.mapAttrs' (n: v: lib.nameValuePair "nixos-${n}" v)
+  } // import ./extra-wallpapers.nix {inherit pkgs;} # nixpkgs に無いディストリ（取得元とライセンスは中に）
+    // lib.mapAttrs' (n: v: lib.nameValuePair "nixos-${n}" v)
     (lib.filterAttrs (_: lib.isDerivation) pkgs.nixos-artwork.wallpapers);
   wallpaperDir = pkgs.runCommand "wallpaper-choices" {
     nativeBuildInputs = [ pkgs.python3 pkgs.libjxl ];
