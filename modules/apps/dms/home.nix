@@ -43,8 +43,18 @@ let
         rsvg-convert -w 2160 -h 1350 $TMPDIR/$m.svg -o $out/$m.png
       done
     '';
+
+  # 2026-11-20: 既定の壁紙を pop-os/wallpapers（nixpkgs の pop-wallpapers、CC-BY-SA-4.0 /
+  # public domain）の星の軌跡に替えた。ayu Dark と 50% 透過の端末に合う暗くて静かな絵を選んだ。
+  # 昼夜とも同じ1枚（配色が dark 固定なので）。38 枚すべてを home.packages に入れてあるので、
+  # DMS の壁紙ピッカーからは ~/.nix-profile/share/backgrounds/pop を辿れる（ただし switch の
+  # たびに下の activation がここで選んだ1枚へ戻す）。Terry Black's（上の wallpapers）は
+  # gen.py ごと残してあり、戻すなら $l / $d を wallpapers の day/night に戻すだけ。
+  popWallpaper = "${pkgs.pop-wallpapers}/share/backgrounds/pop/ahmadreza-sajadi-10140-edit.jpg";
 in {
   imports = [ dms.homeModules.dank-material-shell dms.homeModules.niri ];
+
+  home.packages = [ pkgs.pop-wallpapers ];
 
   # DMS は壁紙を ~/.local/state/dms/session.json に持つ。perModeWallpaper=true にすると
   # light/dark の切り替えで wallpaperPathLight / wallpaperPathDark が入れ替わる（DMS の
@@ -58,7 +68,7 @@ in {
     [ -s "$f" ] || echo '{}' > "$f"
     tmp=$(mktemp)
     ${pkgs.jq}/bin/jq \
-      --arg l "${wallpapers}/day.png" --arg d "${wallpapers}/night.png" \
+      --arg l "${popWallpaper}" --arg d "${popWallpaper}" \
       '.perModeWallpaper = true | .wallpaperPathLight = $l | .wallpaperPathDark = $d
        | .wallpaperPath = (if .isLightMode then $l else $d end)' \
       "$f" > "$tmp" && mv "$tmp" "$f"
