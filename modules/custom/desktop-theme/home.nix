@@ -8,7 +8,7 @@
 #
 #  desktop-theme — x1nano（niri＋DMS）の配色を Mod+Shift+T で切り替える（2026-11-20）。
 #
-#  一覧は kitty 同梱のテーマ集から人気のダーク系 30 個。選ぶと
+#  一覧は kitty 同梱のテーマ集から人気のダーク系 30 個（fzf、↑↓ で即反映）。選ぶと
 #    - DMS（バー・ランチャー・コントロールセンター）と niri の枠色（DMS が書き出す）
 #    - kitty（開いている端末も load-config で即反映）
 #  が切り替わる。DMS 用の配色は kitty のテーマから ./gen-dms-theme.py で自動で作る。
@@ -70,7 +70,7 @@ let
       themeNames}
     cp ${./ayu-dark.dms.json} "$out/ayu/dms.json"
     printf '%s\n' ${lib.escapeShellArgs themeNames} > $out/list
-    python3 ${./list-markup.py} $out ${lib.escapeShellArgs themeNames} > $out/list-markup
+    python3 ${./list-swatches.py} $out ${lib.escapeShellArgs themeNames} > $out/list-swatches
   '';
 
   stateDir = "${config.xdg.stateHome}/desktop-theme";
@@ -88,20 +88,42 @@ let
     printf '%s\n' "$name" > "${stateDir}/name"
   '';
 
+  # theme-switch NAME … その配色にする（DMS・kitty）。
+  # theme-switch       … 端末の中で fzf の一覧を出す。↑↓ でフォーカスが動くたびに即反映し、
+  #                       Enter で決定、Esc で開いたときの配色に戻す。右側は fastfetch
+  #                       （OS の情報と 16 色のパレット。端末の色なので配色と一緒に変わる）。
   themeSwitch = pkgs.writeShellApplication {
     name = "theme-switch";
-    runtimeInputs = with pkgs; [wofi kitty coreutils gawk];
+    runtimeInputs = with pkgs; [fzf fastfetch kitty coreutils gnugrep];
     text = ''
-      cur=$(cat "${stateDir}/name" 2>/dev/null || true)
-      # 一覧は色見本つき（list-markup.py）。選んだ行の最後の語がテーマ名。
-      name=''${1:-$(wofi --dmenu --allow-markup --prompt "Theme (now: ''${cur:-none})" --cache-file /dev/null < ${themes}/list-markup | awk '{print $NF}')}
-      [ -n "$name" ] || exit 0
-      [ -d "${themes}/$name" ] || { echo "unknown theme: $name" >&2; exit 1; }
-      ${apply}
-      # 開いている kitty に読み直させる（listen_on は modules/apps/kitty/home.nix）。
-      for s in /tmp/kitty-*; do
-        [ -S "$s" ] && kitty @ --to "unix:$s" load-config >/dev/null 2>&1 || true
-      done
+      if [ $# -gt 0 ]; then
+        name=$1
+        [ -d "${themes}/$name" ] || { echo "unknown theme: $name" >&2; exit 1; }
+        ${apply}
+        # 開いている kitty に読み直させる（listen_on は modules/apps/kitty/home.nix）。
+        for s in /tmp/kitty-*; do
+          [ -S "$s" ] && kitty @ --to "unix:$s" load-config >/dev/null 2>&1 || true
+        done
+        exit 0
+      fi
+
+      # 開いた直後の focus（先頭行）で配色が変わらないよう、読み込みが終わって今の配色の
+      # 行へ移るまでは focus を外しておく（2026-11-20：start:pos だけでは先頭の ayu が当たった）。
+      self=$(readlink -f "$0")
+      orig=$(cat "${stateDir}/name" 2>/dev/null || echo ayu)
+      pos=$(grep -n -x -F "$orig" ${themes}/list | cut -d: -f1 || true)
+      sel=$(fzf --ansi --delimiter '\t' --with-nth 1,2 --no-sort --layout reverse --cycle \
+              --prompt 'theme> ' \
+              --header "↑↓ で即反映 / Enter で決定 / Esc で元に戻す（今: $orig）" \
+              --bind "start:unbind(focus)" \
+              --bind "load:pos(''${pos:-1})+rebind(focus)" \
+              --bind "focus:execute-silent($self {2})" \
+              --preview 'fastfetch --pipe false' \
+              --preview-window 'right,62%,border-left' \
+              < ${themes}/list-swatches | cut -f2 || true)
+      if [ -z "$sel" ]; then
+        "$self" "$orig"
+      fi
     '';
   };
 in {
@@ -122,10 +144,19 @@ in {
     include ${stateDir}/kitty.conf
   '';
 
+  # 一覧は専用の kitty を浮かせて開く（下の window-rules）。theme-switch は store の絶対パスで
+  # 呼ぶ（PATH の /etc/profiles は nixos-rebuild でしか更新されないので、home-manager だけ
+  # 当てた状態でも動くように）。
   programs.niri.settings.binds."Mod+Shift+T" = {
-    # store の絶対パスで呼ぶ（PATH の /etc/profiles は nixos-rebuild でしか更新されないので、
-    # home-manager だけ当てた状態でも動くように）。
-    action.spawn = ["${themeSwitch}/bin/theme-switch"];
+    action.spawn = ["kitty" "--class" "desktop-theme-picker" "-e" "${themeSwitch}/bin/theme-switch"];
     hotkey-overlay.title = "Theme Picker";
   };
+  programs.niri.settings.window-rules = [
+    {
+      matches = [{app-id = "^desktop-theme-picker$";}];
+      open-floating = true;
+      default-column-width.fixed = 1400;
+      default-window-height.fixed = 820;
+    }
+  ];
 }
