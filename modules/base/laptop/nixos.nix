@@ -1,4 +1,4 @@
-# ノート PC としての振る舞い（x1nano）。電源・電池・蓋・指紋・キーボード・音。
+# ノート PC としての振る舞い（x1nano）。電源・電池・蓋・指紋・キーボード・音・Bluetooth。
 {pkgs, ...}: {
   # 指紋認証（ログインと sudo）。
   services.fprintd.enable = true;
@@ -64,6 +64,17 @@
         };
       }
     ];
+  };
+
+  # pipewire に実時間優先度を渡す（無いと RTKit エラーが出て、音が途切れやすくなる）。
+  security.rtkit.enable = true;
+
+  # Bluetooth（2026-11-20）。チップ（Intel AX211 系、hci0）は認識していたが、BlueZ の
+  # サービスが無く使えなかった。DMS の Bluetooth パネルも BlueZ 経由で動く。
+  # 電池のため起動時は電源を切っておき、使うときに DMS から入れる。
+  hardware.bluetooth = {
+    enable = true;
+    powerOnBoot = false;
   };
 
   environment.systemPackages = with pkgs; [brightnessctl pulseaudio];
