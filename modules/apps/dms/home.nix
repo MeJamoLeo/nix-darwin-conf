@@ -44,20 +44,48 @@ let
       done
     '';
 
-  # 2026-11-20: 壁紙の選択肢＝pop-os/wallpapers（nixpkgs の pop-wallpapers、CC-BY-SA-4.0 /
-  # public domain）の 38 枚＋Terry Black's の昼夜 2 枚。1 つのフォルダ ~/Pictures/Wallpapers に
-  # symlink で並べる。DMS のダッシュボードの壁紙タブは「今の壁紙があるフォルダ」を一覧するので、
+  # 2026-11-20: 壁紙の選択肢。nixpkgs にある各ディストリ・デスクトップの壁紙を全部入れて、
+  # 1 つのフォルダ ~/Pictures/Wallpapers に「出どころ-名前」で並べる（拾い方は
+  # ./collect-wallpapers.py）。いったん全部入れて眺め、合う物を選ぶための構成。
+  # DMS のダッシュボードの壁紙タブ（Mod+Shift+W）は「今の壁紙があるフォルダ」を一覧するので、
   # 全部が同じフォルダにあれば、そこから選べる。パスが store ではなく ~/Pictures 起点なので、
   # nixpkgs の更新で store パスが変わっても選んだ壁紙が切れない。
-  wallpaperDir = pkgs.runCommand "wallpaper-choices" {} ''
-    mkdir -p $out
-    ln -s ${pkgs.pop-wallpapers}/share/backgrounds/pop/* $out/
-    ln -s ${wallpapers}/day.png $out/terry-blacks-day.png
-    ln -s ${wallpapers}/night.png $out/terry-blacks-night.png
+  # ライセンスは各パッケージの meta を参照（CC BY / CC BY-SA / CC0 / public domain 等。
+  # KDE は画像ごとに metadata.json）。手元で眺めるだけなので配布はしない。
+  # nixpkgs に無い Deepin や、ライセンス不明の寄せ集め（dharmx/walls 等）は入れていない。
+  wallpaperSources = with pkgs; {
+    pop = pop-wallpapers;
+    pophp = pop-hp-wallpapers;
+    system76 = system76-wallpapers;
+    cosmic = cosmic-wallpapers;
+    budgie = budgie-backgrounds;
+    gnome = gnome-backgrounds;
+    kde = kdePackages.plasma-workspace-wallpapers;
+    elementary = pantheon.elementary-wallpapers;
+    mate = mate-backgrounds;
+    adapta = adapta-backgrounds;
+    f32 = fedora-backgrounds.f32;
+    f33 = fedora-backgrounds.f33;
+    f34 = fedora-backgrounds.f34;
+    f35 = fedora-backgrounds.f35;
+    f36 = fedora-backgrounds.f36;
+    f37 = fedora-backgrounds.f37;
+    f38 = fedora-backgrounds.f38;
+    terryblacks = runCommand "terry-blacks-share" {} ''
+      mkdir -p $out/share/backgrounds
+      ln -s ${wallpapers}/day.png $out/share/backgrounds/day.png
+      ln -s ${wallpapers}/night.png $out/share/backgrounds/night.png
+    '';
+  } // lib.mapAttrs' (n: v: lib.nameValuePair "nixos-${n}" v)
+    (lib.filterAttrs (_: lib.isDerivation) pkgs.nixos-artwork.wallpapers);
+  wallpaperDir = pkgs.runCommand "wallpaper-choices" {
+    nativeBuildInputs = [ pkgs.python3 pkgs.libjxl ];
+  } ''
+    python3 ${./collect-wallpapers.py} $out ${lib.concatStringsSep " " (lib.mapAttrsToList (n: v: "${n}=${v}") wallpaperSources)}
   '';
   wallpaperHome = "${config.home.homeDirectory}/Pictures/Wallpapers";
   # 既定は星の軌跡（ayu Dark と 50% 透過の端末に合う暗く静かな絵）。
-  defaultWallpaper = "${wallpaperHome}/ahmadreza-sajadi-10140-edit.jpg";
+  defaultWallpaper = "${wallpaperHome}/pop-ahmadreza-sajadi-10140-edit.jpg";
 in {
   imports = [ dms.homeModules.dank-material-shell dms.homeModules.niri ];
 
