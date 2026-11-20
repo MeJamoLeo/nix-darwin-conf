@@ -50,6 +50,14 @@ PDF・配布ファイル・原本・授業の物は `~/Store/` に置く。**振
 - **Fable は「判断の単発委譲」でだけ使う。** メインセッションのモデルには据えず、`/advisor`（設計判断のセカンドオピニオン）経由で **1論点1体・並列禁止・実装させない**。それ以外の fan-out / 作業ループに Fable を委譲先として使わない（`~/.claude/settings.json` の `permissions.ask` に `Agent(model:fable)` を置いて、偶発的な増殖にゲートを掛けてある）。
 - 用途別の対応表と詳細は claude-obsidian の CLAUDE.md「モデル規律」が正史。
 
+## Code language and comments
+
+- Write new code, comments, user-visible strings, config and commit messages in English. Talk to the user in their language. Do not mass-translate existing Japanese.
+- Follow t_wada: code = How, tests = What, commit messages = Why, comments = Why not.
+  Keep a comment only when it says why the obvious alternative was not taken, or why something
+  that looks wrong is intentional (1-2 lines). No what/how, no dates or history.
+  Prefer an assertion or a test over a comment when the rule can be enforced.
+
 ## 設定・知識の置き場所ポリシー
 
 - **user-level（`~/.claude` 等）で便利なもの**は手動で置かず **nix-darwin-conf**（`~/nix-darwin-conf`）で宣言的に管理する。user-level に生ファイルを作らない。
