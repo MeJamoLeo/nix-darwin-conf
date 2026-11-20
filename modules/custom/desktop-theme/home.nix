@@ -8,7 +8,7 @@
 #
 #  desktop-theme — x1nano（niri＋DMS）の配色を Mod+Shift+T で切り替える（2026-11-20）。
 #
-#  一覧は kitty 同梱のテーマ集から人気のダーク系 30 個（fzf、↑↓ で即反映）。選ぶと
+#  一覧は kitty 同梱のテーマ集から人気のダーク系 50 個（fzf、↑↓ で即反映）。選ぶと
 #    - DMS（バー・ランチャー・コントロールセンター）と niri の枠色（DMS が書き出す）
 #    - kitty（開いている端末も load-config で即反映）
 #  が切り替わる。DMS 用の配色は kitty のテーマから ./gen-dms-theme.py で自動で作る。
@@ -19,6 +19,8 @@
 #  中身だけ今の store の版へ書き直す（未選択・候補から消えた物なら ayu に戻す）。
 #  dms.json は store への symlink にせず、実ファイルを mv で置き換える（下の apply）。
 #
+#  画面に出る文字列（fzf の案内・niri の hotkey 表示）は英語にする（2026-11-20 本人の希望）。
+#
 #  nvim とブラウザは追従しない（テーマごとのプラグイン対応が要るので別段）。
 #
 ##########################################################################
@@ -26,7 +28,7 @@ let
   kittyThemes = "${pkgs.kitty-themes}/share/kitty-themes/themes";
 
   # 表示名 = kitty-themes のファイル名（.conf 抜き）。並びがそのまま一覧の順。
-  # 2026-11-20: ダーク系だけ 30 個（明るい物は外した。端末を 50% 透かしているので読みにくい）。
+  # 2026-11-20: ダーク系だけ 50 個（明るい物は外した。端末を 50% 透かしているので読みにくい）。
   themeNames = [
     "ayu"
     "ayu_mirage"
@@ -58,6 +60,26 @@ let
     "night_owl"
     "moonfly"
     "Vesper"
+    "Carbonfox"
+    "Duskfox"
+    "Terafox"
+    "Nordfox"
+    "OneDark"
+    "OneHalfDark"
+    "Atom"
+    "VSCode_Dark"
+    "OceanicMaterial"
+    "Tomorrow_Night"
+    "Tomorrow_Night_Eighties"
+    "Zenburn"
+    "Modus_Vivendi"
+    "PaperColor_dark"
+    "Cobalt2"
+    "solarized_osaka_dark"
+    "sonokai-sushia"
+    "flexoki_dark"
+    "nightfly"
+    "Jellybeans"
   ];
 
   themes = pkgs.runCommand "desktop-themes" {nativeBuildInputs = [pkgs.python3];} ''
@@ -114,7 +136,7 @@ let
       pos=$(grep -n -x -F "$orig" ${themes}/list | cut -d: -f1 || true)
       sel=$(fzf --ansi --delimiter '\t' --with-nth 1,2 --no-sort --layout reverse --cycle \
               --prompt 'theme> ' \
-              --header "↑↓ で即反映 / Enter で決定 / Esc で元に戻す（今: $orig）" \
+              --header "Up/Down: preview live   Enter: keep   Esc: revert to $orig" \
               --bind "start:unbind(focus)" \
               --bind "load:pos(''${pos:-1})+rebind(focus)" \
               --bind "focus:execute-silent($self {2})" \
