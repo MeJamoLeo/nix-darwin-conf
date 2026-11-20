@@ -116,7 +116,9 @@ in {
   '';
 
   programs.niri.settings.binds."Mod+Shift+T" = {
-    action.spawn = ["theme-switch"];
+    # store の絶対パスで呼ぶ（PATH の /etc/profiles は nixos-rebuild でしか更新されないので、
+    # home-manager だけ当てた状態でも動くように）。
+    action.spawn = ["${themeSwitch}/bin/theme-switch"];
     hotkey-overlay.title = "Theme Picker";
   };
 }
