@@ -3,9 +3,7 @@
 {
   programs.kitty = {
     enable = true;
-    # ayu Dark（2026-11-19。DMS・nvim と揃える。kitty-themes 同梱の ayu.conf）。
-    # matugen 連動にしない — 長く開いている端末の色がシェル側の変更で動かないように。
-    themeFile = "ayu";
+    # 配色は modules/custom/desktop-theme（Mod+Shift+T）が include で差し込む（2026-11-20）。
     settings = {
       font_family = "JetBrainsMono Nerd Font";
       font_size = 12;

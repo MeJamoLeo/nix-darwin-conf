@@ -57,6 +57,7 @@
       ../modules/apps/imv/home.nix
       # custom
       ../modules/custom/cp/tools/home.nix
+      ../modules/custom/desktop-theme/home.nix # 配色の切り替え（Mod+Shift+T）
       # 外部 flake 供給の HM モジュール
       ((nixvim.homeModules or nixvim.homeManagerModules).nixvim)
       zen-browser.homeModules.default
