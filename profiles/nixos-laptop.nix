@@ -56,7 +56,9 @@
       ../modules/apps/wayvibes/home.nix
       ../modules/apps/imv/home.nix
       ../modules/apps/orca/home.nix
+      ../modules/apps/mpv/home.nix
       # custom
+      ../modules/custom/fm/home.nix
       ../modules/custom/cp/tools/home.nix
       ../modules/custom/desktop-theme/home.nix
       # 外部 flake 供給の HM モジュール

@@ -3,6 +3,7 @@
 Usage:
   fm                 play Claude FM
   fm skrillex        shuffle 30 YouTube results for "Skrillex"
+  fm rebuild         play the Rebuild podcast, newest episode first
   fm <URL>           play a URL (video or playlist) as-is
   fm <words>         search YouTube for <words> and shuffle 30 results
   fm --refresh ...   search again instead of using the saved results
@@ -25,6 +26,7 @@ import sys
 import tempfile
 import time
 import unicodedata
+import xml.etree.ElementTree as ET
 
 # Names that play a fixed URL.
 PRESETS = {
@@ -34,6 +36,11 @@ PRESETS = {
 # Names that run a YouTube search.
 SEARCHES = {
     "skrillex": "Skrillex",
+}
+
+# Names that play a podcast RSS feed.
+FEEDS = {
+    "rebuild": "https://feeds.rebuild.fm/rebuildfm",
 }
 
 # A search keeps this many videos shorter than MAX_SEARCH_SECONDS,
@@ -112,8 +119,34 @@ def cached_search(query, refresh):
     return urls
 
 
+def feed_playlist(name, url):
+    """Return a local M3U of the feed, falling back to the last saved one when offline."""
+    path = os.path.join(CACHE_DIR, f"{name}.m3u")
+    try:
+        xml = subprocess.run(["curl", "-fsSL", "--max-time", "15", url],
+                             stdin=subprocess.DEVNULL, capture_output=True, check=True).stdout
+        lines = ["#EXTM3U"]
+        for item in ET.fromstring(xml).findall("./channel/item"):
+            enclosure = item.find("enclosure")
+            media = enclosure.get("url", "") if enclosure is not None else ""
+            if media.startswith("https://"):
+                title = " ".join((item.findtext("title") or media).split())
+                lines += [f"#EXTINF:-1,{title}", media]
+        if len(lines) == 1:
+            raise ValueError("feed has no episodes")
+        os.makedirs(CACHE_DIR, exist_ok=True)
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write("\n".join(lines) + "\n")
+        os.replace(tmp, path)
+    except (OSError, ValueError, subprocess.SubprocessError, ET.ParseError) as e:
+        if not os.path.exists(path):
+            sys.exit(f"fm: could not load {name}: {e}")
+    return path
+
+
 class Mpv:
-    def __init__(self, targets, shuffle):
+    def __init__(self, targets, shuffle, extra=()):
         self.sock_path = os.path.join(tempfile.mkdtemp(prefix="fm-"), "mpv.sock")
         args = [
             os.environ.get("FM_MPV", "mpv"),
@@ -123,6 +156,7 @@ class Mpv:
         ]
         if shuffle:
             args.append("--shuffle")
+        args.extend(extra)
         args.extend(targets)
         self.proc = subprocess.Popen(args, stdin=subprocess.DEVNULL,
                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -372,8 +406,13 @@ def main():
     if arg in ("-h", "--help"):
         print(__doc__)
         return
+    extra = []
     if arg.lower() in PRESETS:
         targets, shuffle = [PRESETS[arg.lower()]], False
+    elif arg.lower() in FEEDS:
+        targets, shuffle = [feed_playlist(arg.lower(), FEEDS[arg.lower()])], False
+        # Direct MP3s: going through yt-dlp only delays each episode.
+        extra = ["--ytdl=no"]
     elif "://" in arg:
         targets, shuffle = [arg], False
     else:
@@ -386,7 +425,7 @@ def main():
     # so the finally block below still stops mpv instead of leaving it playing.
     for sig in (signal.SIGHUP, signal.SIGTERM):
         signal.signal(sig, lambda *_: sys.exit(0))
-    mpv = Mpv(targets, shuffle)
+    mpv = Mpv(targets, shuffle, extra)
     try:
         curses.wrapper(run, mpv)
     except KeyboardInterrupt:

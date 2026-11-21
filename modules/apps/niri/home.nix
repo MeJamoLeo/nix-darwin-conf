@@ -43,6 +43,14 @@ in
     platformTheme.name = "gtk3";
   };
 
+  # Without this, each toolkit picks its own default and the pointer changes size between windows.
+  home.pointerCursor = {
+    name = "Adwaita";
+    package = pkgs.adwaita-icon-theme;
+    size = 24;
+    gtk.enable = true;
+  };
+
   # Wayland のクリップボード（tmux / nvim / cp ツールが使う）とランチャ予備。
   home.packages = with pkgs; [ wl-clipboard wofi playerctl ];
 
@@ -60,6 +68,11 @@ in
     package = pkgs.niri;
 
     settings = {
+      cursor = {
+        theme = config.home.pointerCursor.name;
+        size = config.home.pointerCursor.size;
+      };
+
       input = {
         keyboard.numlock = true;
         touchpad = {
@@ -82,7 +95,7 @@ in
           { proportion = 0.5; }
           { proportion = 0.66667; }
         ];
-        default-column-width.proportion = 1.0;
+        default-column-width.proportion = 0.66667;
 
         focus-ring = {
           width = 4;
