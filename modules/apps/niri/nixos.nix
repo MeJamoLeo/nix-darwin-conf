@@ -1,22 +1,21 @@
 # niri（Wayland のタイル型コンポジタ）を中心にした x1nano のデスクトップ一式。
-# greetd + tuigreet (TUI); logging in starts niri directly.
-# F3 in tuigreet picks a plain zsh instead (no resident GUI, saves battery).
+# greetd + DMS Greeter; logging in starts niri.
 {
   config,
   pkgs,
   username,
+  dms-greeter,
   ...
 }: {
+  imports = [dms-greeter.nixosModules.default];
+
   programs.niri.enable = true;
 
-  services.greetd = {
+  # Runs as the default `greeter` user. Plain zsh is still reachable from another TTY.
+  programs.dms-greeter = {
     enable = true;
-    settings.default_session = {
-      # --remember-session は付けない：/var/cache/tuigreet の記憶が --cmd に勝ってしまい、
-      # 宣言した既定が「最後に選んだもの」に負けるため。
-      command = "${pkgs.tuigreet}/bin/tuigreet --time --remember --cmd niri-session --sessions ${config.services.displayManager.sessionData.desktops}/share/wayland-sessions";
-      user = username;
-    };
+    compositor.name = "niri";
+    configHome = config.users.users.${username}.home;
   };
 
   # X11 アプリ（VirtualBox の Qt UI 等）用。niri の spawn-at-startup が起動する。

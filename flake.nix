@@ -208,6 +208,12 @@
       inputs.nixpkgs.follows = "nixpkgs-nixos";
     };
 
+    # The greeter left the DMS flake for its own repo, so `dms` alone no longer provides it.
+    dms-greeter = {
+      url = "github:duxlabs-dev/dux-greeter";
+      inputs.nixpkgs.follows = "nixpkgs-nixos";
+    };
+
     # wayvibes: Wayland でキー打鍵音を鳴らす（soundpack は flake のソースツリー内）。
     wayvibes = {
       url = "github:sahaj-b/wayvibes";

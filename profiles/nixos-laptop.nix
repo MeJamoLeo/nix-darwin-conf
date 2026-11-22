@@ -23,7 +23,7 @@
     ../modules/base/host-users/nixos.nix
     ../modules/base/remote-access/nixos.nix
     ../modules/base/laptop/nixos.nix
-    ../modules/apps/niri/nixos.nix # デスクトップ＋greetd(tuigreet→zsh)
+    ../modules/apps/niri/nixos.nix # デスクトップ＋greetd(DMS Greeter)
     ../modules/apps/fcitx5/nixos.nix
     ../modules/apps/claude/nixos.nix # managed settings（mac の darwin.nix と同じ JSON）
     ../modules/custom/cp/print/nixos.nix
