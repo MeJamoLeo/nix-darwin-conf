@@ -1,10 +1,10 @@
 {...}: let
-  # `open` rather than the binary: casks live in /Applications and their self-updates replace the bundle.
+  # A full path, not `open -a`: LaunchServices can still resolve the name to an old Nix-store copy.
   # No KeepAlive: quitting from the menu bar must stick until the next login.
   loginAgent = app: {
     enable = true;
     config = {
-      ProgramArguments = ["/usr/bin/open" "-g" "-a" app];
+      ProgramArguments = ["/usr/bin/open" "-g" "/Applications/${app}.app"];
       RunAtLoad = true;
     };
   };
