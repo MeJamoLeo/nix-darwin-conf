@@ -25,6 +25,12 @@
     options = lib.mkDefault "--delete-older-than 14d";
   };
 
+  # launchd keeps only the exit code, which cannot explain a weekly run that fails unattended.
+  launchd.daemons.nix-gc.serviceConfig = {
+    StandardOutPath = "/var/log/nix-gc.log";
+    StandardErrorPath = "/var/log/nix-gc.log";
+  };
+
   # darwin-rebuild switch のたびに system profile を最新 10 世代に絞る。
   # nix.gc は age ベースしか受け付けないため、count 制限はこちらで担当。
   # flake.lock が git にある前提で、10 世代 ≒ 数日分の instant rollback を確保。
