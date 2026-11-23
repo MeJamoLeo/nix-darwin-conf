@@ -156,7 +156,7 @@ in {
         # plus focused-window title was redundant clutter.
         leftWidgets = [ "launcherButton" "workspaceSwitcher" ];
         centerWidgets = [ "music" "clock" "weather" ];
-        rightWidgets = [ "systemTray" "clipboard" "cpuUsage" "memUsage" "notificationButton" "battery" "controlCenterButton" ];
+        rightWidgets = [ "systemTray" "clipboard" "cpuUsage" "memUsage" "diskUsage" "idleInhibitor" "notificationButton" "battery" "controlCenterButton" ];
         spacing = 4;
         innerPadding = 4;
         barLengthPadding = 0;

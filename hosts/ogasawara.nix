@@ -28,6 +28,7 @@
   #     1台だけ置くのが用途とも噛み合う。
   # 他機に広げたくなったら、このブロックを profiles/mac-workstation.nix へ移す。
   home-manager.users.${username}.imports = [
+    ../modules/apps/menubar-tools/home.nix
     ../modules/apps/hermes/home.nix
     ../modules/custom/mail-check/home.nix
     ../modules/custom/task-loop/home.nix # Linear を正本にした自動化（Claude を呼ばない部分）

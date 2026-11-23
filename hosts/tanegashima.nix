@@ -10,6 +10,7 @@
   ];
 
   home-manager.users.${username}.imports = [
+    ../modules/apps/menubar-tools/home.nix
     # REA（逆アセンブラを持つ MCP サーバ）。本体は npm global 運用なので、
     # ここが宣言するのは Ghidra / JDK / npm prefix だけ。詳細はモジュール冒頭。
     ../modules/apps/rea/home.nix
