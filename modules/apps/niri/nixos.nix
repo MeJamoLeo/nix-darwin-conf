@@ -26,7 +26,7 @@
   ];
 
   environment.sessionVariables = {
-    DISPLAY = ":0"; # xwayland-satellite の既定ディスプレイ
+    # Do not set DISPLAY here: pam_env hands it to the greeter's niri, which then starts nested and crashes.
     WLR_NO_HARDWARE_CURSORS = "1";
     NIXOS_OZONE_WL = "1"; # Electron/Chromium 系を Wayland ネイティブで
     TERMINAL = "ghostty";
