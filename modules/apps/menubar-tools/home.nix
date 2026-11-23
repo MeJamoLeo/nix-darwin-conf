@@ -23,6 +23,15 @@ in {
   launchd.agents.keepingyouawake =
     loginAgent "keepingyouawake" "${pkgs.keepingyouawake}/Applications/KeepingYouAwake.app/Contents/MacOS/KeepingYouAwake";
 
+  # `open` rather than the binary: the app lives in /Applications via its cask and may be replaced by updates.
+  launchd.agents.hidden-bar = {
+    enable = true;
+    config = {
+      ProgramArguments = ["/usr/bin/open" "-g" "-a" "Hidden Bar"];
+      RunAtLoad = true;
+    };
+  };
+
   targets.darwin.defaults."eu.exelban.Stats" = {
     # The Nix store is read-only, so the app's self-updater can only fail or drift from the pin.
     "update-interval" = "Never";

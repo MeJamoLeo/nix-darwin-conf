@@ -7,6 +7,7 @@
     # Orca（エージェント並列実行の ADE・homebrew cask）。dejima には配らないので
     # profile ではなく mac 2台から個別に import する。
     ../modules/apps/orca/darwin.nix
+    ../modules/apps/menubar-tools/darwin.nix
   ];
 
   # ★ tailnet 越しの ssh は 22 番（Tailscale SSH）のまま。2026-10-24 に「Tailscale SSH が
