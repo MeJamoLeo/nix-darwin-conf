@@ -28,6 +28,26 @@ in {
     Bluetooth_state = false;
     Sensors_state = false;
     Clock_state = false;
+
+    CPU_widget = "line_chart";
+    CPU_line_chart_box = false;
+    CPU_line_chart_label = true;
+
+    GPU_widget = "line_chart";
+    GPU_line_chart_box = false;
+    GPU_line_chart_color = "secondGreen";
+    GPU_line_chart_frame = false;
+    GPU_line_chart_label = true;
+    GPU_line_chart_value = false;
+
+    RAM_widget = "line_chart";
+    RAM_line_chart_box = false;
+    RAM_line_chart_color = "secondRed";
+    RAM_line_chart_gradientFill = true;
+    RAM_line_chart_label = true;
+
+    Disk_widget = "pie_chart";
+    Disk_pie_chart_label = true;
   };
 
   targets.darwin.defaults."info.marcel-dierkes.KeepingYouAwake" = {
