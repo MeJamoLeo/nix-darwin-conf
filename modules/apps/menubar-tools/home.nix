@@ -1,40 +1,21 @@
-{
-  config,
-  pkgs,
-  ...
-}: let
-  logDir = "${config.home.homeDirectory}/Library/Logs";
-
+{...}: let
+  # `open` rather than the binary: casks live in /Applications and their self-updates replace the bundle.
   # No KeepAlive: quitting from the menu bar must stick until the next login.
-  loginAgent = name: program: {
+  loginAgent = app: {
     enable = true;
     config = {
-      Program = program;
+      ProgramArguments = ["/usr/bin/open" "-g" "-a" app];
       RunAtLoad = true;
-      ProcessType = "Interactive";
-      StandardOutPath = "${logDir}/${name}.log";
-      StandardErrorPath = "${logDir}/${name}.err.log";
     };
   };
 in {
-  home.packages = [pkgs.stats pkgs.keepingyouawake];
-
-  launchd.agents.stats = loginAgent "stats" "${pkgs.stats}/Applications/Stats.app/Contents/MacOS/Stats";
-  launchd.agents.keepingyouawake =
-    loginAgent "keepingyouawake" "${pkgs.keepingyouawake}/Applications/KeepingYouAwake.app/Contents/MacOS/KeepingYouAwake";
-
-  # `open` rather than the binary: the app lives in /Applications via its cask and may be replaced by updates.
-  launchd.agents.hidden-bar = {
-    enable = true;
-    config = {
-      ProgramArguments = ["/usr/bin/open" "-g" "-a" "Hidden Bar"];
-      RunAtLoad = true;
-    };
-  };
+  launchd.agents.stats = loginAgent "Stats";
+  launchd.agents.keepingyouawake = loginAgent "KeepingYouAwake";
+  launchd.agents.hidden-bar = loginAgent "Hidden Bar";
 
   targets.darwin.defaults."eu.exelban.Stats" = {
-    # The Nix store is read-only, so the app's self-updater can only fail or drift from the pin.
-    "update-interval" = "Never";
+    # homebrew.onActivation.upgrade is off, so the app has to update itself.
+    "update-interval" = "Silent";
     # Login start belongs to launchd; the first-run wizard would register a second login item.
     setupProcess = true;
 
@@ -50,7 +31,7 @@ in {
   };
 
   targets.darwin.defaults."info.marcel-dierkes.KeepingYouAwake" = {
-    SUEnableAutomaticChecks = false;
-    SUAutomaticallyUpdate = false;
+    SUEnableAutomaticChecks = true;
+    SUAutomaticallyUpdate = true;
   };
 }
